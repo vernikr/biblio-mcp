@@ -90,11 +90,17 @@ export async function searchBooks(
 export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   const links: DownloadLink[] = [];
 
-  const [libgenRes, annasRes] = await Promise.allSettled([
+  const [fastRes, libgenRes, annasRes] = await Promise.allSettled([
+    annas.fastDownload(md5),
     libgen.downloadLinks(md5),
     annas.details(md5),
   ]);
 
+  // Member fast-download goes first when available: it is a direct file URL and
+  // the only path that survives the DDoS-Guard challenge on the HTML mirrors.
+  // Resolves to null when no API key is configured, so unsubscribed setups are
+  // unaffected.
+  if (fastRes.status === "fulfilled" && fastRes.value) links.push(fastRes.value);
   if (libgenRes.status === "fulfilled") links.push(...libgenRes.value);
   if (annasRes.status === "fulfilled") links.push(...annasRes.value.downloadLinks);
 

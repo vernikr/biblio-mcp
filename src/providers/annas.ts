@@ -98,6 +98,54 @@ export async function details(
   };
 }
 
+/**
+ * Member fast-download. Per Anna's Archive's own FAQ this is the ONE stable
+ * JSON API they offer: `/dyn/api/fast_download.json` (docs live inside the JSON
+ * response itself). Everything else — custom search, iterating files — they
+ * point at their ElasticSearch/MariaDB dumps and torrent lists instead.
+ *
+ * Two reasons this matters beyond speed:
+ *   1. It returns a direct file URL, skipping the slow-download waiting page.
+ *   2. It is a JSON endpoint, so it is not behind the DDoS-Guard JS challenge
+ *      that blocks the HTML mirrors from any non-browser client.
+ *
+ * No key set => returns null and the caller falls through to the scraped links.
+ * The key is read from the environment and never logged, echoed, or included
+ * in the returned label.
+ */
+export async function fastDownload(md5: string): Promise<DownloadLink | null> {
+  const key = process.env.BIBLIO_ANNAS_API_KEY?.trim();
+  if (!key) return null;
+
+  for (const base of ANNAS_MIRRORS) {
+    try {
+      const res = await fetch(
+        `${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`,
+        { signal: AbortSignal.timeout(20_000) }
+      );
+      if (!res.ok) continue;
+      const data: any = await res.json();
+      const url: unknown = data?.download_url ?? data?.url;
+      if (typeof url !== "string" || !url) continue;
+
+      // Surface remaining quota when the API reports it, so a run can see it
+      // is burning through the daily allowance.
+      const left =
+        data?.account_fast_download_info?.downloads_left ??
+        data?.downloads_left;
+      const label =
+        typeof left === "number"
+          ? `Anna's Archive fast download (member, ${left} left today)`
+          : "Anna's Archive fast download (member)";
+
+      return { source: "annas", label, url, direct: true };
+    } catch {
+      // Dead or blocked mirror — try the next one.
+    }
+  }
+  return null;
+}
+
 function extractDownloadLinks(
   $: cheerio.CheerioAPI,
   base: string

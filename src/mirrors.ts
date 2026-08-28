@@ -16,11 +16,17 @@ function fromEnv(name: string, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+// Refreshed 2026-08-28. The old defaults were stale and mostly dead:
+//   .org — taken offline by the registrar 2026-01-11
+//   .li  — permanently deleted 2026-03-01 under publisher legal pressure
+//   .se  — no longer resolving
+// Anna's Archive tells users to check its Wikipedia article for the current
+// list, since these rotate under takedown pressure. Verify there before editing;
+// do not trust the SEO "current links" blogspam, which is where fake mirrors live.
 export const ANNAS_MIRRORS = fromEnv("BIBLIO_ANNAS_MIRRORS", [
-  "https://annas-archive.org",
-  "https://annas-archive.se",
-  "https://annas-archive.li",
   "https://annas-archive.gl",
+  "https://annas-archive.gd",
+  "https://annas-archive.pk",
 ]);
 
 export const LIBGEN_MIRRORS = fromEnv("BIBLIO_LIBGEN_MIRRORS", [
