@@ -33,6 +33,17 @@ import { fileURLToPath } from "node:url";
 const require_ = createRequire(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+/**
+ * True when this script is running from an installed package rather than a
+ * source checkout.
+ *
+ * The difference matters because two of the checks below are about the
+ * *checkout*, not about the package: a published tarball legitimately ships no
+ * lockfile and no node_modules of its own. Reporting those as failures made
+ * `--selfcheck` fail for every installed copy while saying nothing useful.
+ */
+const INSTALLED_PACKAGE = /[\\/]node_modules[\\/][^\\/]+[\\/]?$/.test(`${PROJECT_ROOT}/`);
+
 /** Minimum Node this server supports (mirrors "engines" in package.json). */
 const MIN_NODE_MAJOR = 18;
 
@@ -190,23 +201,39 @@ export function runPreflight({ requireBuild = false } = {}) {
   // The project standardises on pnpm. A stray package-lock.json resolved by npm
   // can produce a different (and previously broken) dependency tree, so warn
   // rather than fail — both files may legitimately coexist during migration.
-  const hasPnpmLock = existsSync(join(PROJECT_ROOT, "pnpm-lock.yaml"));
-  const hasNpmLock = existsSync(join(PROJECT_ROOT, "package-lock.json"));
-  push(
-    "lockfiles",
-    hasPnpmLock,
-    hasPnpmLock
-      ? {
-          info: hasNpmLock ? "pnpm-lock.yaml (+ package-lock.json present)" : "pnpm-lock.yaml",
-          note: hasNpmLock
-            ? "package-lock.json also present; this project installs with pnpm"
-            : undefined,
-        }
-      : { info: "none", problem: "pnpm-lock.yaml missing — dependency versions are unpinned" }
-  );
+  //
+  // This check only means anything in a source checkout. An installed package
+  // ships no lockfile by design, so reporting "FAIL lockfiles" there would be a
+  // false alarm about something the user cannot fix — which is how this check
+  // used to make `--selfcheck` fail for everyone who installed the package.
+  if (INSTALLED_PACKAGE) {
+    push("lockfiles", true, { info: "n/a (installed package, not a source checkout)" });
+  } else {
+    const hasPnpmLock = existsSync(join(PROJECT_ROOT, "pnpm-lock.yaml"));
+    const hasNpmLock = existsSync(join(PROJECT_ROOT, "package-lock.json"));
+    push(
+      "lockfiles",
+      hasPnpmLock,
+      hasPnpmLock
+        ? {
+            info: hasNpmLock ? "pnpm-lock.yaml (+ package-lock.json present)" : "pnpm-lock.yaml",
+            note: hasNpmLock
+              ? "package-lock.json also present; this project installs with pnpm"
+              : undefined,
+          }
+        : { info: "none", problem: "pnpm-lock.yaml missing — dependency versions are unpinned" }
+    );
+  }
 
   // 3. Dependencies installed -------------------------------------------------
-  const hasNodeModules = existsSync(join(PROJECT_ROOT, "node_modules"));
+  // In a source checkout they are in <root>/node_modules. In an installed copy
+  // the package lives at <consumer>/node_modules/<name>, so its dependencies
+  // are two levels up — in the consuming project's tree. Only report "missing"
+  // when neither location has them.
+  const hasNodeModules =
+    existsSync(join(PROJECT_ROOT, "node_modules")) ||
+    existsSync(resolve(PROJECT_ROOT, "..", "node_modules")) ||
+    existsSync(resolve(PROJECT_ROOT, "..", "..", "node_modules"));
   push(
     "dependencies",
     hasNodeModules,

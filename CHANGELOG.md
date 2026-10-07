@@ -3,6 +3,34 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [1.5.1] - 2026-10-08
+
+Found by auditing the release rather than by a bug report: three things were inconsistent with
+what the documentation promised.
+
+### Fixed
+- **`--selfcheck` failed for every installed copy of the package.** Two preflight checks are about
+  the *source checkout*, not the package: a published tarball ships no `pnpm-lock.yaml` and has no
+  `node_modules` of its own. Both were reported as failures, so `--selfcheck` printed
+  `FAIL lockfiles` and `FAIL dependencies — run pnpm install` for anyone who installed rather than
+  cloned — advice that cannot help them. `lockfiles` now reports `n/a (installed package)` in that
+  case, and `dependencies` also looks in the consuming project's tree, two levels up. Verified
+  against a real `npm pack` tarball installed with `npm install`.
+- **The published tarball did not contain the installer.** The README's primary install path is
+  `node scripts/install.mjs`, but `files` in `package.json` listed only `preflight.mjs`, so the
+  documented command was missing for anyone who installed the package.
+
+### Changed
+- **`--help` now lists `BIBLIO_ANNAS_API_KEY` and the installer.** Both existed and were
+  documented elsewhere, but not in the one place a user looks first.
+
+### Added
+- **Three drift guards**, so this cannot quietly recur: every `BIBLIO_*` variable referenced in
+  `src/` or `scripts/` must appear in both `--help` and the README; every `pnpm <script>` the README
+  mentions must exist in `package.json`; and if the README points at `scripts/install.mjs`, the
+  tarball must ship it.
+- A preflight test that reproduces the installed-package layout and asserts it passes.
+
 ## [1.5.0] - 2026-10-08
 
 Phase 4 of the improvement plan: release and distribution. The goal is that nobody installs

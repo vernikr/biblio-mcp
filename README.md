@@ -156,6 +156,10 @@ started and then failed every tool call. This fork keeps one lockfile so there i
 claude mcp add -s user biblio -- node /absolute/path/to/biblio-mcp/dist/index.js
 ```
 
+`node scripts/install.mjs` prints this line with the absolute path already filled in, so you do
+not have to work out where the checkout landed. The path **must** be absolute: a relative one is
+resolved against wherever your client happens to start the process, which is not predictable.
+
 ### Add to Claude Desktop / Cline / Cursor / any MCP client
 
 biblio-mcp uses **stdio transport**, so any MCP client that can launch a subprocess works. Add
@@ -287,6 +291,7 @@ All optional — sensible defaults ship built-in. Override via environment varia
 | `BIBLIO_DOWNLOAD_STALL_MS` | Abort a download idle for this long | `30000` |
 | `BIBLIO_MIRROR_DEAD_TTL_MS` | How long a failed mirror is skipped | `300000` |
 | `BIBLIO_MIRROR_STAGGER_MS` | Head start between concurrent mirror attempts | `120` |
+| `BIBLIO_SKIP_STARTUP_CHECK` | Set to any value to skip the startup tool-surface check and serve even if it is broken | unset |
 
 Mirror lists are ordered by preference: earlier hosts get a head start, and hosts that were
 unreachable at the last audit are kept at the end rather than deleted, so a domain that comes

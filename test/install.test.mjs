@@ -8,7 +8,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -157,6 +157,79 @@ test("the installer is plain JavaScript with no imports from src", () => {
     assert.ok(
       m[1].startsWith("node:"),
       `installer may only import node builtins, found: ${m[1]}`
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Documentation drift guards
+// ---------------------------------------------------------------------------
+
+test("every BIBLIO_* variable in the code is documented in --help and the README", async () => {
+  // This drifted twice: BIBLIO_ANNAS_API_KEY was in the README but not --help,
+  // and BIBLIO_SKIP_STARTUP_CHECK was in neither. An undocumented switch is one
+  // nobody can find when they need it.
+  const { execFileSync } = await import("node:child_process");
+  const here = dirname(fileURLToPath(import.meta.url));
+  const root = join(here, "..");
+
+  const inCode = new Set();
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) walk(p);
+      else if (/\.(ts|mjs)$/.test(e.name)) {
+        for (const m of readFileSync(p, "utf8").matchAll(/BIBLIO_[A-Z_]+/g)) inCode.add(m[0]);
+      }
+    }
+  };
+  walk(join(root, "src"));
+  walk(join(root, "scripts"));
+
+  const help = execFileSync(process.execPath, [join(root, "dist", "index.js"), "--help"], {
+    encoding: "utf8",
+  });
+  const readme = readFileSync(join(root, "README.md"), "utf8");
+
+  const missingFromHelp = [...inCode].filter((v) => !help.includes(v));
+  const missingFromReadme = [...inCode].filter((v) => !readme.includes(v));
+
+  assert.deepEqual(missingFromHelp, [], `undocumented in --help: ${missingFromHelp.join(", ")}`);
+  assert.deepEqual(missingFromReadme, [], `undocumented in README: ${missingFromReadme.join(", ")}`);
+});
+
+test("every command the README tells you to run actually exists", async () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const readme = readFileSync(join(here, "..", "README.md"), "utf8");
+  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+
+  const scripts = new Set(Object.keys(pkg.scripts));
+  // pnpm's own builtins are not package scripts, and prose words are not
+  // commands at all ("Why pnpm and not npm?").
+  const BUILTINS = new Set(["install", "add", "remove", "run", "exec", "dlx", "why", "update", "list"]);
+  const PROSE = new Set(["and", "or", "the", "with", "only", "not", "is", "a"]);
+  const referenced = new Set();
+  for (const m of readme.matchAll(/pnpm (?:run )?([a-z][a-z0-9:]*)/g)) {
+    const name = m[1];
+    if (BUILTINS.has(name) || PROSE.has(name)) continue;
+    referenced.add(name);
+  }
+  const missing = [...referenced].filter((s) => !scripts.has(s));
+  assert.deepEqual(missing, [], `README references pnpm scripts that do not exist: ${missing.join(", ")}`);
+});
+
+test("the published tarball contains the installer the README points at", async () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const readme = readFileSync(join(here, "..", "README.md"), "utf8");
+
+  // The README's primary install path is `node scripts/install.mjs`, so the
+  // package must ship it — otherwise the documented command 404s for anyone who
+  // installs rather than clones.
+  if (/scripts\/install\.mjs/.test(readme)) {
+    assert.ok(
+      pkg.files.some((f) => f === "scripts/install.mjs"),
+      `package.json "files" must include scripts/install.mjs, got: ${JSON.stringify(pkg.files)}`
     );
   }
 });

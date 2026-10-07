@@ -143,3 +143,51 @@ test("a missing build is a note by default but a failure with --require-build", 
   // In a repo where dist/ exists both agree; where it does not, strict fails.
   assert.equal(strict.ok, strictBuild.ok && strict.checks.every((c) => c.ok));
 });
+
+test("preflight passes for an installed package, not just a source checkout", async () => {
+  // A published tarball ships no lockfile and no node_modules of its own. Two
+  // checks used to report those as failures, so `--selfcheck` failed for every
+  // installed copy while telling the user to run `pnpm install` — advice that
+  // cannot help them. Verified against a real `npm pack` output.
+  const { mkdtempSync, mkdirSync, writeFileSync, existsSync, cpSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { spawnSync } = await import("node:child_process");
+
+  const consumer = mkdtempSync(join(tmpdir(), "biblio-installed-"));
+  const pkgDir = join(consumer, "node_modules", "biblio-mcp");
+  mkdirSync(join(pkgDir, "scripts"), { recursive: true });
+  mkdirSync(join(consumer, "node_modules", "zod"), { recursive: true });
+  mkdirSync(join(consumer, "node_modules", "@modelcontextprotocol", "sdk"), { recursive: true });
+
+  const here = join(dirname(fileURLToPath(import.meta.url)), "..");
+  cpSync(join(here, "scripts", "preflight.mjs"), join(pkgDir, "scripts", "preflight.mjs"));
+  writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: "biblio-mcp", version: "1.0.0" }));
+  // Minimal manifests so the compat check has something to read.
+  writeFileSync(
+    join(consumer, "node_modules", "zod", "package.json"),
+    JSON.stringify({ name: "zod", version: "4.4.3", main: "index.js" })
+  );
+  writeFileSync(
+    join(consumer, "node_modules", "@modelcontextprotocol", "sdk", "package.json"),
+    JSON.stringify({
+      name: "@modelcontextprotocol/sdk",
+      version: "1.29.0",
+      peerDependencies: { zod: "^3.25 || ^4.0" },
+    })
+  );
+
+  const r = spawnSync(process.execPath, [join(pkgDir, "scripts", "preflight.mjs"), "--json"], {
+    encoding: "utf8",
+  });
+  const report = JSON.parse(r.stdout);
+  const byName = Object.fromEntries(report.checks.map((c) => [c.name, c]));
+
+  // The lockfile check must not fire: there is no lockfile in a tarball, and
+  // that is correct.
+  assert.equal(byName.lockfiles.ok, true, `lockfiles failed: ${byName.lockfiles.problem}`);
+  assert.match(byName.lockfiles.info ?? "", /installed package/);
+  // Dependencies live in the consuming project's tree, two levels up.
+  assert.equal(byName.dependencies.ok, true, `dependencies failed: ${byName.dependencies.problem}`);
+  assert.ok(existsSync(join(pkgDir, "scripts", "preflight.mjs")));
+});

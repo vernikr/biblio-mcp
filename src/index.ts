@@ -32,12 +32,21 @@ Usage:
   node dist/index.js --version           print the version
   node dist/index.js --help              show this help
 
+Install / update (from a source checkout):
+  node scripts/install.mjs               check, build, verify, print MCP config
+  node scripts/install.mjs --dry-run     show every step without writing
+  node scripts/install.mjs --write-config <path>
+                                         merge the MCP entry into a config file
+
 Environment:
   BIBLIO_TIMEOUT_MS              HTML request budget (default 8000)
   BIBLIO_DOWNLOAD_TIMEOUT_MS     file download budget (default 600000)
   BIBLIO_DOWNLOAD_STALL_MS       abort a download idle this long (default 30000)
   BIBLIO_MIRROR_DEAD_TTL_MS      how long a failed mirror is skipped (default 300000)
   BIBLIO_MIRROR_STAGGER_MS       head start between mirror attempts (default 120)
+  BIBLIO_ANNAS_API_KEY           Anna's Archive member key; enables the
+                                 fast-download JSON API, which is not behind
+                                 the DDoS-Guard challenge
   BIBLIO_DISABLE_SOURCES         comma list; defaults to "zlibrary"
   BIBLIO_ANNAS_MIRRORS           override the Anna's Archive mirror list
   BIBLIO_LIBGEN_MIRRORS          override the Library Genesis mirror list
