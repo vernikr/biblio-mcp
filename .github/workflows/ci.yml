@@ -32,10 +32,20 @@ jobs:
       # Gate the dependency pairing BEFORE building. Cheap, offline, and it is
       # the check whose absence let a build that starts but cannot serve a
       # single tool call reach a release.
-      - name: Preflight
+      #
+      # Run without --require-build here: dist/ does not exist yet, and the
+      # build artefact is reported as a note rather than a failure at this
+      # stage. The strict variant runs after the build, below.
+      - name: Preflight (dependencies)
         run: pnpm run preflight
 
       - run: pnpm run build
+
+      # Now dist/ must exist. This is the ordering that matters: preflight
+      # before the build gates the dependency pairing, preflight after it
+      # confirms the artefact a client would actually be pointed at.
+      - name: Preflight (build artefact)
+        run: node scripts/preflight.mjs --require-build
 
       - name: Unit and integration tests
         run: pnpm run test

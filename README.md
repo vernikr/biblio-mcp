@@ -330,7 +330,8 @@ manually changing dependencies.
 ```bash
 pnpm run dev          # run from source via tsx
 pnpm run build        # compile to dist/
-pnpm run preflight    # offline install/dependency check
+pnpm run preflight    # offline install/dependency check (before or after build)
+pnpm run preflight:strict  # ...and fail if dist/ is missing
 pnpm run test         # build + unit and integration tests (no external network)
 pnpm run selfcheck    # tools + mirror reachability with timings
 pnpm run selfcheck:live  # ...plus one real search

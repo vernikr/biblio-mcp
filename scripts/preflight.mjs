@@ -15,8 +15,13 @@
 // in which case it reports exactly that.
 //
 // Usage:
-//   node scripts/preflight.mjs          # human-readable
-//   node scripts/preflight.mjs --json   # machine-readable, for CI / --selfcheck
+//   node scripts/preflight.mjs                   # human-readable
+//   node scripts/preflight.mjs --json            # machine-readable, for CI / --selfcheck
+//   node scripts/preflight.mjs --require-build   # also fail if dist/ is missing
+//
+// Without --require-build a missing dist/ is reported as a note rather than a
+// failure, because this script is designed to run right after `pnpm install`
+// and before `pnpm build`.
 //
 // Exit code: 0 = ready to run, 1 = something must be fixed first.
 
@@ -159,7 +164,13 @@ export function checkZodSdkCompat() {
 
 export function runPreflight({ requireBuild = false } = {}) {
   const checks = [];
-  const push = (name, ok, info) => checks.push({ name, ok, ...info });
+  // `blocking: false` marks a check that is informational until the caller asks
+  // for it to gate. The build artefact is the one case: preflight is meant to
+  // run right after `pnpm install`, i.e. BEFORE `pnpm build`, so a missing
+  // dist/ must not fail it — but `--require-build` (used after a build, and by
+  // CI) turns it into a hard gate.
+  const push = (name, ok, info = {}) =>
+    checks.push({ name, ok, blocking: true, ...info });
 
   // 1. Node version -----------------------------------------------------------
   const node = majorMinor(process.versions.node);
@@ -218,40 +229,45 @@ export function runPreflight({ requireBuild = false } = {}) {
 
   // 5. Build artefact ---------------------------------------------------------
   const distEntry = join(PROJECT_ROOT, "dist", "index.js");
+  const built = existsSync(distEntry);
   if (requireBuild || hasNodeModules) {
-    push(
-      "build",
-      existsSync(distEntry),
-      existsSync(distEntry)
-        ? { info: distEntry }
-        : { info: "dist/index.js missing", problem: "run `pnpm build`" }
-    );
+    checks.push({
+      name: "build",
+      ok: built,
+      blocking: requireBuild,
+      info: built ? distEntry : "dist/index.js missing",
+      problem: built ? undefined : "run `pnpm build`",
+    });
   }
 
-  const ok = checks.every((c) => c.ok);
+  const ok = checks.every((c) => c.ok || c.blocking === false);
   return { ok, checks, projectRoot: PROJECT_ROOT, node: process.versions.node };
 }
 
 function printHuman(report) {
-  const icon = (ok) => (ok ? "  ok  " : " FAIL ");
+  // "note" = informational and non-blocking; "FAIL" = blocking.
+  const icon = (c) => (c.ok ? "  ok  " : c.blocking === false ? " note " : " FAIL ");
   console.log(`biblio-mcp preflight — Node v${report.node}`);
   console.log(`project: ${report.projectRoot}\n`);
   for (const c of report.checks) {
-    console.log(`${icon(c.ok)} ${c.name.padEnd(15)} ${c.info ?? ""}`);
+    console.log(`${icon(c)} ${c.name.padEnd(15)} ${c.info ?? ""}`);
     if (c.problem) console.log(`        ↳ ${c.problem}`);
     if (c.note) console.log(`        · ${c.note}`);
   }
+  const built = report.checks.find((c) => c.name === "build")?.ok;
   console.log(
-    report.ok
-      ? "\nready to run: node dist/index.js"
-      : "\nnot ready — fix the FAIL lines above, then re-run this script."
+    !report.ok
+      ? "\nnot ready — fix the FAIL lines above, then re-run this script."
+      : built
+        ? "\nready to run: node dist/index.js"
+        : "\ndependencies OK — run `pnpm build`, then `node dist/index.js`."
   );
 }
 
 // Run directly (not when imported by dist/index.js --selfcheck or by tests).
 const invokedDirectly = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (invokedDirectly) {
-  const report = runPreflight();
+  const report = runPreflight({ requireBuild: process.argv.includes("--require-build") });
   if (process.argv.includes("--json")) {
     console.log(JSON.stringify(report, null, 2));
   } else {

@@ -122,3 +122,24 @@ test("the shipped tree passes preflight", async () => {
     "the working tree must pass its own preflight"
   );
 });
+
+test("a missing build is a note by default but a failure with --require-build", async () => {
+  // preflight is designed to run right after `pnpm install`, i.e. BEFORE
+  // `pnpm build`. Failing on a missing dist/ there would make the guard unusable
+  // in exactly the place it is needed; CI escalates it with --require-build.
+  const { runPreflight } = await import("../scripts/preflight.mjs");
+
+  const lenient = runPreflight();
+  const build = lenient.checks.find((c) => c.name === "build");
+  if (build && !build.ok) {
+    assert.equal(build.blocking, false, "missing build must not block by default");
+    assert.equal(lenient.ok, true, "a clean install without dist/ must still pass");
+  }
+
+  const strict = runPreflight({ requireBuild: true });
+  const strictBuild = strict.checks.find((c) => c.name === "build");
+  assert.ok(strictBuild, "requireBuild must always include the build check");
+  assert.equal(strictBuild.blocking, true);
+  // In a repo where dist/ exists both agree; where it does not, strict fails.
+  assert.equal(strict.ok, strictBuild.ok && strict.checks.every((c) => c.ok));
+});

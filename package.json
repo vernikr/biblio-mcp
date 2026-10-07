@@ -30,6 +30,7 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "preflight": "node scripts/preflight.mjs",
+    "preflight:strict": "node scripts/preflight.mjs --require-build",
     "selfcheck": "node dist/index.js --selfcheck",
     "selfcheck:live": "node dist/index.js --selfcheck --live",
     "smoke": "tsx scripts/smoke.ts",
