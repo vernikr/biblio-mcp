@@ -21,7 +21,7 @@
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
-import { runSelfcheck, printSelfcheck } from "./selfcheck.js";
+import { runSelfcheck, printSelfcheck, runStartupSelftest } from "./selfcheck.js";
 
 const USAGE = `${SERVER_NAME} v${SERVER_VERSION}
 
@@ -43,7 +43,8 @@ Environment:
   BIBLIO_LIBGEN_MIRRORS          override the Library Genesis mirror list
   BIBLIO_SCIHUB_MIRRORS          override the Sci-Hub mirror list
   BIBLIO_ZLIB_MIRRORS            override the Z-Library mirror list
-  BIBLIO_IPFS_GATEWAYS           override the IPFS gateway list`;
+  BIBLIO_IPFS_GATEWAYS           override the IPFS gateway list
+  BIBLIO_SKIP_STARTUP_CHECK      set to bypass the startup tool-surface check`
 
 async function main(argv: string[]): Promise<number> {
   if (argv.includes("--help") || argv.includes("-h")) {
@@ -62,6 +63,22 @@ async function main(argv: string[]): Promise<number> {
     return report.ok ? 0 : 1;
   }
 
+  // Prove the tool surface works before binding stdio. A server that starts and
+  // then fails every call is worse than one that refuses to start: the client
+  // shows a healthy tool list and every use fails, with no explanation anywhere.
+  // Set BIBLIO_SKIP_STARTUP_CHECK=1 to bypass this in an emergency.
+  if (!process.env.BIBLIO_SKIP_STARTUP_CHECK) {
+    const startup = await runStartupSelftest();
+    if (!startup.ok) {
+      process.stderr.write(
+        `${SERVER_NAME}: refusing to start — ${startup.problem}\n` +
+          (startup.fix ? `  fix: ${startup.fix}\n` : "") +
+          `  (bypass with BIBLIO_SKIP_STARTUP_CHECK=1 if you need a broken server)\n`
+      );
+      return 1;
+    }
+  }
+
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -72,9 +89,11 @@ async function main(argv: string[]): Promise<number> {
 
 main(process.argv.slice(2)).then(
   (code) => {
-    // Only exit explicitly for the non-server paths; in server mode we must stay
-    // alive to serve stdio.
-    if (process.argv.slice(2).some((a) => a.startsWith("--"))) process.exitCode = code;
+    // Always propagate a non-zero result. In server mode the process must stay
+    // alive to serve stdio, but setting exitCode does not exit it — it only
+    // decides what a client sees when the process does end. Discarding the code
+    // here used to make a server that refused to start look like a clean exit.
+    if (code !== 0) process.exitCode = code;
   },
   (err) => {
     process.stderr.write(`${SERVER_NAME}: fatal: ${String((err as Error)?.stack ?? err)}\n`);

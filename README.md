@@ -21,6 +21,8 @@
 > | | Before (upstream) | In this fork |
 > |---|---|---|
 > | **Broken installs** | Look healthy, then fail on every request | Detected in about one second, with the exact command that fixes it |
+> | **A broken build that starts anyway** | Listed its tools cheerfully, then failed every one of them | Refuses to start, and says which two packages to fix |
+> | **Installing it** | Six commands, and the npm package is the broken one | `node scripts/install.mjs` — and it checks itself before handing you a config |
 > | **Proving it works** | No way short of using it and hoping | `pnpm selfcheck` reports tools, mirror health and timings |
 > | **Search speed** | ~14 seconds, mostly waiting on dead websites | ~1 second on the same query |
 > | **Downloads** | Saved whatever came back, including stray web pages | Streamed to disk and checksum-verified, so you know it is the right file |
@@ -77,6 +79,35 @@ It connects to any MCP client (Claude, Cline, Cursor, Windsurf, or custom agents
 | **Z-Library** | Best-effort public book search (no login required) | **No** — see [Known limitations](#known-limitations) |
 
 ## Install
+
+### One command
+
+```bash
+git clone https://github.com/vernikr/biblio-mcp.git && cd biblio-mcp
+node scripts/install.mjs
+```
+
+The installer checks Node and your package manager, installs, builds, verifies that the tool
+surface actually answers a call, and prints the config snippet to paste into your MCP client.
+Add `--write-config <path>` and it merges the entry into an existing config for you — keeping a
+`.bak` copy, and refusing to touch a file it cannot parse. Add `--dry-run` to see every step
+without writing anything.
+
+```bash
+node scripts/install.mjs --write-config ~/.config/claude/mcp.json
+```
+
+### Why not `npm install biblio-mcp`?
+
+**This fork is not published to npm, on purpose.** The `biblio-mcp` package on npm is the
+upstream release, and its published dependency set is the combination that breaks: it resolves
+`@modelcontextprotocol/sdk@1.12.1` — whose peer range is `zod: ^3.23.8` — against `zod@4.4.3`.
+That server starts, answers `tools/list`, and then fails every `tools/call`. Publishing a
+same-named package that silently replaced it would be worse than the situation it fixes, and
+publishing under a new name would fragment the search results people already use. So the
+supported install is from source, and the installer above is what makes that one command.
+
+### Manual install
 
 Requires **Node.js ≥ 18** and **pnpm**. This fork installs with pnpm and ships a
 `pnpm-lock.yaml`; it deliberately does **not** ship an npm lockfile, because the two

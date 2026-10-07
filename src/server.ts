@@ -45,10 +45,18 @@ const SERVER_NAME = "biblio-mcp";
  */
 const SERVER_VERSION: string = (() => {
   try {
-    const pkg = createRequire(import.meta.url)("../package.json") as { version?: string };
-    return pkg.version ?? "0.0.0";
+    const pkg = createRequire(import.meta.url)("../package.json") as {
+      name?: string;
+      version?: string;
+    };
+    // Only trust it if it is OUR package.json. Copying dist/ into another
+    // project otherwise reports that project's version — observed in the wild as
+    // a build that advertised "v1.0.0" while running this code. An unknown
+    // version is honest; a plausible wrong one is not.
+    if (pkg.name !== SERVER_NAME) return "0.0.0-unknown";
+    return pkg.version ?? "0.0.0-unknown";
   } catch {
-    return "0.0.0";
+    return "0.0.0-unknown";
   }
 })();
 
@@ -137,7 +145,13 @@ function useReadableValidationErrors(server: McpServer): void {
   type ValidatingServer = {
     validateToolInput: (tool: unknown, args: unknown, toolName: string) => Promise<unknown>;
   };
-  const target = server as unknown as ValidatingServer;
+  const target = server as unknown as Partial<ValidatingServer>;
+  // Not every SDK version exposes this method. If it is absent, leave the
+  // server alone: validation errors keep the SDK's own wording, which is worse
+  // but correct. Binding an undefined method here used to throw a cryptic
+  // "Cannot read properties of undefined (reading 'bind')" at startup, which is
+  // exactly the kind of unactionable message this fork exists to eliminate.
+  if (typeof target.validateToolInput !== "function") return;
   const original = target.validateToolInput.bind(server);
 
   target.validateToolInput = async (tool, args, toolName) => {

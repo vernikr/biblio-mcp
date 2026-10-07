@@ -212,6 +212,99 @@ export interface SelfcheckReport {
   defaults: { sources: string[]; disabledByDefault: string[] };
 }
 
+/** Result of the in-process check run before the server binds stdio. */
+export interface StartupCheck {
+  ok: boolean;
+  /** What is broken, in one line. */
+  problem?: string;
+  /** The command that fixes it, when one is known. */
+  fix?: string;
+}
+
+/**
+ * Prove the tool surface actually works, before serving a single request.
+ *
+ * The failure this exists for is the one that started this fork: a server that
+ * starts, answers `tools/list`, and then fails *every* `tools/call` with
+ * `keyValidator._parse is not a function`, because `@modelcontextprotocol/sdk`
+ * 1.12.1 declares a `zod: ^3.23.8` peer range and was installed against zod 4.
+ * Nothing about that state is visible until a real call is made — so the client
+ * shows a healthy tool list and every use fails.
+ *
+ * Listing tools is not enough to detect it. Calling one is, and calling it with
+ * a deliberately INVALID argument costs no network: a healthy server answers
+ * with a validation error, a broken one crashes inside its own validator.
+ *
+ * Runs in-process over an in-memory transport, so it adds milliseconds and no
+ * network to startup.
+ */
+export async function runStartupSelftest(): Promise<StartupCheck> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createServer();
+  const client = new Client({ name: "biblio-startup", version: "0.0.0" });
+
+  const FIX =
+    'pnpm add @modelcontextprotocol/sdk@^1.29.0 zod@^4.4.3 && pnpm run build  ' +
+    "(then re-run: pnpm preflight)";
+
+  try {
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+    const { tools } = await client.listTools();
+    const missing = REQUIRED_TOOLS.filter((t) => !tools.some((x) => x.name === t));
+    if (missing.length > 0) {
+      return {
+        ok: false,
+        problem: `tool surface is incomplete — missing ${missing.join(", ")}`,
+        fix: "pnpm run build",
+      };
+    }
+
+    // An invalid md5 on purpose: this must produce a validation error, and the
+    // call must not blow up inside the argument validator.
+    const result = await client.callTool({
+      name: "book_details",
+      arguments: { md5: "not-an-md5" },
+    });
+    const text = String(
+      (result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? ""
+    );
+
+    if (/_parse is not a function/.test(text)) {
+      return {
+        ok: false,
+        problem:
+          "the argument validator is broken — @modelcontextprotocol/sdk and zod are an " +
+          "incompatible pair, so every tool call would fail",
+        fix: FIX,
+      };
+    }
+    if (!result.isError) {
+      return {
+        ok: false,
+        problem: `argument validation accepted an invalid md5 (got: ${text.slice(0, 120)})`,
+        fix: FIX,
+      };
+    }
+
+    return { ok: true };
+  } catch (e) {
+    const message = String((e as Error)?.message ?? e);
+    return {
+      ok: false,
+      problem:
+        /_parse is not a function/.test(message)
+          ? "the argument validator is broken — @modelcontextprotocol/sdk and zod are an " +
+            "incompatible pair, so every tool call would fail"
+          : `the tool surface could not be exercised: ${message.slice(0, 200)}`,
+      fix: /_parse is not a function/.test(message) ? FIX : "pnpm run build",
+    };
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
+}
+
 export async function runSelfcheck(opts: { live?: boolean } = {}): Promise<SelfcheckReport> {
   const stages: StageResult[] = [];
   stages.push(await runPreflightStage());

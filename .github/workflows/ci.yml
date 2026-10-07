@@ -79,3 +79,36 @@ jobs:
           # A healthy server rejects the bad md5 with a validation error.
           echo "$out" | grep -q "md5" || { echo "expected a validation error naming md5"; exit 1; }
           echo "handshake + tool-call smoke check passed"
+
+      # The installer is the supported entry point for this fork (it is not
+      # published to npm), so a broken installer is a broken install path.
+      # Dry run only: CI must not clone or write configs.
+      - name: Installer dry run
+        run: node scripts/install.mjs --dry-run
+
+      # Prove the startup guard actually refuses a server that cannot serve.
+      # The real broken pairing (sdk 1.12.1 + zod 4) is exercised in a throwaway
+      # tree, because the point is to show what a user with that install sees.
+      - name: Startup guard rejects the broken zod/SDK pairing
+        run: |
+          set -euo pipefail
+          trap 'rm -rf /tmp/broken-pairing' EXIT
+          mkdir -p /tmp/broken-pairing
+          cd /tmp/broken-pairing
+          npm init -y >/dev/null
+          npm install --silent --no-audit --no-fund \
+            @modelcontextprotocol/sdk@1.12.1 zod@4.4.3 cheerio@1.0.0 >/dev/null
+          node -e "const p=require('./package.json');p.type='module';require('fs').writeFileSync('package.json',JSON.stringify(p))"
+          cp -r "$OLDPWD/dist" ./dist
+
+          set +e
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
+            | node dist/index.js > out.txt 2> err.txt
+          code=$?
+          set -e
+
+          # It must refuse, non-zero, and say what to do.
+          [ "$code" -ne 0 ] || { echo "server started despite the broken pairing"; cat err.txt; exit 1; }
+          grep -q "refusing to start" err.txt || { echo "no clear refusal on stderr"; cat err.txt; exit 1; }
+          grep -q "@modelcontextprotocol/sdk" err.txt || { echo "the fix is not named"; cat err.txt; exit 1; }
+          echo "startup guard correctly refused the broken pairing (exit $code)"

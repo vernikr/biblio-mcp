@@ -3,6 +3,51 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [1.5.0] - 2026-10-08
+
+Phase 4 of the improvement plan: release and distribution. The goal is that nobody installs
+this into a state where it starts but cannot serve.
+
+### Added
+- **`scripts/install.mjs` — one-command installer.** Checks prerequisites, obtains the source,
+  runs preflight, installs, builds, verifies the tool surface in-process, and prints (or with
+  `--write-config`, writes) the MCP client config. It is plain JavaScript with no dependencies
+  and no imports from `src/` or `dist/`, so it runs before anything is installed. It writes
+  atomically with a `.bak`, and **refuses to touch a config it cannot parse** — destroying a
+  working client config to install a book downloader would be a bad trade. `--dry-run` shows
+  every step without writing.
+- **A startup guard.** Before binding stdio, the server exercises its own tool surface over an
+  in-memory transport: it lists the tools and makes one `tools/call` with a deliberately invalid
+  argument. A healthy server answers with a validation error; a server with the broken
+  `@modelcontextprotocol/sdk` 1.12.1 + `zod` 4 pairing crashes inside its own validator. When
+  that happens the server now **refuses to start**, exits non-zero, and prints the exact fix
+  command to stderr. `BIBLIO_SKIP_STARTUP_CHECK=1` bypasses it in an emergency.
+- **Dependabot policy** (`.github/dependabot.yml`): `zod` and `@modelcontextprotocol/sdk` are
+  grouped into a single PR, and major bumps of either are ignored. Those two packages decide
+  each other's compatibility, so they must be reviewed as one change — that is precisely how the
+  original breakage was produced, by two individually reasonable bumps.
+- **Two CI steps**: an installer dry run, and a check that the startup guard genuinely refuses
+  the broken pairing (reproduced in a throwaway tree with `sdk@1.12.1` + `zod@4.4.3`, asserting
+  a non-zero exit, `refusing to start` on stderr, and that the fix is named).
+
+### Fixed
+- **The exit code was discarded in server mode.** `main()` returned 1 but the `.then` handler
+  only set `process.exitCode` when a `--flag` was present, so a server that refused to start
+  looked like a clean exit to the client. A non-zero result is now always propagated.
+- **The version could be read from the wrong `package.json`.** `SERVER_VERSION` read
+  `../package.json` relative to `dist/`; copying `dist/` into another project reported *that*
+  project's version (observed as a build advertising `v1.0.0`). The manifest's `name` is now
+  checked, and a mismatch reports `0.0.0-unknown` rather than a plausible wrong number.
+- **Overriding `validateToolInput` crashed on SDK versions that do not have it.** The override
+  called `.bind` on `undefined`, producing `Cannot read properties of undefined (reading 'bind')`
+  at startup — exactly the kind of unactionable message this fork exists to remove. It now no-ops
+  when the method is absent, leaving the SDK's own (worse but correct) error wording.
+
+### Documentation
+- The publication question is now answered in the README rather than left ambiguous: this fork is
+  **not** published to npm, why not, and what to run instead. The previous state — an npm package
+  exists but the instructions say not to use it — was worse than either option.
+
 ## [1.4.0] - 2026-10-08
 
 Phase 3 of the improvement plan: the agent experience. Nothing here changes what the tools
