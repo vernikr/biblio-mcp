@@ -18,6 +18,7 @@ const REQUIRED_TOOLS = [
   "download_book",
   "search_papers",
   "get_paper",
+  "healthcheck",
 ];
 
 async function withClient(fn) {
@@ -49,10 +50,21 @@ test("every tool advertises an input schema with its required fields", async () 
     const { tools } = await client.listTools();
     for (const tool of tools) {
       assert.ok(tool.inputSchema, `${tool.name} must publish an inputSchema`);
+      // A tool with no required arguments omits `required` entirely, which is
+      // valid JSON Schema — healthcheck is the only such tool here. What must not
+      // happen is a tool that NEEDS arguments failing to declare them, which is
+      // how an agent ends up calling search_books with no query and guessing.
+      const required = tool.inputSchema.required;
       assert.ok(
-        Array.isArray(tool.inputSchema.required) && tool.inputSchema.required.length > 0,
-        `${tool.name} must declare at least one required argument`
+        required === undefined || Array.isArray(required),
+        `${tool.name} must publish "required" as an array when present`
       );
+      if (tool.name !== "healthcheck") {
+        assert.ok(
+          Array.isArray(required) && required.length > 0,
+          `${tool.name} must declare at least one required argument`
+        );
+      }
       assert.ok(tool.description && tool.description.length > 20, `${tool.name} needs a description`);
     }
   });

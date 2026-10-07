@@ -29,6 +29,8 @@
 > | **Wrong book data** | Reported the series name and a list of ISBNs as the author | Read from the column the page actually labels, so `author` is the author |
 > | **Useless download links** | Offered a bare homepage as a way to download the book | Filtered out — a link is only offered if it can reach that file |
 > | **Long downloads** | Could silently outlast your client's timeout | Reports progress while transferring |
+> | **A wrong tool call** | Answered with a validation dump only a programmer could read | Answers with the argument that is missing and a working example |
+> | **“Is anything even reachable?”** | No way to ask; a blocked network looked like an empty search | `healthcheck` says which sources answer, and how fast |
 >
 > **The honest caveats.** Catalogue data now comes from the column a page actually labels, and
 > `book_details` reads structured metadata (a BibTeX block) instead of guessing at a web page —
@@ -48,7 +50,7 @@
 
 Search millions of books, academic papers, and research articles across every major shadow library through a single unified interface. Resolve download links and fetch files directly from your AI assistant — Claude Code, Claude Desktop, Cline, Cursor, or any MCP-compatible client.
 
-No API keys. No login. No per-source servers to juggle. One server, six tools, four sources.
+No API keys. No login. No per-source servers to juggle. One server, seven tools, four sources.
 
 ---
 
@@ -157,6 +159,32 @@ python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
 | `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, the byte count, and **the MD5 of what was written** so you can confirm the file is the one you asked for. Emits progress notifications while transferring. |
 | `search_papers` | Academic paper / article search via Library Genesis scimag; returns DOIs and metadata. |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
+| `healthcheck` | Can this server reach its sources? Per-mirror status and latency, without querying a catalogue. Use it to tell "the network is blocked" apart from "the query matched nothing". |
+
+### Built for AI agents, not just for people
+
+An MCP server is usually driven by a model that cannot read the source code, cannot see the
+server's working directory, and will keep retrying until something works. Four things in this
+fork are there specifically for that reader:
+
+- **Every tool description ends with a runnable example**, e.g.
+  `Example: {"query":"dune frank herbert","limit":5}`. One MCP bridge advertised `search_books`
+  as taking no parameters at all; the example in the schema is what stops an agent from guessing.
+- **Argument errors are sentences, not validation dumps.** Instead of
+  `[{"expected":"string","code":"invalid_type","path":["output_dir"]}]` you get:
+
+  ```
+  download_book: "md5" is missing; "output_dir" is missing. It needs an "md5"
+  (32-character hex hash) and an "output_dir" (absolute path to a directory).
+  Optional: "filename". Example: {"md5":"524037f3...","output_dir":"/home/me/books"}
+  ```
+
+- **`output_dir` resolves predictably.** A relative path resolves against `$HOME`, not the
+  server's working directory — which the agent has no way of knowing — and the response reports
+  the resolved `outputDir` plus a `note` explaining what happened.
+- **`healthcheck` answers "can this server reach anything?"** in a few seconds, without querying
+  a catalogue. Without it, a blocked network and an unmatched query look identical from the
+  caller's side, and the agent investigates the wrong one.
 
 ### Typical flow
 
@@ -314,7 +342,12 @@ separate field, sizes and years go through bounded parsers, `book_details` resol
 Libgen's BibTeX block when Anna's Archive refuses the request, and download links that cannot
 lead to the file are filtered out.
 
-Still open: human-readable argument-validation errors, and a `healthcheck` tool.
+Phase 3 is implemented too: every tool description carries a runnable example, argument errors
+are sentences an agent can act on instead of a validation dump, `output_dir` resolves predictably
+and reports where the file went, and `healthcheck` answers "can this server reach anything?"
+without touching a catalogue.
+
+Nothing from the improvement plan is currently open.
 
 ## FAQ
 

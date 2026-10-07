@@ -9,6 +9,11 @@ import { mkdir, rename, unlink } from "node:fs/promises";
 import { open } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
 import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { probeMirror, resetMirrorCache } from "./http.js";
+import { MIRROR_GROUPS } from "./mirrors.js";
+import { describeArgsError, describeTool } from "./toolmeta.js";
 import {
   downloadToFile,
   HtmlInsteadOfFileError,
@@ -106,19 +111,67 @@ function makeProgressReporter(extra?: {
   };
 }
 
+/**
+ * Replace zod's raw issue dump with a sentence an agent can act on.
+ *
+ * The SDK validates arguments in `McpServer.validateToolInput` and, on failure,
+ * throws an error whose message is the stringified zod issue array. That
+ * surfaces to the caller as
+ * `Invalid arguments for tool download_book: [{"expected":"string","code":"invalid_type","path":["output_dir"],...}]`
+ * — accurate, and useless as an instruction.
+ *
+ * The method is called as `this.validateToolInput(...)`, so replacing it on the
+ * instance is enough; no subclassing and no patching of the SDK. A plain Error
+ * is thrown rather than an McpError because the SDK's tool dispatcher turns a
+ * plain Error into an `isError: true` tool result carrying just the message,
+ * while an McpError prefixes it with `MCP error -32602:`.
+ *
+ * If the SDK ever stops calling this method the override simply never runs and
+ * the original behaviour returns — it cannot make errors worse.
+ */
+function useReadableValidationErrors(server: McpServer): void {
+  // The SDK declares validateToolInput private, but it is called as
+  // `this.validateToolInput(...)` at runtime, so replacing it on the instance
+  // works. Reaching it needs a structural cast; that is the price of not
+  // forking the SDK, and it is confined to these four lines.
+  type ValidatingServer = {
+    validateToolInput: (tool: unknown, args: unknown, toolName: string) => Promise<unknown>;
+  };
+  const target = server as unknown as ValidatingServer;
+  const original = target.validateToolInput.bind(server);
+
+  target.validateToolInput = async (tool, args, toolName) => {
+    // Re-run the parse ourselves so we get structured issues. `inputSchema` is a
+    // zod object schema by the time it reaches here; if a future SDK hands us
+    // something without safeParseAsync we delegate and keep the old message.
+    const schema = (tool as { inputSchema?: unknown })?.inputSchema as
+      | { safeParseAsync?: (v: unknown) => Promise<{ success: boolean; error?: unknown }> }
+      | undefined;
+    if (schema && typeof schema.safeParseAsync === "function") {
+      const result = await schema.safeParseAsync(args);
+      if (!result.success) throw new Error(describeArgsError(String(toolName), result.error));
+    }
+    return original(tool, args, toolName);
+  };
+}
+
 export function createServer(): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+  useReadableValidationErrors(server);
 
   // -------------------------------------------------------------------------
   // search_books — the headline tool
   // -------------------------------------------------------------------------
   server.tool(
     "search_books",
-    "Search for books/documents across Anna's Archive, Library Genesis, and " +
-      "Z-Library at once. Results are merged and de-duplicated by MD5 hash. Each " +
-      "result includes an `md5` you can pass to get_download_links or " +
-      "download_book. Per-source failures are reported in `errors` without " +
-      "failing the call.",
+    describeTool(
+      "search_books",
+      "Search for books/documents across Anna's Archive, Library Genesis, and " +
+        "Z-Library at once. Results are merged and de-duplicated by MD5 hash. Each " +
+        "result includes an `md5` you can pass to get_download_links or " +
+        "download_book. Per-source failures are reported in `errors` without " +
+        "failing the call.",
+    ),
     {
       query: z.string().describe("Title, author, ISBN, or topic to search for."),
       sources: z
@@ -158,11 +211,14 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "book_details",
-    "Get full metadata and download options for a single book by its MD5 hash " +
-      "(from a search_books result). Tries Anna's Archive first and falls back " +
-      "to Library Genesis, whose metadata comes from a BibTeX block and is " +
-      "exact. The response says which source answered in `resolvedVia`, and " +
-      "why Anna's Archive was skipped in `annasUnavailable`.",
+    describeTool(
+      "book_details",
+      "Get full metadata and download options for a single book by its MD5 hash " +
+        "(from a search_books result). Tries Anna's Archive first and falls back " +
+        "to Library Genesis, whose metadata comes from a BibTeX block and is " +
+        "exact. The response says which source answered in `resolvedVia`, and " +
+        "why Anna's Archive was skipped in `annasUnavailable`.",
+    ),
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
     },
@@ -174,9 +230,12 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "get_download_links",
-    "Resolve every available download link for a book by MD5 — Libgen direct " +
-      "(get.php), Anna's Archive partners, and IPFS gateways. Links marked " +
-      "`direct: true` point straight at the file.",
+    describeTool(
+      "get_download_links",
+      "Resolve every available download link for a book by MD5 — Libgen direct " +
+        "(get.php), Anna's Archive partners, and IPFS gateways. Links marked " +
+        "`direct: true` point straight at the file.",
+    ),
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
     },
@@ -191,19 +250,25 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "download_book",
-    "Download a book file to a local directory by MD5. Streams direct links " +
-      "(Libgen/IPFS) to disk in order and keeps the first that yields a real " +
-      "file, so peak memory does not scale with book size. Returns the saved " +
-      "path, the byte count, and the MD5 of what was written — compare it with " +
-      "the `md5` you passed to confirm the file is intact. Emits progress " +
-      "notifications while transferring.",
+    describeTool(
+      "download_book",
+      "Download a book file to a local directory by MD5. Streams direct links " +
+        "(Libgen/IPFS) to disk in order and keeps the first that yields a real " +
+        "file, so peak memory does not scale with book size. Returns the saved " +
+        "path, the byte count, and the MD5 of what was written — compare it with " +
+        "the `md5` you passed to confirm the file is intact. Emits progress " +
+        "notifications while transferring.",
+    ),
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
       output_dir: z
         .string()
+        .min(1)
         .describe(
-          "Directory to save into; created if missing. Relative paths resolve " +
-            "against the server's working directory, so prefer an absolute path."
+          "Directory to save into; created if missing. Use an absolute path. " +
+            "A relative path is resolved against $HOME (not the server's working " +
+            "directory, which you cannot see), and the resolved directory is " +
+            "reported back as `outputDir`."
         ),
       filename: z
         .string()
@@ -221,7 +286,12 @@ export function createServer(): McpServer {
           links,
         });
 
-      const dir = isAbsolute(output_dir) ? output_dir : resolve(process.cwd(), output_dir);
+      // A relative path used to resolve against the server's working directory —
+      // which is wherever the client happened to launch the process, and is
+      // invisible to the agent asking for the download. $HOME is predictable
+      // from both sides, and the resolved directory is reported back below.
+      const wasRelative = !isAbsolute(output_dir);
+      const dir = wasRelative ? resolve(homedir(), output_dir) : output_dir;
       await mkdir(dir, { recursive: true });
 
       const onProgress = makeProgressReporter(extra);
@@ -248,6 +318,12 @@ export function createServer(): McpServer {
           return json({
             saved: true,
             path,
+            /** Absolute directory the file landed in — always resolved, so a
+             *  relative `output_dir` never leaves the caller guessing. */
+            outputDir: dir,
+            ...(wasRelative
+              ? { note: `"${output_dir}" was relative; resolved to ${dir}. Pass an absolute path to avoid surprises.` }
+              : {}),
             bytes: result.bytes,
             via: link.label,
             /** Hex MD5 of the bytes on disk. */
@@ -277,9 +353,12 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "search_papers",
-    "Search academic papers / journal articles by keyword, author, title, or " +
-      "DOI via Library Genesis scimag. Returns DOIs and mirror links. To fetch a " +
-      "PDF, pass the DOI to get_paper.",
+    describeTool(
+      "search_papers",
+      "Search academic papers / journal articles by keyword, author, title, or " +
+        "DOI via Library Genesis scimag. Returns DOIs and mirror links. To fetch a " +
+        "PDF, pass the DOI to get_paper.",
+    ),
     {
       query: z.string().describe("Keywords, title, author, or DOI."),
       limit: z.number().int().min(1).max(100).optional(),
@@ -295,14 +374,90 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "get_paper",
-    "Resolve a paper's PDF via Sci-Hub. Accepts a DOI (best), an article URL, or " +
-      "a title. Returns metadata and a direct `pdfUrl` when available.",
+    describeTool(
+      "get_paper",
+      "Resolve a paper's PDF via Sci-Hub. Accepts a DOI (best), an article URL, or " +
+        "a title. Returns metadata and a direct `pdfUrl` when available.",
+    ),
     {
       identifier: z
         .string()
         .describe("DOI (e.g. 10.1038/nature12373), article URL, or title."),
     },
     async ({ identifier }) => json(await scihub.resolve(identifier))
+  );
+
+  // -------------------------------------------------------------------------
+  // healthcheck — is anything reachable, without touching a catalogue
+  // -------------------------------------------------------------------------
+  server.tool(
+    "healthcheck",
+    describeTool(
+      "healthcheck",
+      "Report whether this server can reach its sources, with per-mirror latency. " +
+        "Probes host roots only — it never queries a catalogue, so it is cheap and " +
+        "safe to call before a search. Use it to tell 'the network is blocked' " +
+        "apart from 'the query matched nothing'. A mirror that answers but is not " +
+        "the site it claims to be is reported as `impostor`, not as healthy.",
+    ),
+    {
+      timeoutMs: z
+        .number()
+        .int()
+        .min(250)
+        .max(30000)
+        .optional()
+        .describe("Per-mirror probe timeout in ms (default 8000)."),
+    },
+    async ({ timeoutMs }) => {
+      // Bypass the negative cache: the point of a healthcheck is to show what is
+      // reachable right now, not what was unreachable a minute ago.
+      resetMirrorCache();
+      const groups = await Promise.all(
+        MIRROR_GROUPS.map(async ({ group, mirrors, probePath, expect }) => {
+          const results = await Promise.all(
+            mirrors.map((base) => probeMirror(base, probePath, { timeoutMs, expect }))
+          );
+          const alive = results.filter((r) => r.ok);
+          const fastest = alive.reduce<number | undefined>(
+            (min, r) => (min === undefined || r.ms < min ? r.ms : min),
+            undefined
+          );
+          return {
+            group,
+            reachable: alive.length,
+            total: mirrors.length,
+            ok: alive.length > 0,
+            // null rather than undefined, so the field is always present in the
+            // JSON and a caller can render it without a special case.
+            fastestMs: fastest ?? null,
+            impostors: results.filter((r) => r.impostor).map((r) => r.base),
+            mirrors: results.map((r) => ({
+              base: r.base,
+              ok: r.ok,
+              status: r.status,
+              ms: r.ms,
+              ...(r.impostor ? { impostor: true } : {}),
+              ...(r.error ? { error: r.error } : {}),
+            })),
+          };
+        })
+      );
+
+      const reachable = groups.filter((g) => g.ok).map((g) => g.group);
+      const impostors = groups.flatMap((g) => g.impostors);
+      return json({
+        version: SERVER_VERSION,
+        ready: reachable.length > 0,
+        reachable,
+        unreachable: groups.filter((g) => !g.ok).map((g) => g.group),
+        // Called out separately because it is a different failure from "down":
+        // the host answers, so a status-code-only check would call it healthy.
+        impostors,
+        defaults: { sources: BOOK_SOURCES, disabledByDefault: DISABLED_BOOK_SOURCES },
+        groups,
+      });
+    }
   );
 
   return server;

@@ -3,6 +3,45 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [1.4.0] - 2026-10-08
+
+Phase 3 of the improvement plan: the agent experience. Nothing here changes what the tools
+find; it changes how quickly a caller that has never seen the source code can use them
+correctly.
+
+### Added
+- **`healthcheck` tool.** Reports per-mirror status and latency for every source without
+  querying a catalogue, so it is cheap enough to call before a search. Distinguishes "the
+  network is blocked" from "the query matched nothing", which look identical from the caller's
+  side otherwise. A host that answers but is not the site it claims to be is reported under
+  `impostors` rather than as reachable. The tool surface is now seven tools.
+- **A call example in every tool description** (`Example: {"query":"dune frank herbert","limit":5}`).
+  One MCP bridge advertised `search_books` as taking no parameters at all; an example in the
+  schema costs nothing and works in every client. Examples are generated from a single
+  `TOOL_META` table in `src/toolmeta.ts` and tested to be valid JSON that satisfies each tool's
+  own required-argument list.
+
+### Changed
+- **Argument-validation errors are sentences.** A failed call used to return zod's issue array
+  (`[{"expected":"string","code":"invalid_type","path":["output_dir"],...}]`). It now returns
+  `download_book: "md5" is missing; "output_dir" is missing. It needs an "md5" (32-character hex
+  hash) and an "output_dir" (absolute path to a directory). Optional: "filename". Example: {...}`.
+  Implemented by replacing `McpServer.validateToolInput` on the instance — the SDK calls it as
+  `this.validateToolInput(...)`, so no subclassing or patching is needed. Unrecognised error
+  shapes fall through to the original message, so this cannot make an error less informative.
+- **`output_dir` resolves against `$HOME`, not the server's working directory.** The previous
+  behaviour resolved relative paths against `process.cwd()` — wherever the client happened to
+  launch the server, which the caller cannot see. The response now always includes the resolved
+  absolute `outputDir`, plus a `note` when the input was relative. An empty `output_dir` is
+  rejected at validation instead of silently meaning the current directory.
+
+### Notes for maintainers
+- `healthcheck` was added to `REQUIRED_TOOLS` in **both** `src/selfcheck.ts` and
+  `test/server.test.mjs`. The two lists are separate on purpose (the selfcheck must not import
+  the test suite) but they must be updated together.
+- A tool with no required arguments omits `required` from its JSON Schema entirely rather than
+  publishing an empty array. Tests must accept `undefined`.
+
 ## [1.3.0] - 2026-10-08
 
 Phase 2 of the improvement plan: report what a page actually says. Every fix below was designed

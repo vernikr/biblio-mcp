@@ -39,6 +39,7 @@ const REQUIRED_TOOLS = [
   "download_book",
   "search_papers",
   "get_paper",
+  "healthcheck",
 ];
 
 interface StageResult {
