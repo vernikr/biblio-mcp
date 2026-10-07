@@ -233,3 +233,33 @@ test("the published tarball contains the installer the README points at", async 
     );
   }
 });
+
+test("every version in the CHANGELOG has a matching compare link", async () => {
+  // Five fork releases shipped with no tag and, for four of them, no link at all,
+  // so the "keep a changelog" link references pointed nowhere. Guard it.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const changelog = readFileSync(join(here, "..", "CHANGELOG.md"), "utf8");
+
+  const declared = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1]);
+  const linked = new Set(
+    [...changelog.matchAll(/^\[(\d+\.\d+\.\d+)\]:\s+(\S+)$/gm)].map((m) => m[1])
+  );
+
+  const missing = declared.filter((v) => !linked.has(v));
+  assert.deepEqual(missing, [], `CHANGELOG declares versions with no link reference: ${missing.join(", ")}`);
+
+  // Fork releases must point at the fork; upstream releases at upstream. A fork
+  // release linked to upstream would misattribute the work.
+  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const forkHost = /vernikr\/biblio-mcp/;
+  for (const m of changelog.matchAll(/^\[(\d+\.\d+\.\d+)\]:\s+(\S+)$/gm)) {
+    const [, version, url] = m;
+    // 1.0.0 and 1.1.0 predate the fork.
+    if (version === "1.0.0" || version === "1.1.0") {
+      assert.match(url, /yashimosh\/biblio-mcp/, `${version} is an upstream release and must link upstream`);
+    } else {
+      assert.ok(forkHost.test(url), `${version} is a fork release but links to ${url}`);
+    }
+  }
+  assert.ok(declared.includes(pkg.version), `package.json version ${pkg.version} is not in the CHANGELOG`);
+});

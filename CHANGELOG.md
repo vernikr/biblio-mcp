@@ -252,6 +252,10 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
+[1.5.1]: https://github.com/vernikr/biblio-mcp/compare/v1.5.0...v1.5.1
+[1.5.0]: https://github.com/vernikr/biblio-mcp/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/vernikr/biblio-mcp/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/vernikr/biblio-mcp/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/vernikr/biblio-mcp/compare/v1.1.0...v1.2.0
 
 ## [1.1.0] - 2026-07-09
@@ -264,6 +268,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 ### Added
 - CI status, npm version, and license badges in README
 
+<!-- 1.1.0 and 1.0.0 are upstream releases, so their links point at the upstream
+     repository on purpose: that is where those versions were published. -->
 [1.1.0]: https://github.com/yashimosh/biblio-mcp/compare/v1.0.0...v1.1.0
 
 ## [1.0.0] - 2026-07-08
