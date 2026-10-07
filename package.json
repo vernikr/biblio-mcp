@@ -34,7 +34,7 @@
     "selfcheck": "node dist/index.js --selfcheck",
     "selfcheck:live": "node dist/index.js --selfcheck --live",
     "smoke": "tsx scripts/smoke.ts",
-    "test": "pnpm run build && node --test test/",
+    "test": "pnpm run build && node --test test/*.test.mjs",
     "verify": "pnpm run build && pnpm run test && pnpm run selfcheck",
     "prepublishOnly": "pnpm run verify"
   },
