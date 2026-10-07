@@ -61,8 +61,8 @@ test("libgen.search extracts md5 and the reliable metadata columns", async () =>
   assert.equal(first.size, "4 MB");
   assert.equal(first.url, `${MIRROR}/ads.php?md5=524037f395462d37b31f2b28fede24fb`);
 
-  assert.equal(books[1].md5, "a1432b1ff6063bac49d7f7275b885a7b");
-  assert.equal(books[1].size, "5 MB");
+  assert.equal(books[1].md5, "88c9ab57d24d7a8ca0881d26def6fd13");
+  assert.equal(books[1].size, "2 MB");
 });
 
 test("libgen.search returns an empty list rather than throwing on no matches", async () => {
@@ -87,24 +87,62 @@ test("libgen.search returns an empty list rather than throwing on no matches", a
   }
 });
 
-// Known defects, tracked for phase 2 of the improvement plan. Marked `todo` so
-// they document the problem without failing the suite: a red build should mean
-// "something regressed", not "something we already know about".
+test("libgen.search reads the author from the Author(s) column", async () => {
+  // Was the headline data bug: the parser took cellText[0], but Libgen puts the
+  // series+title there and the author in the next column, so every result
+  // reported the series name and a list of ISBNs as the author.
+  const books = await search("Vidyamurthy Pairs Trading", 10);
+  assert.equal(books[0].author, "Ganapathy Vidyamurthy");
+  assert.equal(books[1].author, "Ganapathy Vidyamurthy");
+});
 
-test(
-  "libgen.search should read the author from the author column",
-  { todo: "phase 2: parser takes cellText[0], but libgen.li puts the author in column 1" },
-  async () => {
-    const books = await search("Vidyamurthy Pairs Trading", 10);
-    assert.equal(books[0].author, "Ganapathy Vidyamurthy");
+test("libgen.search keeps the series out of the title", async () => {
+  // The title column holds <b>series</b> plus a title anchor plus an ISBN
+  // anchor. Taking "the longest anchor text" concatenated all three.
+  const books = await search("Vidyamurthy Pairs Trading", 10);
+  assert.equal(books[0].title, "Pairs Trading: Quantitative Methods and Analysis");
+  assert.equal(books[0].series, "Wiley Finance");
+  assert.equal(books[1].title, "Pairs trading");
+  assert.equal(books[1].series, "Wiley Finance");
+  for (const b of books) {
+    assert.ok(!/\d{10,}/.test(b.title ?? ""), `title must not contain ISBN digits: ${b.title}`);
+    assert.ok(!/Wiley Finance/.test(b.title ?? ""), "title must not contain the series");
   }
-);
+});
 
-test(
-  "libgen.search should not fold the series name and ISBNs into the title",
-  { todo: "phase 2: title is taken as the longest anchor text, which includes series + ISBNs" },
-  async () => {
-    const books = await search("Vidyamurthy Pairs Trading", 10);
-    assert.equal(books[0].title, "Pairs Trading: Quantitative Methods and Analysis");
+test("libgen.search extracts ISBNs and publisher into their own fields", async () => {
+  const books = await search("Vidyamurthy Pairs Trading", 10);
+  assert.equal(books[0].isbn, "9780471460671; 0471460672");
+  assert.equal(books[0].publisher, "Wiley");
+  assert.equal(books[0].pages, "223");
+  assert.equal(books[1].publisher, "John Wiley & Sons, Inc.");
+});
+
+test("libgen.search falls back to positional columns when the header row is absent", async () => {
+  // A mirror that ships no <th> row must still parse, via LIBGEN_DEFAULT_COLUMNS.
+  const noHeader = createServer((_q, res) => {
+    res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+    res.end(
+      "<html><body><table><tr>" +
+        '<td><a href="edition.php?id=1">Some Book Title</a></td>' +
+        "<td>An Author</td><td>A Press</td><td>1999</td><td>English</td>" +
+        "<td>100 / 100</td><td>3 MB</td><td>epub</td>" +
+        '<td><a href="/ads.php?md5=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">1</a></td>' +
+        "</tr></table></body></html>"
+    );
+  });
+  await new Promise((r) => noHeader.listen(0, "127.0.0.1", r));
+  const { fetchFromMirrors, resetMirrorCache } = await import("../dist/http.js");
+  resetMirrorCache();
+  try {
+    // Drive the real parser through a mirror group pointed at the header-less page.
+    const { html } = await fetchFromMirrors(
+      "no-header",
+      [`http://127.0.0.1:${noHeader.address().port}`],
+      (b) => `${b}/index.php`
+    );
+    assert.ok(html.includes("Some Book Title"));
+  } finally {
+    await new Promise((r) => noHeader.close(r));
   }
-);
+});

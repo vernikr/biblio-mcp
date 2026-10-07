@@ -3,6 +3,64 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [1.3.0] - 2026-10-08
+
+Phase 2 of the improvement plan: report what a page actually says. Every fix below was designed
+against live captured markup rather than a hand-written fixture, because the fixture was what
+hid the bugs in the first place.
+
+### Fixed
+- **`author` is the author again.** The Libgen parser read the first table column, but that
+  column combines series, title and ISBNs while the author is the second — so every result
+  reported `Wiley Finance 9780471460671; 0471460672 …` as its author. Columns are now resolved
+  from the table's `<th>` header row, with a positional fallback for mirrors that ship no header.
+- **`title` no longer carries the series and the ISBNs.** Taking "the longest anchor text" in
+  that first column concatenated three different fields into one string. `series` is now its own
+  field (`Book.series`) and ISBNs are read from their own anchor.
+- **A digit run can no longer be reported as a file size.** The size regex was unbounded, so it
+  matched `00264mB` out of concatenated page text. `parseSize` is bounded at both ends, rejects
+  leading zeros, and refuses values above 100 TB.
+- **`book_details` no longer depends on a source that refuses the request.** Anna's Archive is
+  tried first, but its genuine mirrors answer HTTP 403 to scraped HTML pages from non-browser
+  clients, so the tool usually returned an empty title and no links. Libgen is now the fallback,
+  and it is the better source: its `ads.php` page embeds a **BibTeX block** with exact
+  title/author/publisher/ISBN/year/series, so nothing is guessed. Responses report `resolvedVia`
+  and `annasUnavailable`, and if both sources fail the caller gets an empty record naming both
+  failures instead of an exception.
+- **Download links that cannot lead to the file are filtered out.** Libgen's `ads.php` page links
+  the bare `http://annas-archive.org/` homepage, which `get_download_links` reported as a
+  download option; an agent that followed it got nothing and no explanation. A link is now only
+  reported if it has a path beyond the domain root and references the requested MD5 (IPFS gateway
+  links excepted, since they carry a CID). Applied in both `resolveDownloads` and
+  `libgen.details`, because `book_details` embeds the latter directly.
+
+### Added
+- **`src/parse.ts`** — pure, I/O-free parsing helpers shared by the providers: `parseSize`,
+  `parseYear`, `parseFormat`, `parseLanguage`, `parsePages`, `isIsbnLike`, `parseIsbns`,
+  `columnMap`, `LIBGEN_DEFAULT_COLUMNS`, `parseBibtex`, `isUsefulLink`.
+- **`libgen.details(md5)`** — resolves metadata from the BibTeX block on `ads.php`, reusing the
+  same response for the download links so it costs one request, not two.
+- **`Book.series`** — the series name, kept separate from the title.
+- **`BookDetailsResult.resolvedVia` / `.annasUnavailable` / `.libgenUnavailable`** — so a caller
+  is never left wondering which source answered or why one did not.
+- **`test/parse.test.mjs`, `test/details.test.mjs`** — 27 new tests. The suite is 60 tests, all
+  passing, and no longer has any `todo` placeholders.
+
+### Changed
+- The Libgen search fixture (`test/fixtures/libgen-search.html`) now mirrors the real page:
+  `<th>` header row, `<b>` series, `edition.php` title anchors, the ISBN anchor, and the badge
+  spans. The previous hand-written fixture did not have these, which is why the parser looked
+  correct in tests while being wrong in production.
+- `annas.parseMeta` delegates to the shared validators instead of keeping its own looser copies.
+
+### Notes for maintainers
+- Provider tests that need different mirrors **must run in a child process**. `ANNAS_MIRRORS` /
+  `LIBGEN_MIRRORS` are read once, at module evaluation, and busting the ESM cache with a `?t=N`
+  query does not help: a freshly evaluated `providers/index.js` still statically imports the
+  already-cached `mirrors.js`. `test/details.test.mjs` documents this and provides
+  `runInProcess()`. Writing those tests with in-process env overrides produced tests that
+  silently exercised the live internet.
+
 ## [1.2.0] - 2026-10-07
 
 First release of the maintained fork. Phases 0–1 of the improvement plan: make the install

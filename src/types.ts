@@ -9,6 +9,10 @@ export interface Book {
   /** MD5 hash of the file. Shared identifier between Anna's Archive and Libgen. */
   md5?: string;
   title: string;
+  /** Series name, kept separate from the title. Libgen stores these in
+   *  different columns; the old parser concatenated them, which is why titles
+   *  read "Wiley FinancePairs Trading: Quantitative Methods and Analysis". */
+  series?: string;
   author?: string;
   publisher?: string;
   year?: string;

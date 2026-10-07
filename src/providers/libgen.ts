@@ -1,33 +1,141 @@
 // Library Genesis provider.
 //
 // Libgen is the fastest path to a *directly downloadable* file: its md5 records
-// resolve to a real get.php link with no waitlist or captcha. We scrape the
-// search table (structure differs slightly across the .li vs .is mirror
-// families, so the parser is defensive) and resolve downloads via the md5.
+// resolve to a real get.php link with no waitlist or captcha. It is also the
+// only source here that exposes machine-readable metadata (a BibTeX block on
+// the ads.php page), which is why book_details now prefers it.
+//
+// Parsing is header-driven rather than positional: the search tables render a
+// real <th> row ("Author(s)", "Publisher", "Year", "Size", "Ext.", "Mirrors"),
+// so columns are looked up by name and a positional fallback is used only when
+// a mirror ships no header row. See src/parse.ts for why position guessing was
+// wrong on real data.
 
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
 import { LIBGEN_MIRRORS } from "../mirrors.js";
+import {
+  columnMap,
+  isIsbnLike,
+  isUsefulLink,
+  LIBGEN_DEFAULT_COLUMNS,
+  parseBibtex,
+  parseFormat,
+  parseIsbns,
+  parseLanguage,
+  parsePages,
+  parseSize,
+  parseYear,
+  type LibgenColumn,
+} from "../parse.js";
 import type { Book, DownloadLink, Paper } from "../types.js";
 
 const GROUP = "libgen";
 
+/** A cheerio selection. cheerio 1.0 exports `Cheerio` and `CheerioAPI` but not
+ *  the DOM node types they are parameterised over, so the collection type is
+ *  derived from the API instead of named — no `any`, and it tracks the installed
+ *  cheerio version. */
+type Selection = ReturnType<cheerio.CheerioAPI>;
+
+/** Read a mapped column from a row, tolerating a missing mapping or cell. */
+function cellText(
+  cells: Selection,
+  cols: Partial<Record<LibgenColumn, number>>,
+  field: LibgenColumn
+): string | undefined {
+  const index = cols[field];
+  if (index === undefined) return undefined;
+  const el = cells.eq(index);
+  if (el.length === 0) return undefined;
+  const text = el.text().replace(/\s+/g, " ").trim();
+  return text || undefined;
+}
+
+/** Column indices for this table, from its header row when it has one. */
+function resolveColumns($: cheerio.CheerioAPI): Partial<Record<LibgenColumn, number>> {
+  const headers = $("table th")
+    .map((_i, th) => $(th).text())
+    .get() as string[];
+  const mapped = columnMap(headers);
+  // Anything the header row did not name falls back to the common layout, so a
+  // partially-rendered header cannot blank out fields.
+  return { ...LIBGEN_DEFAULT_COLUMNS, ...mapped };
+}
+
+/**
+ * Split the wide "Title / Series" column into its parts.
+ *
+ * The real markup is:
+ *   <b>Wiley Finance</b><br>
+ *   <a href="edition.php?id=...">Pairs Trading: Quantitative Methods and Analysis</a><br>
+ *   <a href="edition.php?id=..."><i><font color="green"> 9780471460671; 0471460672</font></i></a>
+ *   <nobr><span class="badge"><a title="Book">b</a></span> <span class="badge">l 239926</span></nobr>
+ *
+ * So the series is the bold text, the title is the first anchor that is not an
+ * ISBN list, and the ISBNs are the anchor that is. The old approach took the
+ * longest anchor text and the first cell, which produced a title containing the
+ * series and ISBNs and an author containing all three.
+ */
+function splitTitleCell(
+  $: cheerio.CheerioAPI,
+  cell: Selection
+): { title?: string; series?: string; isbn?: string } {
+  const series = cell.find("b").first().text().replace(/\s+/g, " ").trim() || undefined;
+
+  const anchors: Array<{ href?: string; text: string }> = [];
+  cell.find("a").each((_i, el) => {
+    anchors.push({
+      href: $(el).attr("href"),
+      text: $(el).text().replace(/\s+/g, " ").trim(),
+    });
+  });
+
+  let title: string | undefined;
+  let isbn: string | undefined;
+  for (const a of anchors) {
+    if (!a.text) continue;
+    if (isIsbnLike(a.text)) {
+      isbn ??= parseIsbns(a.text);
+      continue;
+    }
+    // Skip the single-letter type badges ("b" = book, "l" = libgen mirror).
+    if (a.text.length <= 2) continue;
+    title ??= a.text;
+  }
+
+  if (!title) {
+    // No usable anchor: fall back to the cell text minus the series, the type
+    // badges and any ISBN run.
+    const raw = cell.text().replace(/\s+/g, " ").trim();
+    const withoutSeries = series ? raw.replace(series, "").trim() : raw;
+    const cleaned = withoutSeries
+      .replace(/\b[bl]\s+\d{4,}\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    isbn ??= parseIsbns(cleaned);
+    const noIsbn = cleaned
+      .replace(/(?:\d[\dXx-]{8,16}\d)(?:\s*;\s*\d[\dXx-]{8,16}\d)*/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    title = (noIsbn || cleaned).slice(0, 300) || undefined;
+  }
+
+  return { title, series, isbn };
+}
+
 /** Search Library Genesis scimag (academic articles) by keyword or DOI. */
-export async function searchPapers(
-  query: string,
-  limit: number
-): Promise<Paper[]> {
+export async function searchPapers(query: string, limit: number): Promise<Paper[]> {
   // topics[]=a scopes the search to scimag (articles). Confirmed against the
   // .li family; the .is family exposes the same collection at /scimag/.
   const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
     `${b}/index.php?req=${encodeURIComponent(query)}&topics%5B%5D=a&res=100`
   ).catch(() =>
-    fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
-      `${b}/scimag/?q=${encodeURIComponent(query)}`
-    )
+    fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) => `${b}/scimag/?q=${encodeURIComponent(query)}`)
   );
 
   const $ = cheerio.load(html);
+  const cols = resolveColumns($);
   const papers: Paper[] = [];
   const seen = new Set<string>();
 
@@ -40,18 +148,31 @@ export async function searchPapers(
     const key = doi || md5;
     if (!key || seen.has(key)) return;
 
-    let title = "";
-    $row.find("a").each((_j, a) => {
-      const t = $(a).text().replace(/\s+/g, " ").trim();
-      if (t.length > title.length && !/^\d+$/.test(t)) title = t;
-    });
+    const cells = $row.find("td");
+    if (cells.length < 3) return;
+
+    const titleCell = cells.eq(cols.title ?? 0);
+    const { title: fromCell } = splitTitleCell($, titleCell);
+    let title = fromCell;
+
+    // The scimag title cell sometimes holds the venue rather than the article
+    // title; the longest meaningful anchor is a better candidate there.
+    if (!title) {
+      $row.find("a").each((_j, a) => {
+        const t = $(a).text().replace(/\s+/g, " ").trim();
+        if (t.length > (title?.length ?? 0) && !/^\d+$/.test(t)) title = t;
+      });
+    }
     if (!title || title.length < 4) return;
 
     seen.add(key);
     papers.push({
       source: "libgen",
       title,
+      author: cellText(cells, cols, "author"),
       doi,
+      year: parseYear(cellText(cells, cols, "year")),
+      journal: cellText(cells, cols, "publisher"),
       url: md5 ? `${base}/ads.php?md5=${md5}` : undefined,
       mirrors: md5 ? [`${base}/ads.php?md5=${md5}`] : undefined,
     });
@@ -72,11 +193,10 @@ export async function search(query: string, limit: number): Promise<Book[]> {
   );
 
   const $ = cheerio.load(html);
+  const cols = resolveColumns($);
   const books: Book[] = [];
   const seen = new Set<string>();
 
-  // Collect md5s from any ads.php / md5 links present in each row, and read the
-  // row's cell text for metadata.
   $("table tr").each((_i, row) => {
     if (books.length >= limit) return false;
     const $row = $(row);
@@ -89,37 +209,26 @@ export async function search(query: string, limit: number): Promise<Book[]> {
     const cells = $row.find("td");
     if (cells.length < 3) return;
 
-    // Title = the longest anchor text in the row (works for both layouts).
-    let title = "";
-    $row.find("a").each((_j, a) => {
-      const t = $(a).text().replace(/\s+/g, " ").trim();
-      if (t.length > title.length && !/^\d+$/.test(t) && !/^(libgen|mirror|\[)/i.test(t))
-        title = t;
-    });
+    const { title, series, isbn } = splitTitleCell($, cells.eq(cols.title ?? 0));
     if (!title) return;
 
-    const cellText = cells.map((_j, c) => $(c).text().trim()).get();
-    const joined = cellText.join(" | ");
-
-    const year = joined.match(/\b(1[5-9]\d{2}|20\d{2})\b/)?.[1];
-    const fmt = joined.match(/\b(pdf|epub|mobi|djvu|azw3|fb2)\b/i)?.[1];
-    const size = joined.match(/(\d+(?:\.\d+)?\s?(?:KB|MB|GB))/i)?.[1];
-    const lang = joined.match(
-      /\b(English|Spanish|French|German|Russian|Chinese|Arabic|Portuguese|Italian|Dutch|Japanese|Korean|Turkish|Persian)\b/i
-    )?.[1];
-    // Author is usually the first cell for .is layout; best-effort.
-    const author = cellText[0] && cellText[0].length < 120 ? cellText[0] : undefined;
+    const author = cellText(cells, cols, "author");
 
     seen.add(md5);
     books.push({
       source: "libgen",
       md5,
       title,
-      author,
-      year,
-      language: lang,
-      format: fmt?.toUpperCase(),
-      size: size?.replace(/\s+/, " "),
+      series,
+      // An author that is really an ISBN list is worse than no author.
+      author: author && !isIsbnLike(author) ? author : undefined,
+      publisher: cellText(cells, cols, "publisher"),
+      year: parseYear(cellText(cells, cols, "year")),
+      language: parseLanguage(cellText(cells, cols, "language")),
+      pages: parsePages(cellText(cells, cols, "pages")),
+      format: parseFormat(cellText(cells, cols, "format")),
+      size: parseSize(cellText(cells, cols, "size")),
+      isbn: isbn ?? parseIsbns(cellText(cells, cols, "title")),
       url: `${base}/ads.php?md5=${md5}`,
     });
   });
@@ -128,13 +237,65 @@ export async function search(query: string, limit: number): Promise<Book[]> {
 }
 
 /**
- * Resolve a directly-downloadable URL for an md5 via the Libgen "ads"/download
- * page. Returns every candidate found (get.php, cdn, mirror partners).
+ * Full metadata for an md5, from the BibTeX block Libgen embeds on ads.php.
+ *
+ * This is the reliable detail path. Anna's Archive's HTML pages answer HTTP 403
+ * to non-browser clients (their DDoS-Guard challenge), so a details resolver
+ * that depended on it returned an empty title and no links. The BibTeX block is
+ * plain text inside a page Libgen already serves for downloads, and it carries
+ * the exact title, author, publisher, ISBN, year and series.
  */
-export async function downloadLinks(md5: string): Promise<DownloadLink[]> {
+export async function details(md5: string): Promise<Book & { downloadLinks: DownloadLink[] }> {
+  const hash = md5.toLowerCase();
   const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
     `${b}/ads.php?md5=${md5}`
   );
+
+  const $ = cheerio.load(html);
+  const bodyText = $("body").text().replace(/\s+/g, " ");
+  const bibtex = parseBibtex(bodyText);
+
+  const title = bibtex.title || $("h1").first().text().trim() || undefined;
+  if (!title) {
+    throw new Error(
+      `Libgen returned no parseable metadata for ${md5} (page ${html.length} bytes)`
+    );
+  }
+
+  // Filtered here as well, not only in resolveDownloads(): book_details embeds
+  // this list, and an agent following "http://annas-archive.org/" out of a
+  // details response gets nothing with no explanation.
+  const links = (await downloadLinks(md5, { html, base })).filter((l) =>
+    isUsefulLink(l.url, hash)
+  );
+
+  return {
+    source: "libgen",
+    md5,
+    title,
+    series: bibtex.series || undefined,
+    author: bibtex.author || undefined,
+    publisher: bibtex.publisher || undefined,
+    year: parseYear(bibtex.year),
+    isbn: bibtex.isbn || undefined,
+    url: `${base}/ads.php?md5=${md5}`,
+    downloadLinks: links,
+  };
+}
+
+/**
+ * Resolve every candidate download URL for an md5.
+ *
+ * Pass `{ html, base }` to reuse an already-fetched ads.php page — `details`
+ * does this so resolving metadata and links costs one request instead of two.
+ */
+export async function downloadLinks(
+  md5: string,
+  reuse?: { html: string; base: string }
+): Promise<DownloadLink[]> {
+  const { html, base } =
+    reuse ??
+    (await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) => `${b}/ads.php?md5=${md5}`));
   const $ = cheerio.load(html);
   const links: DownloadLink[] = [];
   const push = (url: string, label: string, direct: boolean) => {

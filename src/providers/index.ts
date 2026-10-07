@@ -9,6 +9,7 @@ import * as libgen from "./libgen.js";
 import * as scihub from "./scihub.js";
 import * as zlibrary from "./zlibrary.js";
 import { IPFS_GATEWAYS } from "../mirrors.js";
+import { isUsefulLink } from "../parse.js";
 import type {
   Book,
   DownloadLink,
@@ -117,6 +118,74 @@ export async function searchBooks(
   };
 }
 
+/** Which source actually answered a details lookup. */
+export type BookDetailsResult = (Book & { downloadLinks: DownloadLink[] }) & {
+  /** Present when the preferred source failed and a fallback answered. */
+  resolvedVia?: "annas" | "libgen";
+  /** Why the preferred source was not used, when applicable. */
+  annasUnavailable?: string;
+  /** Present when the Libgen fallback also failed to produce metadata. */
+  libgenUnavailable?: string;
+};
+
+/**
+ * Full metadata + download links for one md5.
+ *
+ * Anna's Archive is tried first because it aggregates the most sources, but its
+ * HTML pages answer HTTP 403 to non-browser clients (the DDoS-Guard challenge),
+ * so relying on it alone made book_details return an empty title and no links.
+ * Library Genesis is the fallback, and it is the better source anyway: its
+ * ads.php page embeds a BibTeX block with exact title/author/publisher/ISBN/
+ * year/series, which needs no guessing.
+ *
+ * The response always says which source answered, so a caller is never left
+ * wondering why the shape of the data changed.
+ */
+export async function bookDetails(md5: string): Promise<BookDetailsResult> {
+  const hash = md5.toLowerCase();
+
+  let annasReason = "answered with no title";
+  try {
+    const fromAnnas = await annas.details(hash);
+    // Anna's can also "succeed" with an empty shell when a mirror answers 200
+    // but serves something that is not a book page. Treat that as unavailable
+    // rather than returning blank metadata.
+    if (fromAnnas.title && fromAnnas.title.trim()) {
+      return { ...fromAnnas, resolvedVia: "annas" };
+    }
+  } catch (e) {
+    annasReason = String((e as Error)?.message ?? e).slice(0, 200);
+  }
+
+  let libgenReason: string | undefined;
+  let fromLibgen: (Book & { downloadLinks: DownloadLink[] }) | undefined;
+  try {
+    fromLibgen = await libgen.details(hash);
+  } catch (e) {
+    libgenReason = String((e as Error)?.message ?? e).slice(0, 200);
+  }
+
+  if (fromLibgen) {
+    return {
+      ...fromLibgen,
+      resolvedVia: "libgen",
+      annasUnavailable: annasReason,
+    };
+  }
+
+  // Neither source produced usable metadata. Report both failures instead of
+  // throwing, so the caller learns what was tried and why it did not work.
+  return {
+    source: "libgen",
+    md5: hash,
+    title: "",
+    downloadLinks: [],
+    resolvedVia: "libgen",
+    annasUnavailable: annasReason,
+    libgenUnavailable: libgenReason,
+  };
+}
+
 /** Resolve every download candidate we can find for an md5. */
 export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   const links: DownloadLink[] = [];
@@ -147,8 +216,14 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
     }
   }
 
-  return links;
+  const hash = md5.toLowerCase();
+  const useful = links.filter((l) => isUsefulLink(l.url, hash));
+  return useful;
 }
+
+// isUsefulLink lives in ../parse.js, not here: libgen.ts needs it too, and
+// libgen.ts cannot import from this module (this module imports libgen).
+export { isUsefulLink } from "../parse.js";
 
 export { annas, libgen, scihub, zlibrary };
 export { DISABLED_BOOK_SOURCES as DEFAULT_DISABLED_SOURCES };

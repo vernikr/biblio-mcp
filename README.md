@@ -25,15 +25,17 @@
 > | **Search speed** | ~14 seconds, mostly waiting on dead websites | ~1 second on the same query |
 > | **Downloads** | Saved whatever came back, including stray web pages | Streamed to disk and checksum-verified, so you know it is the right file |
 > | **A dead source** | Slowed down every search and reported an error you could not act on | Switched off by default; opt back in when you have a working address |
-| **A domain that stopped being the real site** | Answered “OK”, got trusted, and quietly returned nothing | Detected and refused — a status code is not proof of identity |
+> | **A domain that stopped being the real site** | Answered “OK”, got trusted, and quietly returned nothing | Detected and refused — a status code is not proof of identity |
+> | **Wrong book data** | Reported the series name and a list of ISBNs as the author | Read from the column the page actually labels, so `author` is the author |
+> | **Useless download links** | Offered a bare homepage as a way to download the book | Filtered out — a link is only offered if it can reach that file |
 > | **Long downloads** | Could silently outlast your client's timeout | Reports progress while transferring |
 >
-> **The honest caveats.** This fork does not fix the accuracy of the catalogue data — some
-> fields (notably `author`, and `book_details` via Anna's Archive) are still wrong, and that is
-> tracked openly in the issue list and in the roadmap below rather than papered over. Shadow
-> libraries also change their websites constantly; no fork can promise they stay reachable.
-> What this fork promises is narrower and more useful: **when something is broken, it tells you
-> immediately and tells you what to do.**
+> **The honest caveats.** Catalogue data now comes from the column a page actually labels, and
+> `book_details` reads structured metadata (a BibTeX block) instead of guessing at a web page —
+> but these are third-party sites with no stability guarantees. They change their layout, they
+> go offline, and domains get re-registered by other people. No fork can promise they stay
+> reachable. What this fork promises is narrower and more useful: **when something is broken, it
+> tells you immediately and tells you what to do.**
 >
 > **Not sure which to use?** If you just want the tools to work and to be told the truth when
 > they do not, use this fork. If you specifically need the upstream npm package, note that its
@@ -150,8 +152,8 @@ python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
 | Tool | What it does |
 |---|---|
 | `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus `errors` for any source that failed. |
-| `book_details` | Full metadata + download options for one book by MD5 hash. |
-| `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file. |
+| `book_details` | Full metadata + download options for one book by MD5 hash. Tries Anna's Archive, falls back to Libgen's BibTeX block, and reports which one answered (`resolvedVia`) and why the other did not. |
+| `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; links that cannot lead to it are dropped. |
 | `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, the byte count, and **the MD5 of what was written** so you can confirm the file is the one you asked for. Emits progress notifications while transferring. |
 | `search_papers` | Academic paper / article search via Library Genesis scimag; returns DOIs and metadata. |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
@@ -255,15 +257,21 @@ Two of these deserve a note:
 These are stated plainly because a tool that hides its failures costs you more time than one
 that admits them.
 
-- **`book_details` usually fails.** It resolves only against Anna's Archive, and the genuine
-  Anna's Archive mirrors answer **HTTP 403** to the scraped HTML pages (`/search`, `/md5/...`)
-  from any non-browser client — that is their DDoS-Guard challenge. The tool reports the 403
-  rather than guessing. Use `search_books` plus `get_download_links`, which go through Libgen
-  and work. Members can set `BIBLIO_ANNAS_API_KEY` to use the fast-download JSON API, which is
-  not behind the challenge.
+- **`book_details` works, but usually not via Anna's Archive.** Anna's is tried first, and its
+  genuine mirrors answer **HTTP 403** to the scraped HTML pages (`/search`, `/md5/...`) from any
+  non-browser client — that is their DDoS-Guard challenge. Libgen is the fallback, and it is the
+  better source anyway: its `ads.php` page embeds a **BibTeX block** with exact
+  title/author/publisher/ISBN/year/series, so nothing has to be guessed. Every response says
+  which source answered (`resolvedVia`) and, when the preferred one failed, why
+  (`annasUnavailable`). If *both* fail you get an empty record that names both failures rather
+  than an exception. Members can set `BIBLIO_ANNAS_API_KEY` to use the fast-download JSON API,
+  which is not behind the challenge.
   > Worth knowing: an earlier version of this README blamed "an advertising interstitial" on
-  > Anna's Archive. That was wrong, and the mistake is instructive. The ad page was coming from
-  > `annas-archive.li`, a domain that is **no longer Anna's Archive** — see the next item.
+  > Anna's Archive, and an earlier version of this fork assumed `book_details` could be fixed by
+  > scraping Anna's Archive better. Both were wrong, and the mistakes are instructive. The ad
+  > page was coming from `annas-archive.li`, a domain that is **no longer Anna's Archive** — see
+  > the next item — and the real fix was to stop depending on a source that refuses non-browser
+  > clients at all.
 - **Abandoned domains get re-registered, and this one bit us.** `annas-archive.li` was taken
   down under publisher pressure in March 2026. As of October 2026 it answers HTTP 200 in ~0.15 s
   — faster than every genuine mirror — but serves a 27 kB page of advertising JavaScript with no
@@ -272,10 +280,17 @@ that admits them.
   validator, so such a host is rejected with an explicit reason, and `pnpm selfcheck` reports it
   as `HTTP 200 — NOT the expected site` instead of as healthy. If you add mirrors, add a marker
   to check for.
-- **`author` is often wrong in Libgen results.** The parser reads the first table column, but
-  Libgen puts the author in the second, so you get the series name and ISBNs instead. Also a
-  phase-2 fix; there are `todo` tests in [`test/providers.test.mjs`](test/providers.test.mjs)
-  that pin the expected behaviour so the fix is verified when it lands.
+- **Libgen columns are read by header name, not by position.** Libgen's first column combines
+  series, title and ISBNs; the author is the second. A parser that assumed positions reported the
+  series name and a list of ISBNs as the author, and glued `Wiley Finance` onto the front of every
+  title. Columns are now resolved from the table's `<th>` row, with a positional fallback for
+  mirrors that ship no header, and `series` is its own field. File sizes go through a bounded
+  parser, so a digit run from the pages column (`00264mB`) can no longer be reported as a size.
+- **Download links are filtered before they reach you.** Providers scrape anchors, and some
+  anchors are not downloads — Libgen's `ads.php` page links the bare `http://annas-archive.org/`
+  homepage, which used to appear as a download option. A link is only reported if it has a path
+  beyond the domain root and actually references the requested MD5 (IPFS gateway links are the
+  documented exception, since they carry a CID instead).
 - **Z-Library is off by default.** Every public domain in the built-in list was unreachable at
   the last mirror audit, so querying it by default only added latency and an error you could not
   act on. Pass `sources: ["zlibrary"]` explicitly, or set `BIBLIO_ZLIB_MIRRORS` to a working
@@ -289,12 +304,17 @@ that admits them.
 
 ### Roadmap
 
-Phases 0 and 1 of the improvement plan are implemented in this fork: a build that cannot
+Phases 0–2 of the improvement plan are implemented in this fork: a build that cannot
 silently produce a broken server, a health check, faster and more honest mirror handling,
-streaming verified downloads, and progress reporting.
+streaming verified downloads, progress reporting, and parsers that report what a page actually
+says.
 
-Still open: parser accuracy (`author`, `title`, `size`), a `book_details` path that does not
-depend on Anna's Archive, human-readable argument-validation errors, and a `healthcheck` tool.
+Phase 2 is implemented as well: Libgen columns are resolved by header name, `series` is a
+separate field, sizes and years go through bounded parsers, `book_details` resolves against
+Libgen's BibTeX block when Anna's Archive refuses the request, and download links that cannot
+lead to the file are filtered out.
+
+Still open: human-readable argument-validation errors, and a `healthcheck` tool.
 
 ## FAQ
 

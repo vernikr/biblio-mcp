@@ -97,3 +97,19 @@ test("search_books documents which sources are searched by default", async () =>
     assert.match(sourcesDesc, /zlibrary/);
   });
 });
+
+test("the reported version matches package.json", async () => {
+  // SERVER_VERSION used to be a hardcoded string, so bumping the version left
+  // `--version` and `--selfcheck` advertising the previous release.
+  const { readFile } = await import("node:fs/promises");
+  const { join, dirname } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(await readFile(join(here, "..", "package.json"), "utf8"));
+
+  await withClient(async (client) => {
+    const info = await client.getServerVersion();
+    assert.equal(info.name, "biblio-mcp");
+    assert.equal(info.version, pkg.version);
+  });
+});

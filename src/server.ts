@@ -8,6 +8,7 @@ import { z } from "zod";
 import { mkdir, rename, unlink } from "node:fs/promises";
 import { open } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
+import { createRequire } from "node:module";
 import {
   downloadToFile,
   HtmlInsteadOfFileError,
@@ -17,6 +18,7 @@ import { sniffExt } from "./sniff.js";
 import {
   searchBooks,
   resolveDownloads,
+  bookDetails,
   annas,
   libgen,
   scihub,
@@ -27,7 +29,23 @@ import {
 import type { SourceId } from "./types.js";
 
 const SERVER_NAME = "biblio-mcp";
-const SERVER_VERSION = "1.2.0";
+
+/**
+ * Read from package.json rather than repeated here.
+ *
+ * This used to be a hardcoded string, so bumping the version in package.json
+ * left `--version` and `--selfcheck` reporting the previous one. `createRequire`
+ * is used instead of `import ... from "../package.json"` because tsconfig sets
+ * `rootDir: "src"`, and importing a file above it breaks the build.
+ */
+const SERVER_VERSION: string = (() => {
+  try {
+    const pkg = createRequire(import.meta.url)("../package.json") as { version?: string };
+    return pkg.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -141,11 +159,14 @@ export function createServer(): McpServer {
   server.tool(
     "book_details",
     "Get full metadata and download options for a single book by its MD5 hash " +
-      "(from a search_books result). Resolves against Anna's Archive.",
+      "(from a search_books result). Tries Anna's Archive first and falls back " +
+      "to Library Genesis, whose metadata comes from a BibTeX block and is " +
+      "exact. The response says which source answered in `resolvedVia`, and " +
+      "why Anna's Archive was skipped in `annasUnavailable`.",
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
     },
-    async ({ md5 }) => json(await annas.details(md5.toLowerCase()))
+    async ({ md5 }) => json(await bookDetails(md5.toLowerCase()))
   );
 
   // -------------------------------------------------------------------------

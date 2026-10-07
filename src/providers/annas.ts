@@ -7,6 +7,7 @@
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
 import { ANNAS_MIRRORS } from "../mirrors.js";
+import { parseLanguage, parseSize, parseYear } from "../parse.js";
 import type { Book, DownloadLink } from "../types.js";
 
 const GROUP = "annas";
@@ -27,18 +28,29 @@ const isAnnasArchive = (html: string): boolean | string => {
 };
 
 /** Pull the first metadata line out of a result block and parse loosely. */
+/**
+ * Best-effort metadata from a blob of page text.
+ *
+ * Unlike Library Genesis, Anna's Archive has no structured metadata block to
+ * read here, so this is genuinely heuristic and only ever a fallback — the
+ * reliable detail path is libgen.details(), which parses BibTeX. That is why
+ * these fields go through the shared validators in src/parse.ts instead of the
+ * loose inline regexes they used to use: the old size pattern matched inside
+ * longer digit runs and reported values like "0026gB" as a file size.
+ *
+ * A field it cannot validate is left undefined rather than guessed, because a
+ * wrong value is worse than a missing one when an agent acts on it.
+ */
 function parseMeta(metaText: string): Partial<Book> {
   const out: Partial<Book> = {};
-  const year = metaText.match(/\b(1[5-9]\d{2}|20\d{2})\b/);
-  if (year) out.year = year[1];
+  const year = parseYear(metaText);
+  if (year) out.year = year;
   const fmt = metaText.match(/\b(pdf|epub|mobi|djvu|azw3|cbr|cbz|fb2)\b/i);
   if (fmt) out.format = fmt[1].toUpperCase();
-  const size = metaText.match(/(\d+(?:\.\d+)?\s?(?:KB|MB|GB))/i);
-  if (size) out.size = size[1].replace(/\s+/, " ");
-  const lang = metaText.match(
-    /\b(English|Spanish|French|German|Russian|Chinese|Arabic|Portuguese|Italian|Dutch|Japanese|Korean|Turkish|Persian|Hindi|Polish|Ukrainian)\b/i
-  );
-  if (lang) out.language = lang[1];
+  const size = parseSize(metaText);
+  if (size) out.size = size;
+  const lang = parseLanguage(metaText);
+  if (lang) out.language = lang;
   return out;
 }
 
