@@ -1,5 +1,13 @@
-// Live smoke test — exercises each provider against real mirrors.
-// Run: npm run smoke
+// Legacy live smoke test — exercises each provider against real mirrors.
+// Run: pnpm run smoke
+//
+// Prefer `pnpm selfcheck:live` for day-to-day checks: it also verifies the tool
+// surface and prints mirror reachability with timings. This script stays useful
+// when debugging a single provider, because it calls the provider functions
+// directly and prints raw per-source output.
+//
+// Note it queries Z-Library explicitly even though that source is off by
+// default, so a Z-Library failure line here is expected and harmless.
 import { searchBooks, resolveDownloads, libgen, scihub } from "../src/providers/index.js";
 
 function line(s: string) {

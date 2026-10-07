@@ -10,21 +10,22 @@
 // For authenticated, complete Z-Library access, set BIBLIO_ZLIB_MIRRORS to your
 // working personal domain; richer login-based access is intentionally out of
 // scope to keep the server credential-free by default.
+//
+// As of the 2026-10-07 mirror audit every public domain in the default list was
+// unusable (see src/mirrors.ts), so this source is NOT part of the default
+// search set — opt in with `sources: ["zlibrary"]`. Being excluded by default
+// is what keeps a dead source from taxing every search; being still present
+// means a user-supplied personal domain works without a code change.
 
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
+import { ZLIBRARY_MIRRORS } from "../mirrors.js";
 import type { Book } from "../types.js";
 
 const GROUP = "zlibrary";
 
-const ZLIB_MIRRORS = (process.env.BIBLIO_ZLIB_MIRRORS ??
-  "https://z-lib.io,https://z-library.sk,https://1lib.sk,https://zlibrary-global.se")
-  .split(",")
-  .map((s) => s.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
-
 export async function search(query: string, limit: number): Promise<Book[]> {
-  const { html, base } = await fetchFromMirrors(GROUP, ZLIB_MIRRORS, (b) =>
+  const { html, base } = await fetchFromMirrors(GROUP, ZLIBRARY_MIRRORS, (b) =>
     `${b}/s/${encodeURIComponent(query)}`
   );
   const $ = cheerio.load(html);

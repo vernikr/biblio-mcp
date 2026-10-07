@@ -11,6 +11,21 @@ import type { Book, DownloadLink } from "../types.js";
 
 const GROUP = "annas";
 
+/**
+ * Reject mirrors that answer 200 but are not Anna's Archive.
+ *
+ * Abandoned shadow-library domains get re-registered and parked: as of
+ * 2026-10-07 `annas-archive.li` answers in ~0.15 s with a ~27 kB page of
+ * advertising JavaScript and no <title>. It is faster than every genuine
+ * mirror, so without this check it wins the race and the parsers below turn an
+ * ad page into "zero results, no error" — an invisible failure. The real site
+ * serves ~174 kB and names itself in the title.
+ */
+const isAnnasArchive = (html: string): boolean | string => {
+  if (/Anna[’']s Archive/i.test(html)) return true;
+  return "answered but is not Anna's Archive (parked or hijacked domain?)";
+};
+
 /** Pull the first metadata line out of a result block and parse loosely. */
 function parseMeta(metaText: string): Partial<Book> {
   const out: Partial<Book> = {};
@@ -28,8 +43,12 @@ function parseMeta(metaText: string): Partial<Book> {
 }
 
 export async function search(query: string, limit: number): Promise<Book[]> {
-  const { html, base } = await fetchFromMirrors(GROUP, ANNAS_MIRRORS, (b) =>
-    `${b}/search?q=${encodeURIComponent(query)}`
+  const { html, base } = await fetchFromMirrors(
+    GROUP,
+    ANNAS_MIRRORS,
+    (b) => `${b}/search?q=${encodeURIComponent(query)}`,
+    undefined,
+    isAnnasArchive
   );
   const $ = cheerio.load(html);
   const books: Book[] = [];
@@ -78,8 +97,12 @@ export async function search(query: string, limit: number): Promise<Book[]> {
 export async function details(
   md5: string
 ): Promise<Book & { downloadLinks: DownloadLink[] }> {
-  const { html, base } = await fetchFromMirrors(GROUP, ANNAS_MIRRORS, (b) =>
-    `${b}/md5/${md5}`
+  const { html, base } = await fetchFromMirrors(
+    GROUP,
+    ANNAS_MIRRORS,
+    (b) => `${b}/md5/${md5}`,
+    undefined,
+    isAnnasArchive
   );
   const $ = cheerio.load(html);
 

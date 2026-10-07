@@ -1,0 +1,124 @@
+// Tests for the install-time guard.
+//
+// The negative case matters more than the positive one: the whole reason this
+// script exists is to catch @modelcontextprotocol/sdk 1.12.x paired with zod 4,
+// which starts fine and then fails every tool call. So the tests build a real
+// (tiny) node_modules tree with exactly that pairing and run the real script
+// against it — no reimplementation of the check.
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const PREFLIGHT_SRC = resolve(HERE, "..", "scripts", "preflight.mjs");
+
+/** Build a throwaway project tree with a chosen zod/SDK pairing and run the
+ *  real preflight script inside it. */
+async function runPreflightAgainst({ zodVersion, sdkVersion, sdkZodRange }) {
+  const root = await mkdtemp(join(tmpdir(), "biblio-preflight-"));
+  await mkdir(join(root, "scripts"), { recursive: true });
+  await copyFile(PREFLIGHT_SRC, join(root, "scripts", "preflight.mjs"));
+
+  const writePkg = async (name, version, extra = {}) => {
+    const dir = join(root, "node_modules", ...name.split("/"));
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, "package.json"),
+      JSON.stringify({ name, version, ...extra }, null, 2)
+    );
+  };
+
+  await writePkg("zod", zodVersion);
+  await writePkg("@modelcontextprotocol/sdk", sdkVersion, {
+    dependencies: { zod: sdkZodRange },
+  });
+  await writeFile(join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+  await writeFile(join(root, "package.json"), JSON.stringify({ name: "x", version: "0.0.0" }));
+
+  const out = await new Promise((done) => {
+    const child = spawn(process.execPath, [join(root, "scripts", "preflight.mjs"), "--json"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.on("close", (code) => done({ code, stdout }));
+  });
+
+  return { code: out.code, report: JSON.parse(out.stdout) };
+}
+
+const compatOf = (report) => report.checks.find((c) => c.name === "zod-sdk-compat");
+
+test("preflight passes the known-good pairing (SDK 1.29 + zod 4.4.3)", async () => {
+  const { report } = await runPreflightAgainst({
+    zodVersion: "4.4.3",
+    sdkVersion: "1.29.0",
+    sdkZodRange: "^3.25 || ^4.0",
+  });
+  const compat = compatOf(report);
+  assert.equal(compat.ok, true, JSON.stringify(compat));
+});
+
+test("preflight passes a zod-3-only SDK paired with zod 3", async () => {
+  const { report } = await runPreflightAgainst({
+    zodVersion: "3.23.8",
+    sdkVersion: "1.12.1",
+    sdkZodRange: "^3.23.8",
+  });
+  assert.equal(compatOf(report).ok, true);
+});
+
+test("preflight FAILS the broken pairing (SDK 1.12.1 + zod 4.4.3) with an actionable message", async () => {
+  const { code, report } = await runPreflightAgainst({
+    zodVersion: "4.4.3",
+    sdkVersion: "1.12.1",
+    sdkZodRange: "^3.23.8",
+  });
+  const compat = compatOf(report);
+
+  assert.equal(compat.ok, false, "this combination must be rejected");
+  assert.equal(report.ok, false);
+  assert.equal(code, 1, "the script must exit non-zero so CI can gate on it");
+  // The message has to name the symptom and the fix, not just say "incompatible".
+  assert.match(compat.problem, /keyValidator\._parse is not a function/);
+  assert.match(compat.problem, /pnpm add @modelcontextprotocol\/sdk/);
+});
+
+test("preflight reports a missing dependency tree instead of crashing", async () => {
+  const root = await mkdtemp(join(tmpdir(), "biblio-preflight-empty-"));
+  await mkdir(join(root, "scripts"), { recursive: true });
+  await copyFile(PREFLIGHT_SRC, join(root, "scripts", "preflight.mjs"));
+
+  const out = await new Promise((done) => {
+    const child = spawn(process.execPath, [join(root, "scripts", "preflight.mjs"), "--json"], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    child.stdout.on("data", (d) => (stdout += d));
+    child.on("close", (code) => done({ code, stdout }));
+  });
+
+  const report = JSON.parse(out.stdout);
+  assert.equal(report.ok, false);
+  assert.equal(compatOf(report).ok, false);
+  assert.match(compatOf(report).problem, /pnpm install/);
+});
+
+test("the shipped tree passes preflight", async () => {
+  // Guards the repo itself: if someone bumps a dependency into the broken
+  // pairing, this fails locally before it ever reaches a user.
+  const { runPreflight } = await import("../scripts/preflight.mjs");
+  const report = runPreflight();
+  const failures = report.checks.filter((c) => !c.ok);
+  assert.deepEqual(
+    failures.map((f) => `${f.name}: ${f.problem}`),
+    [],
+    "the working tree must pass its own preflight"
+  );
+});

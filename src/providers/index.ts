@@ -18,7 +18,38 @@ import type {
   SourceError,
 } from "../types.js";
 
-export const BOOK_SOURCES: SourceId[] = ["annas", "libgen", "zlibrary"];
+/** Every book source this server knows how to query. */
+export const ALL_BOOK_SOURCES: SourceId[] = ["annas", "libgen", "zlibrary"];
+
+/** Sources that are off unless explicitly requested.
+ *
+ * Z-Library ships in this list because of the 2026-10-07 mirror audit: every
+ * public Z-Library domain was unreachable or redirecting away from search, so
+ * including it by default meant every search paid for four failed mirrors and
+ * then reported an error the caller could do nothing about. Excluding it by
+ * default is not a removal — an explicit `sources: ["zlibrary"]` still queries
+ * it, which is what you want when BIBLIO_ZLIB_MIRRORS points at a working
+ * personal domain.
+ *
+ * Override the whole list with BIBLIO_DISABLE_SOURCES (comma-separated; set it
+ * to an empty string to disable nothing and restore upstream behaviour). */
+function resolveDisabledSources(): SourceId[] {
+  const raw = process.env.BIBLIO_DISABLE_SOURCES;
+  const list = (raw === undefined ? "zlibrary" : raw)
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  return list.filter((s): s is SourceId =>
+    (ALL_BOOK_SOURCES as string[]).includes(s)
+  );
+}
+
+export const DISABLED_BOOK_SOURCES: SourceId[] = resolveDisabledSources();
+
+/** Sources searched when the caller does not specify any. */
+export const BOOK_SOURCES: SourceId[] = ALL_BOOK_SOURCES.filter(
+  (s) => !DISABLED_BOOK_SOURCES.includes(s)
+);
 
 const bookSearchers: Record<
   string,
@@ -120,4 +151,5 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
 }
 
 export { annas, libgen, scihub, zlibrary };
+export { DISABLED_BOOK_SOURCES as DEFAULT_DISABLED_SOURCES };
 export type { Book, Paper, DownloadLink, SearchResult, SourceId };

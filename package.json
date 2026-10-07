@@ -1,6 +1,6 @@
 {
   "name": "biblio-mcp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "One MCP server for Anna's Archive, Library Genesis, Sci-Hub, and Z-Library. Search books and papers, resolve download links, and fetch files — across all shadow libraries through a single unified interface.",
   "type": "module",
   "bin": {
@@ -8,27 +8,34 @@
   },
   "files": [
     "dist",
+    "scripts/preflight.mjs",
     "README.md",
     "LICENSE"
   ],
   "author": "Yashar Mahmoudi <yashar.mahmudi@gmail.com> (https://github.com/yashimosh)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yashimosh/biblio-mcp.git"
+    "url": "git+https://github.com/vernikr/biblio-mcp.git"
   },
-  "homepage": "https://github.com/yashimosh/biblio-mcp",
+  "homepage": "https://github.com/vernikr/biblio-mcp",
   "bugs": {
-    "url": "https://github.com/yashimosh/biblio-mcp/issues"
+    "url": "https://github.com/vernikr/biblio-mcp/issues"
   },
   "engines": {
     "node": ">=18"
   },
+  "packageManager": "pnpm@12.10.1",
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
+    "preflight": "node scripts/preflight.mjs",
+    "selfcheck": "node dist/index.js --selfcheck",
+    "selfcheck:live": "node dist/index.js --selfcheck --live",
     "smoke": "tsx scripts/smoke.ts",
-    "prepublishOnly": "npm run build"
+    "test": "pnpm run build && node --test test/",
+    "verify": "pnpm run build && pnpm run test && pnpm run selfcheck",
+    "prepublishOnly": "pnpm run verify"
   },
   "keywords": [
     "mcp",
@@ -40,7 +47,6 @@
     "zlibrary",
     "books",
     "ebook",
-    "papers",
     "academic-papers",
     "book-search",
     "paper-search",
@@ -54,9 +60,9 @@
   ],
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.12.1",
+    "@modelcontextprotocol/sdk": "1.29.0",
     "cheerio": "1.0.0",
-    "zod": "3.23.8"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "@types/node": "20.14.9",
