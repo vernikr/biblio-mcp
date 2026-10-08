@@ -6,7 +6,7 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 
 - Mirror order is a preference, not a fail-fast sequence. Start candidates with a small stagger, accept the first response whose body and identity check pass, and cancel losers. Within one mirror, try a route fallback only after HTTP 404/405.
 - Remember failed mirrors for a short cooldown, but retry the full group when all candidates are cooling down. Preserve the last successful mirror as preferred; `healthcheck` clears cooldowns without discarding that preference, while `selfcheck` resets both.
-- A successful status code is not proof of site identity. `healthcheck`/`selfcheck` use per-group content markers; Anna's scraped requests also pass an identity validator. Provider fetch validators remain provider-specific, and Sci-Hub challenge-page handling (audit item A16) is still open.
+- A successful status code is not proof of site identity. `healthcheck`/`selfcheck` use per-group content markers; Anna's scraped requests also pass an identity validator. Provider fetch validators remain provider-specific, and Sci-Hub human-check pages are rejected by its validator (audit item A16); they are never solved.
 - `AbortSignal.any` is used when available; the fallback keeps the package compatible with older supported Node 18 releases.
 
 ## Timeouts and downloads
@@ -28,7 +28,8 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 ## Caches and source health
 
 - Provider caches are bounded and process-local. They share in-flight work, start the TTL after a successful load, update LRU order on hits without extending TTL, and never retain thrown failures. Search caches may retain concise failure outcomes briefly to avoid repeating an immediately adjacent failing source call.
-- Source-level circuits are process-lifetime safeguards after repeated full provider failures; mirror cooldowns remain shorter and independently recoverable.
+- Source-level circuits open after three consecutive real failures and close again after the same cooldown as mirrors (`BIBLIO_MIRROR_DEAD_TTL_MS`, default five minutes). "Record not found on every mirror" is a healthy answer and never counts. A single missing record never cools a mirror down; only network errors, server errors, challenges, and identity failures do.
+- The Anna's member key is sent only to hosts whose homepage passes the identity marker, checked without the key and cached for ten minutes.
 
 ## MCP surface and startup
 

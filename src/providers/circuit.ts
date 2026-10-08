@@ -1,10 +1,18 @@
 import type { SourceId } from "../types.js";
+import { ResourceNotFoundError } from "../http.js";
 
 const FAILURE_THRESHOLD = 3;
 
+/** How long a source stays skipped once it trips. Shares the mirror cooldown
+ *  setting, since both mean "stop asking this for a while". */
+const COOLDOWN_MS = (() => {
+  const n = Number(process.env.BIBLIO_MIRROR_DEAD_TTL_MS);
+  return Number.isFinite(n) && n > 0 ? n : 300_000;
+})();
+
 type CircuitState = {
   consecutiveFailures: number;
-  open: boolean;
+  openedAt?: number;
   reason?: string;
 };
 
@@ -27,9 +35,13 @@ function errorMessage(error: unknown): string {
 /** Convert mirror-level diagnostics into a short, actionable source error. */
 export function summarizeSourceFailure(source: SourceId, error: unknown): string {
   if (error instanceof SourceCircuitOpenError) return error.message;
+  if (error instanceof ResourceNotFoundError) return error.message;
 
   const message = errorMessage(error);
   const mirrors = message.match(/All\s+(\d+)\s+[\w-]+\s+mirror\(s\)\s+failed/i)?.[1];
+  if (source === "scihub" && /human-verification challenge/i.test(message)) {
+    return "unavailable — Sci-Hub asked for a human check on every mirror that answered; try again later";
+  }
   if (source === "annas" && /(?:HTTP\s+403|\bforbidden\b|DDoS.?Guard)/i.test(message)) {
     const count = mirrors ? ` (${mirrors})` : "";
     return (
@@ -54,53 +66,76 @@ export function summarizeSourceFailure(source: SourceId, error: unknown): string
   return concise ? `unavailable — ${concise}` : "unavailable — source request failed";
 }
 
-function openMessage(source: SourceId, reason: string): string {
-  if (source === "annas" && /DDoS-Guard challenge/i.test(reason)) {
-    return "unavailable — DDoS-Guard challenge; circuit open until restart " +
-      "(set BIBLIO_ANNAS_API_KEY for member fast downloads)";
-  }
-  return `unavailable (circuit open after ${FAILURE_THRESHOLD} consecutive failures; restart to retry)`;
+/** The open state is live only inside its cooldown window. */
+function activeOpen(state: CircuitState | undefined, now: number): boolean {
+  return state?.openedAt !== undefined && now - state.openedAt < COOLDOWN_MS;
 }
 
-/** Run one complete provider operation through a process-lifetime circuit. */
+function openMessage(source: SourceId, reason: string): string {
+  const minutes = Math.max(1, Math.round(COOLDOWN_MS / 60_000));
+  if (source === "annas" && /DDoS-Guard challenge/i.test(reason)) {
+    return (
+      `unavailable — DDoS-Guard challenge; circuit open for ${minutes} min ` +
+      "(set BIBLIO_ANNAS_API_KEY for member fast downloads)"
+    );
+  }
+  return (
+    `unavailable (circuit open after ${FAILURE_THRESHOLD} consecutive failures; ` +
+    `retrying in ${minutes} min)`
+  );
+}
+
+/** Run one complete provider operation through a source circuit. */
 export async function withSourceCircuit<T>(
   source: SourceId,
   operation: () => Promise<T>
 ): Promise<T> {
+  const now = Date.now();
   const current = circuits.get(source);
-  if (current?.open) {
-    throw new SourceCircuitOpenError(source, openMessage(source, current.reason ?? ""));
+  if (activeOpen(current, now)) {
+    throw new SourceCircuitOpenError(source, openMessage(source, current?.reason ?? ""));
   }
+  // Cooldown elapsed: forget the old trip and let traffic through again.
+  if (current?.openedAt !== undefined) circuits.delete(source);
 
   try {
     const result = await operation();
-    // A success resets ordinary consecutive failures. Do not let a request that
-    // was already in flight erase a circuit opened by three later completions.
-    if (!circuits.get(source)?.open) circuits.delete(source);
+    // A success clears ordinary failures, but never closes a circuit that was
+    // opened while this request was in flight.
+    if (!activeOpen(circuits.get(source), Date.now())) circuits.delete(source);
     return result;
   } catch (error) {
-    // Use the latest state here: concurrent calls can fail while another
-    // operation is in flight, and each completed failure must count once.
-    const latest = circuits.get(source);
-    const next: CircuitState = {
-      consecutiveFailures: (latest?.consecutiveFailures ?? 0) + 1,
-      open: false,
-    };
-    if (next.consecutiveFailures >= FAILURE_THRESHOLD) {
-      next.open = true;
-      next.reason = summarizeSourceFailure(source, error);
+    // "Not on this source" proves the source answered. It is health, not failure.
+    if (error instanceof ResourceNotFoundError) {
+      if (!activeOpen(circuits.get(source), Date.now())) circuits.delete(source);
+      throw error;
     }
-    circuits.set(source, next);
+    // Use the latest state: concurrent calls can fail while another operation
+    // is in flight, and each completed failure must count once.
+    const latest = circuits.get(source);
+    const failures = (latest?.consecutiveFailures ?? 0) + 1;
+    const tripped = failures >= FAILURE_THRESHOLD && !activeOpen(latest, Date.now());
+    if (activeOpen(latest, Date.now())) {
+      // Already open (late completion): keep the original trip.
+    } else if (tripped) {
+      circuits.set(source, {
+        consecutiveFailures: failures,
+        openedAt: Date.now(),
+        reason: summarizeSourceFailure(source, error),
+      });
+    } else {
+      circuits.set(source, { consecutiveFailures: failures });
+    }
     throw error;
   }
 }
 
 export function isSourceCircuitOpen(source: SourceId): boolean {
-  return circuits.get(source)?.open ?? false;
+  return activeOpen(circuits.get(source), Date.now());
 }
 
-/** Human-readable reason for a source whose circuit has opened. */
+/** Human-readable reason for a source whose circuit is currently open. */
 export function sourceCircuitMessage(source: SourceId): string | undefined {
   const state = circuits.get(source);
-  return state?.open ? openMessage(source, state.reason ?? "") : undefined;
+  return activeOpen(state, Date.now()) ? openMessage(source, state?.reason ?? "") : undefined;
 }

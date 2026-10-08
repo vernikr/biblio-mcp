@@ -202,6 +202,20 @@ class MirrorHttpError extends Error {
   }
 }
 
+/** The mirror answered, but this record is not on it. Not a sign of a dead host. */
+function isRecordMiss(error: unknown): boolean {
+  return error instanceof MirrorHttpError && (error.status === 404 || error.status === 410);
+}
+
+/** Every mirror answered, and none has the requested record. A healthy source
+ *  says this; callers must not count it as a failure of the source. */
+export class ResourceNotFoundError extends Error {
+  constructor(readonly groupKey: string, readonly tried: number, message?: string) {
+    super(message ?? `not found — no ${groupKey} mirror (${tried} tried) has this record`);
+    this.name = "ResourceNotFoundError";
+  }
+}
+
 /** Fetch an HTML page, racing the group's mirrors until one returns 2xx. */
 export async function fetchFromMirrors(
   groupKey: string,
@@ -219,6 +233,7 @@ export async function fetchFromMirrors(
   }
 
   const attempts: string[] = [];
+  const recordMisses: boolean[] = [];
   const controllers = new Set<AbortController>();
   const pending = ordered.map(async (base, index) => {
     const controller = new AbortController();
@@ -274,8 +289,11 @@ export async function fetchFromMirrors(
       throw lastError ?? new Error(`${base} -> no request path succeeded`);
     } catch (error) {
       if (!signal.signal.aborted) {
-        noteDead(groupKey, base);
+        const miss = isRecordMiss(error);
+        // One missing md5 must not cool the whole host down for five minutes.
+        if (!miss) noteDead(groupKey, base);
         attempts.push(String((error as Error)?.message ?? error));
+        recordMisses.push(miss);
       }
       throw error;
     } finally {
@@ -291,6 +309,9 @@ export async function fetchFromMirrors(
     }
     return { ...winner.result, attempts };
   } catch {
+    const everyMirrorMissed =
+      recordMisses.length === ordered.length && recordMisses.every(Boolean);
+    if (everyMirrorMissed) throw new ResourceNotFoundError(groupKey, ordered.length);
     throw new Error(
       `All ${mirrors.length} ${groupKey} mirror(s) failed: ` +
         `${(attempts.length ? attempts : ["cancelled"]).join("; ")}`

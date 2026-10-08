@@ -1,8 +1,8 @@
 // Anna's Archive provider.
 
 import * as cheerio from "cheerio";
-import { fetchFromMirrors } from "../http.js";
-import { ANNAS_MIRRORS } from "../mirrors.js";
+import { fetchFromMirrors, probeMirror } from "../http.js";
+import { ANNAS_IDENTITY, ANNAS_MIRRORS } from "../mirrors.js";
 import { parseLanguage, parseSize, parseYear } from "../parse.js";
 import type { Book, DownloadLink } from "../types.js";
 
@@ -107,12 +107,32 @@ export async function details(
   };
 }
 
+/** Host -> time until which its identity check still holds. */
+const verifiedUntil = new Map<string, number>();
+const IDENTITY_TTL_MS = 10 * 60_000;
+
+/** Mirrors whose homepage proves they are Anna's Archive. Checked without the
+ *  key, so a squatted or mistyped host never receives the member secret. */
+async function identityVerifiedMirrors(): Promise<string[]> {
+  const now = Date.now();
+  const unknown = ANNAS_MIRRORS.filter((base) => (verifiedUntil.get(base) ?? 0) <= now);
+  if (unknown.length > 0) {
+    const probes = await Promise.all(
+      unknown.map((base) => probeMirror(base, "/", { expect: ANNAS_IDENTITY }))
+    );
+    for (const probe of probes) {
+      if (probe.ok) verifiedUntil.set(probe.base, now + IDENTITY_TTL_MS);
+    }
+  }
+  return ANNAS_MIRRORS.filter((base) => (verifiedUntil.get(base) ?? 0) > Date.now());
+}
+
 /** Use Anna's member API for verified direct downloads when an API key is set. */
 export async function fastDownload(md5: string): Promise<DownloadLink | null> {
   const key = process.env.BIBLIO_ANNAS_API_KEY?.trim();
   if (!key) return null;
 
-  for (const base of ANNAS_MIRRORS) {
+  for (const base of await identityVerifiedMirrors()) {
     try {
       const res = await fetch(
         `${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`,

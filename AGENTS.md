@@ -24,7 +24,8 @@ default offline suite.
 - A status code is not proof that a host is the expected site. Check the returned content, update
   the group's identity marker, and run `pnpm run selfcheck` before changing preference order.
 - Provider fetch validation is per-provider. Anna's scraped pages have an identity validator; the
-  Sci-Hub ALTCHA/HTTP-200 case remains tracked as A16 in `docs/worklog/biblio-mcp-audit.md`.
+  Sci-Hub ALTCHA pages (HTTP 200) are rejected by the provider validator, so the next mirror is
+  tried; the server never attempts to solve the check (A16 in `docs/worklog/biblio-mcp-audit.md`).
 - Keep unreachable domains only when they may recover or are useful as user-configurable fallbacks;
   explain non-obvious ordering in `docs/decisions.md`.
 

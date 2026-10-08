@@ -10,6 +10,9 @@ function fromEnv(name: string, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
+/** Identity marker: a host is Anna's Archive only if its pages say so. */
+export const ANNAS_IDENTITY = /Anna[’']s Archive/i;
+
 /** Anna's Archive. */
 export const ANNAS_MIRRORS = fromEnv("BIBLIO_ANNAS_MIRRORS", [
   "https://annas-archive.gl", // 200, ~1.2 s, real site
@@ -83,7 +86,7 @@ export const MIRROR_GROUPS: ReadonlyArray<MirrorGroup> = [
     group: "annas",
     mirrors: ANNAS_MIRRORS,
     probePath: "/",
-    expect: /Anna[’']s Archive/i,
+    expect: ANNAS_IDENTITY,
   },
   {
     group: "libgen",

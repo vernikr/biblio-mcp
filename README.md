@@ -368,9 +368,10 @@ that admits them.
   answers **HTTP 403** to non-browser clients because of DDoS-Guard; Libgen's `ads.php` page
   embeds a **BibTeX block** with exact title/author/publisher/ISBN/year/series. The first usable
   metadata result wins, and the response reports `resolvedVia` plus a concise `annasUnavailable`
-  reason when known. After three consecutive full provider failures, that provider is disabled
-  until the server process restarts. Members can still use `BIBLIO_ANNAS_API_KEY` for the
-  independent fast-download JSON endpoint.
+  reason when known. After three consecutive real failures (not counting a record that simply
+  does not exist), that provider is paused for five minutes and then tried again. Members can
+  still use `BIBLIO_ANNAS_API_KEY` for the independent fast-download JSON endpoint; the key is
+  sent only to a mirror that proves it is Anna's Archive.
   > Worth knowing: an earlier version of this README blamed "an advertising interstitial" on
   > Anna's Archive, and an earlier version of this fork assumed `book_details` could be fixed by
   > scraping Anna's Archive better. Both were wrong, and the mistakes are instructive. The ad
@@ -388,9 +389,10 @@ that admits them.
   `<title>`. A liveness check that trusts status codes therefore ranked it *first*, and the
   parsers could quietly turn an ad page into "zero results, no error". Anna's scraped pages pass a
   content validator, and `healthcheck`/`selfcheck` use positive identity markers for every source
-  group. Provider fetch validation is still provider-specific: Sci-Hub can return an ALTCHA page
-  with HTTP 200 (tracked as A16 in the audit worklog). If you add mirrors, keep the corresponding
-  identity marker accurate.
+  group. Provider fetch validation is still provider-specific. Sci-Hub can return a human-check
+  (ALTCHA) page with HTTP 200; such a page is treated as a failed mirror, so the next mirror is
+  tried and the caller is told when every mirror asks for a check (A16). If you add mirrors, keep
+  the corresponding identity marker accurate.
 - **Libgen columns are read by header name, not by position.** Libgen's first column combines
   series, title and ISBNs; the author is the second. A parser that assumed positions reported the
   series name and a list of ISBNs as the author, and glued `Wiley Finance` onto the front of every
@@ -419,8 +421,9 @@ Phases 0–5 of the improvement plan are implemented: strict offline verificatio
 fixtures, resilient mirrors, streaming downloads, source circuits and caches, schema-derived tool
 hints, a maintainer guide, optional paper-PDF enrichment, and an updated quick start.
 
-One tracked limitation remains: A16, where Sci-Hub can return an ALTCHA page with HTTP 200. The
-full audit and remaining follow-up notes are in
+Sci-Hub's human-check pages (A16) are detected and skipped rather than returned as papers. The
+server does not solve those checks; if every mirror asks for one, `get_paper` says so. The full
+audit and remaining follow-up notes are in
 [`docs/worklog/biblio-mcp-audit.md`](docs/worklog/biblio-mcp-audit.md).
 
 ## FAQ

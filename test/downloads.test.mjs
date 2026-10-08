@@ -9,6 +9,12 @@ const md5 = "5".repeat(32);
 const cdnUrl = "https://cdn.example.test/dl/opaque-token/book.epub";
 let apiCalls = 0;
 const server = createServer((req, res) => {
+  // The key is only sent to a host whose homepage proves it is Anna's Archive.
+  if (req.url === "/") {
+    res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+    res.end("<title>Anna’s Archive</title>");
+    return;
+  }
   if (req.url?.startsWith("/dyn/api/fast_download.json")) {
     apiCalls += 1;
     res.writeHead(200, { "content-type": "application/json" });

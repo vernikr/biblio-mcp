@@ -25,6 +25,14 @@ const captures = [
     file: "scihub-doi.html",
     sha256: "ce06165f3766a6c38b0b8c8250dc4fbb62246a7a56e46e60dd513f73830ed33f",
   },
+  {
+    file: "scihub-altcha.html",
+    sha256: "759bdb7383cd8a656ebc2dc9d060a3bb97ab7dba7fac1515bf3fe86eaf9e3438",
+  },
+  {
+    file: "scihub-no-pdf.html",
+    sha256: "b671280f610aa8124f5826772697c1a8d76c012d3bde8e0f2b0201abfdd77566",
+  },
 ];
 
 const read = (file) => readFile(join(FIXTURES, file), "utf8");
@@ -56,4 +64,11 @@ test("the captured Sci-Hub page contains a PDF embed, not a challenge", async ()
   assert.match(html, /Nanometre-scale thermometry in a living cell/);
   assert.match(html, /<embed[^>]+application\/pdf[^>]+sci\.bban\.top\/pdf\/10\.1038\/nature12373\.pdf/i);
   assert.doesNotMatch(html, /altcha|captcha|проверка на робота/i);
+});
+
+test("the captured Sci-Hub challenge page is a human-verification page, not an article", async () => {
+  const html = await read("scihub-altcha.html");
+  assert.match(html, /проверка на робота/);
+  assert.match(html, /altcha-widget/);
+  assert.doesNotMatch(html, /<embed[^>]+application\/pdf/i);
 });
