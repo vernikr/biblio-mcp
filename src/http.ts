@@ -92,11 +92,22 @@ function isDead(groupKey: string, base: string): boolean {
   return true;
 }
 
-/** Drop the whole dead cache. Used by --selfcheck, which deliberately probes
- *  every host regardless of recent history. */
-export function resetMirrorCache(): void {
+/** Clear cooldowns without forgetting the last-known-good mirror. Healthcheck
+ *  needs fresh measurements, but should not discard useful request stickiness. */
+export function resetDeadCache(): void {
   deadUntil.clear();
+}
+
+/** Reset all mirror state. Used by --selfcheck and tests that require a clean
+ *  race, including preferred-mirror state. */
+export function resetMirrorCache(): void {
+  resetDeadCache();
   preferredMirror.clear();
+}
+
+/** True when every configured mirror is still in its negative-cache window. */
+export function areMirrorsCoolingDown(groupKey: string, mirrors: string[]): boolean {
+  return mirrors.length === 0 || mirrors.every((base) => isDead(groupKey, base));
 }
 
 /** Test-only / diagnostic view of the negative cache. */

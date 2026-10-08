@@ -10,8 +10,15 @@ process.env.BIBLIO_MIRROR_STAGGER_MS = "0"; // no head start; order is explicit
 process.env.BIBLIO_DOWNLOAD_STALL_MS = "700";
 process.env.BIBLIO_TIMEOUT_MS = "2000";
 
-const { fetchFromMirrors, downloadToFile, HtmlInsteadOfFileError, resetMirrorCache, probeMirror } =
-  await import("../dist/http.js");
+const {
+  fetchFromMirrors,
+  downloadToFile,
+  HtmlInsteadOfFileError,
+  resetMirrorCache,
+  resetDeadCache,
+  mirrorCacheSnapshot,
+  probeMirror,
+} = await import("../dist/http.js");
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -139,6 +146,28 @@ test("a mirror that succeeds becomes the preferred one", async () => {
   } finally {
     await slow.close();
     await fast.close();
+  }
+});
+
+test("resetDeadCache clears cooldowns but preserves the last-known-good mirror", async () => {
+  resetMirrorCache();
+  const broken = await serve({ "/x": (_q, res) => res.writeHead(500).end("broken") });
+  const good = await serve({ "/x": (_q, res) => res.writeHead(200).end("good") });
+
+  try {
+    const result = await fetchFromMirrors("selective-reset", [broken.url, good.url], (b) => `${b}/x`);
+    assert.equal(result.base, good.url);
+    const before = mirrorCacheSnapshot();
+    assert.ok(before.dead.includes(broken.url));
+    assert.equal(before.preferred["selective-reset"], good.url);
+
+    resetDeadCache();
+    const after = mirrorCacheSnapshot();
+    assert.deepEqual(after.dead, []);
+    assert.equal(after.preferred["selective-reset"], good.url);
+  } finally {
+    await broken.close();
+    await good.close();
   }
 });
 

@@ -16,8 +16,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve as resolvePath } from "node:path";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = resolvePath(HERE, "..");
@@ -221,10 +224,71 @@ test("bookDetails falls back to Libgen when Anna's Archive is unavailable", asyn
     assert.equal(result.author, "Ganapathy Vidyamurthy");
     assert.equal(result.series, "Wiley Finance");
     assert.equal(result.isbn, "9780471460671; 0471460672");
-    assert.match(result.annasUnavailable ?? "", /HTTP 403/);
+    assert.match(result.annasUnavailable ?? "", /DDoS-Guard challenge/i);
     assert.ok((result.downloadLinks ?? []).length > 0, "must still return download links");
   } finally {
     await stub.close();
+  }
+});
+
+test("bookDetails starts Anna's and Libgen concurrently and returns the first usable result", async () => {
+  const md5 = "524037f395462d37b31f2b28fede24fb";
+  let annasStartedResolve;
+  let libgenStartedResolve;
+  let releaseAnnas;
+  let annasFinishedResolve;
+  const annasStarted = new Promise((resolve) => (annasStartedResolve = resolve));
+  const libgenStarted = new Promise((resolve) => (libgenStartedResolve = resolve));
+  const annasFinished = new Promise((resolve) => (annasFinishedResolve = resolve));
+  const annasResponse = new Promise((resolve) => (releaseAnnas = resolve));
+
+  const annasStub = await startStub((req, res) => {
+    if (req.url?.startsWith("/md5/")) {
+      annasStartedResolve();
+      annasResponse.then(() => {
+        annasFinishedResolve();
+        res.writeHead(403, { "content-type": "text/plain" }).end("Forbidden");
+      });
+      return;
+    }
+    res.writeHead(404).end("not found");
+  });
+  const libgenStub = await startStub((req, res) => {
+    if (req.url?.startsWith("/ads.php")) {
+      libgenStartedResolve();
+      res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+      res.end(
+        `<html><body><table><tr><td>${BIBTEX(md5)}</td></tr></table>` +
+          `<a href="get.php?md5=${md5}&key=KEY123">GET</a></body></html>`
+      );
+      return;
+    }
+    res.writeHead(404).end("not found");
+  });
+
+  process.env.BIBLIO_ANNAS_MIRRORS = annasStub.origin;
+  process.env.BIBLIO_LIBGEN_MIRRORS = libgenStub.origin;
+  process.env.BIBLIO_TIMEOUT_MS = "2000";
+  process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
+
+  try {
+    const { bookDetails } = await import("../dist/providers/index.js");
+    const resultPromise = bookDetails(md5);
+    await Promise.all([annasStarted, libgenStarted]);
+    const result = await Promise.race([
+      resultPromise,
+      new Promise((resolve) => setTimeout(() => resolve("timed out"), 400)),
+    ]);
+    assert.notEqual(result, "timed out", "Libgen must not wait for the slow Anna's request");
+    assert.equal(result.resolvedVia, "libgen");
+    assert.equal(result.title, "Pairs Trading: Quantitative Methods and Analysis");
+    assert.equal(result.annasUnavailable, undefined, "the Anna's request is still in flight");
+
+    releaseAnnas();
+    await annasFinished;
+  } finally {
+    releaseAnnas();
+    await Promise.all([annasStub.close(), libgenStub.close()]);
   }
 });
 
@@ -263,13 +327,79 @@ test("bookDetails reports both failures instead of a plausible-looking stub", as
     );
     assert.match(
       result.annasUnavailable,
-      /not Anna's Archive|no title|HTTP \d+/i,
+      /non-archive page|no title|HTTP \d+/i,
       `annasUnavailable should say what went wrong, got ${JSON.stringify(result.annasUnavailable)}`
     );
     assert.ok(result.libgenUnavailable, "libgenUnavailable must explain the fallback failure");
     assert.deepEqual(result.downloadLinks, []);
   } finally {
     await stub.close();
+  }
+});
+
+test("download_book preserves a successful staging file and warns on an MD5 mismatch", async () => {
+  const md5 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const content = Buffer.from("%PDF-1.7\\nnot the requested catalog file\\n");
+  const actualMd5 = createHash("md5").update(content).digest("hex");
+  const stub = await startStub((req, res) => {
+    if (req.url?.startsWith("/ads.php")) {
+      res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+      res.end(`<a href="get.php?md5=${md5}&key=KEY123">GET</a>`);
+      return;
+    }
+    if (req.url?.startsWith("/get.php")) {
+      res.writeHead(200, { "content-type": "application/pdf" });
+      res.end(content);
+      return;
+    }
+    res.writeHead(404).end("not found");
+  });
+  const outputDir = await mkdtemp(join(tmpdir(), "biblio-download-book-"));
+  const filename = `${md5}.downloading`;
+
+  try {
+    const result = await runInProcess(
+      {
+        BIBLIO_LIBGEN_MIRRORS: stub.origin,
+        BIBLIO_ANNAS_MIRRORS: UNREACHABLE,
+        BIBLIO_ZLIB_MIRRORS: UNREACHABLE,
+        BIBLIO_ANNAS_API_KEY: "",
+      },
+      { md5, outputDir, filename },
+      async (c) => {
+        const [{ Client }, { InMemoryTransport }, { createServer }] = await Promise.all([
+          import("@modelcontextprotocol/sdk/client/index.js"),
+          import("@modelcontextprotocol/sdk/inMemory.js"),
+          import("./dist/server.js"),
+        ]);
+        const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+        const server = createServer();
+        const client = new Client({ name: "download-test", version: "0.0.0" });
+        try {
+          await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+          const response = await client.callTool({
+            name: "download_book",
+            arguments: { md5: c.md5, output_dir: c.outputDir, filename: c.filename },
+          });
+          return JSON.parse(response.content[0].text);
+        } finally {
+          await client.close().catch(() => {});
+          await server.close().catch(() => {});
+        }
+      }
+    );
+
+    const savedPath = join(outputDir, filename);
+    assert.equal(result.saved, true);
+    assert.equal(result.path, savedPath);
+    assert.equal(result.md5, actualMd5);
+    assert.equal(result.md5MatchesRequest, false);
+    assert.match(result.warning, /does not match the requested catalog MD5/i);
+    assert.deepEqual(await readdir(outputDir), [filename]);
+    assert.deepEqual(await readFile(savedPath), content);
+  } finally {
+    await stub.close();
+    await rm(outputDir, { recursive: true, force: true });
   }
 });
 

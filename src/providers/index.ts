@@ -8,8 +8,15 @@ import * as annas from "./annas.js";
 import * as libgen from "./libgen.js";
 import * as scihub from "./scihub.js";
 import * as zlibrary from "./zlibrary.js";
-import { IPFS_GATEWAYS } from "../mirrors.js";
+import { ANNAS_MIRRORS, IPFS_GATEWAYS } from "../mirrors.js";
+import { areMirrorsCoolingDown } from "../http.js";
 import { isUsefulLink } from "../parse.js";
+import {
+  isSourceCircuitOpen,
+  sourceCircuitMessage,
+  summarizeSourceFailure,
+  withSourceCircuit,
+} from "./circuit.js";
 import type {
   Book,
   DownloadLink,
@@ -86,9 +93,13 @@ export async function searchBooks(
   sources: SourceId[],
   limit: number
 ): Promise<SearchResult<Book>> {
-  const active = sources.filter((s) => s in bookSearchers);
+  const active = [...new Set(sources)].filter((s) => Object.hasOwn(bookSearchers, s));
+  if (active.length === 0) {
+    throw new Error("At least one book source must be selected.");
+  }
+
   const settled = await Promise.allSettled(
-    active.map((s) => bookSearchers[s]!(query, limit))
+    active.map((s) => withSourceCircuit(s, () => bookSearchers[s]!(query, limit)))
   );
 
   const errors: SourceError[] = [];
@@ -98,7 +109,7 @@ export async function searchBooks(
   settled.forEach((r, i) => {
     const source = active[i]!;
     if (r.status === "rejected") {
-      errors.push({ source, error: String(r.reason?.message ?? r.reason) });
+      errors.push({ source, error: summarizeSourceFailure(source, r.reason) });
       return;
     }
     for (const book of r.value) {
@@ -118,11 +129,11 @@ export async function searchBooks(
   };
 }
 
-/** Which source actually answered a details lookup. */
+/** Which source first produced usable details. */
 export type BookDetailsResult = (Book & { downloadLinks: DownloadLink[] }) & {
-  /** Present when the preferred source failed and a fallback answered. */
+  /** Provider that returned the first usable metadata result. */
   resolvedVia?: "annas" | "libgen";
-  /** Why the preferred source was not used, when applicable. */
+  /** Anna's failure reason, when it is known by the time Libgen wins. */
   annasUnavailable?: string;
   /** Present when the Libgen fallback also failed to produce metadata. */
   libgenUnavailable?: string;
@@ -131,69 +142,81 @@ export type BookDetailsResult = (Book & { downloadLinks: DownloadLink[] }) & {
 /**
  * Full metadata + download links for one md5.
  *
- * Anna's Archive is tried first because it aggregates the most sources, but its
- * HTML pages answer HTTP 403 to non-browser clients (the DDoS-Guard challenge),
- * so relying on it alone made book_details return an empty title and no links.
- * Library Genesis is the fallback, and it is the better source anyway: its
- * ads.php page embeds a BibTeX block with exact title/author/publisher/ISBN/
- * year/series, which needs no guessing.
+ * Anna's Archive and Library Genesis are queried in parallel; the first one
+ * with usable metadata wins. Anna's HTML pages often answer HTTP 403 to
+ * non-browser clients (the DDoS-Guard challenge), so serially waiting for it
+ * made book_details slow before the reliable Libgen BibTeX fallback ran.
  *
  * The response always says which source answered, so a caller is never left
  * wondering why the shape of the data changed.
  */
 export async function bookDetails(md5: string): Promise<BookDetailsResult> {
   const hash = md5.toLowerCase();
-
-  let annasReason = "answered with no title";
-  try {
-    const fromAnnas = await annas.details(hash);
-    // Anna's can also "succeed" with an empty shell when a mirror answers 200
-    // but serves something that is not a book page. Treat that as unavailable
-    // rather than returning blank metadata.
-    if (fromAnnas.title && fromAnnas.title.trim()) {
-      return { ...fromAnnas, resolvedVia: "annas" };
-    }
-  } catch (e) {
-    annasReason = String((e as Error)?.message ?? e).slice(0, 200);
-  }
-
+  let annasReason: string | undefined;
   let libgenReason: string | undefined;
-  let fromLibgen: (Book & { downloadLinks: DownloadLink[] }) | undefined;
-  try {
-    fromLibgen = await libgen.details(hash);
-  } catch (e) {
-    libgenReason = String((e as Error)?.message ?? e).slice(0, 200);
-  }
 
-  if (fromLibgen) {
+  // Both sources are started together. Promise.any returns the first source
+  // that produced usable metadata instead of making Libgen wait through all of
+  // Anna's DDoS-Guard mirror failures first.
+  const annasCandidate = withSourceCircuit("annas", async () => {
+    const book = await annas.details(hash);
+    if (!book.title.trim()) throw new Error("Anna's Archive answered with no usable title");
+    return { source: "annas" as const, book };
+  }).catch((error: unknown) => {
+    annasReason = summarizeSourceFailure("annas", error);
+    throw error;
+  });
+
+  const libgenCandidate = withSourceCircuit("libgen", async () => {
+    const book = await libgen.details(hash);
+    if (!book.title.trim()) throw new Error("Libgen answered with no usable title");
+    return { source: "libgen" as const, book };
+  }).catch((error: unknown) => {
+    libgenReason = summarizeSourceFailure("libgen", error);
+    throw error;
+  });
+
+  try {
+    const winner = await Promise.any([annasCandidate, libgenCandidate]);
     return {
-      ...fromLibgen,
+      ...winner.book,
+      resolvedVia: winner.source,
+      ...(winner.source === "libgen" && annasReason
+        ? { annasUnavailable: annasReason }
+        : {}),
+    };
+  } catch {
+    // Neither source produced usable metadata. Report both concise failures
+    // instead of throwing or returning a plausible-looking empty record.
+    return {
+      source: "libgen",
+      md5: hash,
+      title: "",
+      downloadLinks: [],
       resolvedVia: "libgen",
-      annasUnavailable: annasReason,
+      annasUnavailable:
+        annasReason ?? sourceCircuitMessage("annas") ?? "unavailable — no usable metadata",
+      libgenUnavailable:
+        libgenReason ?? sourceCircuitMessage("libgen") ?? "unavailable — no usable metadata",
     };
   }
-
-  // Neither source produced usable metadata. Report both failures instead of
-  // throwing, so the caller learns what was tried and why it did not work.
-  return {
-    source: "libgen",
-    md5: hash,
-    title: "",
-    downloadLinks: [],
-    resolvedVia: "libgen",
-    annasUnavailable: annasReason,
-    libgenUnavailable: libgenReason,
-  };
 }
 
 /** Resolve every download candidate we can find for an md5. */
 export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   const links: DownloadLink[] = [];
+  const shouldFetchAnnasDetails =
+    !isSourceCircuitOpen("annas") && !areMirrorsCoolingDown("annas", ANNAS_MIRRORS);
+  const annasDetails = shouldFetchAnnasDetails
+    ? withSourceCircuit("annas", () => annas.details(md5))
+    : Promise.resolve(undefined);
 
   const [fastRes, libgenRes, annasRes] = await Promise.allSettled([
+    // The JSON member endpoint does not use the HTML mirrors' negative cache;
+    // keep it available even while scraped Anna's pages are circuit-broken.
     annas.fastDownload(md5),
-    libgen.downloadLinks(md5),
-    annas.details(md5),
+    withSourceCircuit("libgen", () => libgen.downloadLinks(md5)),
+    annasDetails,
   ]);
 
   // Member fast-download goes first when available: it is a direct file URL and
@@ -202,7 +225,8 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   // unaffected.
   if (fastRes.status === "fulfilled" && fastRes.value) links.push(fastRes.value);
   if (libgenRes.status === "fulfilled") links.push(...libgenRes.value);
-  if (annasRes.status === "fulfilled") links.push(...annasRes.value.downloadLinks);
+  if (annasRes.status === "fulfilled" && annasRes.value)
+    links.push(...annasRes.value.downloadLinks);
 
   // Surface an IPFS CID as gateway links if one appears among Anna's links.
   const cid = links

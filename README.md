@@ -91,8 +91,10 @@ The installer checks Node and your package manager, installs, builds, verifies t
 surface actually answers a call, and prints the config snippet to paste into your MCP client.
 Add `--write-config <path>` and it merges the entry into an existing config for you — keeping a
 `.bak` copy, and refusing to touch a file it cannot parse. Add `--dry-run` to see every step
-without writing anything. If the checkout has a `pnpm-lock.yaml`, the installer requires pnpm
-and will not try npm as a substitute.
+without writing anything. Network checks are skipped by default; pass `--live` to run
+`dist/index.js --selfcheck --live` after the build. `--skip-network` is an explicit no-network switch
+for scripted installs. If the checkout has a `pnpm-lock.yaml`, the installer requires pnpm and will
+not try npm as a substitute.
 
 ```bash
 node scripts/install.mjs --write-config ~/.config/claude/mcp.json
@@ -189,10 +191,10 @@ python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
 
 | Tool | What it does |
 |---|---|
-| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus `errors` for any source that failed. |
-| `book_details` | Full metadata + download options for one book by MD5 hash. Tries Anna's Archive, falls back to Libgen's BibTeX block, and reports which one answered (`resolvedVia`) and why the other did not. |
+| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. |
+| `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel, returns the first usable result, and reports which one answered (`resolvedVia`). |
 | `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. |
-| `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, the byte count, and **the MD5 of what was written** so you can confirm the file is the one you asked for. Emits progress notifications while transferring. |
+| `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. |
 | `search_papers` | Academic paper / article search via Library Genesis scimag; returns the article title, journal, authors, DOI, and year from the live result layout. |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
 | `healthcheck` | Can this server reach its sources? Per-mirror status and latency, without querying a catalogue. Use it to tell "the network is blocked" apart from "the query matched nothing". |
@@ -322,15 +324,13 @@ Two of these deserve a note:
 These are stated plainly because a tool that hides its failures costs you more time than one
 that admits them.
 
-- **`book_details` works, but usually not via Anna's Archive.** Anna's is tried first, and its
-  genuine mirrors answer **HTTP 403** to the scraped HTML pages (`/search`, `/md5/...`) from any
-  non-browser client — that is their DDoS-Guard challenge. Libgen is the fallback, and it is the
-  better source anyway: its `ads.php` page embeds a **BibTeX block** with exact
-  title/author/publisher/ISBN/year/series, so nothing has to be guessed. Every response says
-  which source answered (`resolvedVia`) and, when the preferred one failed, why
-  (`annasUnavailable`). If *both* fail you get an empty record that names both failures rather
-  than an exception. Members can set `BIBLIO_ANNAS_API_KEY` to use the fast-download JSON API,
-  which is not behind the challenge.
+- **`book_details` races Anna's Archive and Libgen in parallel.** Anna's scraped HTML often
+  answers **HTTP 403** to non-browser clients because of DDoS-Guard; Libgen's `ads.php` page
+  embeds a **BibTeX block** with exact title/author/publisher/ISBN/year/series. The first usable
+  metadata result wins, and the response reports `resolvedVia` plus a concise `annasUnavailable`
+  reason when known. After three consecutive full provider failures, that provider is disabled
+  until the server process restarts. Members can still use `BIBLIO_ANNAS_API_KEY` for the
+  independent fast-download JSON endpoint.
   > Worth knowing: an earlier version of this README blamed "an advertising interstitial" on
   > Anna's Archive, and an earlier version of this fork assumed `book_details` could be fixed by
   > scraping Anna's Archive better. Both were wrong, and the mistakes are instructive. The ad

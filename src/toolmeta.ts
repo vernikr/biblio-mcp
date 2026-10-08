@@ -26,7 +26,7 @@ export interface ToolMeta {
 export const TOOL_META: Record<string, ToolMeta> = {
   search_books: {
     example: '{"query":"dune frank herbert","limit":5}',
-    requires: 'a "query" string. Optional: "sources" (annas, libgen, zlibrary) and "limit" (1-100).',
+    requires: 'a "query" string. Optional: a non-empty "sources" list (annas, libgen, zlibrary; duplicates are ignored) and "limit" (1-100).',
   },
   book_details: {
     example: '{"md5":"524037f395462d37b31f2b28fede24fb"}',

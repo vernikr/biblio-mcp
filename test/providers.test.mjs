@@ -8,6 +8,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,7 +17,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = await readFile(join(HERE, "fixtures", "libgen-search.html"), "utf8");
 const SCIMAG_FIXTURE = await readFile(join(HERE, "fixtures", "libgen-scimag.html"), "utf8");
 
+let requestCount = 0;
 const srv = createServer((req, res) => {
+  requestCount += 1;
   res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
   res.end(req.url?.includes("topics%5B%5D=a") ? SCIMAG_FIXTURE : FIXTURE);
 });
@@ -25,9 +29,12 @@ process.env.BIBLIO_LIBGEN_MIRRORS = MIRROR;
 process.env.BIBLIO_TIMEOUT_MS = "3000";
 
 const { search, searchPapers } = await import("../dist/providers/libgen.js");
-const { BOOK_SOURCES, ALL_BOOK_SOURCES, DISABLED_BOOK_SOURCES } = await import(
-  "../dist/providers/index.js"
-);
+const {
+  BOOK_SOURCES,
+  ALL_BOOK_SOURCES,
+  DISABLED_BOOK_SOURCES,
+  searchBooks,
+} = await import("../dist/providers/index.js");
 
 test.after(() => srv.close());
 
@@ -42,6 +49,38 @@ test("Z-Library is excluded from the default source set", () => {
   assert.ok(!BOOK_SOURCES.includes("zlibrary"), "zlibrary must not be searched by default");
   assert.deepEqual(BOOK_SOURCES, ["annas", "libgen"]);
   assert.deepEqual(DISABLED_BOOK_SOURCES, ["zlibrary"]);
+});
+
+test("searchBooks rejects an explicitly empty source list", async () => {
+  await assert.rejects(() => searchBooks("dune", [], 5), /at least one book source/i);
+});
+
+test("searchBooks deduplicates requested sources before making requests", async () => {
+  requestCount = 0;
+  const result = await searchBooks("Vidyamurthy Pairs Trading", ["libgen", "libgen"], 10);
+  assert.equal(requestCount, 1);
+  assert.equal(result.results.length, 2);
+});
+
+test("search_books reports the de-duplicated source list over MCP", async () => {
+  requestCount = 0;
+  const { createServer: createMcpServer } = await import("../dist/server.js");
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createMcpServer();
+  const client = new Client({ name: "source-dedup-test", version: "0.0.0" });
+  try {
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const response = await client.callTool({
+      name: "search_books",
+      arguments: { query: "Vidyamurthy Pairs Trading", sources: ["libgen", "libgen"], limit: 10 },
+    });
+    const result = JSON.parse(response.content[0].text);
+    assert.equal(requestCount, 1);
+    assert.deepEqual(result.sourcesSearched, ["libgen"]);
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
 });
 
 // ---------------------------------------------------------------------------

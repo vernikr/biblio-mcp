@@ -20,6 +20,7 @@
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
 import { ZLIBRARY_MIRRORS } from "../mirrors.js";
+import { parseFormat, parseSize, parseYear } from "../parse.js";
 import type { Book } from "../types.js";
 
 const GROUP = "zlibrary";
@@ -55,10 +56,11 @@ export async function search(query: string, limit: number): Promise<Book[]> {
       $el.find(".author, [slot='author'], [class*='author']").first().text().trim() ||
       undefined;
     const blob = $el.text().replace(/\s+/g, " ");
-    const year = $el.attr("year") || blob.match(/\b(1[5-9]\d{2}|20\d{2})\b/)?.[1];
+    const year = parseYear($el.attr("year")) ?? parseYear(blob);
     const format =
-      ($el.attr("extension") || blob.match(/\b(pdf|epub|mobi|djvu|azw3)\b/i)?.[1])?.toUpperCase();
-    const size = $el.attr("filesize") || blob.match(/(\d+(?:\.\d+)?\s?(?:KB|MB|GB))/i)?.[1];
+      parseFormat($el.attr("extension")) ??
+      parseFormat(blob.match(/\b(pdf|epub|mobi|djvu|azw3)\b/i)?.[1]);
+    const size = parseSize($el.attr("filesize")) ?? parseSize(blob);
 
     books.push({
       source: "zlibrary",
@@ -66,7 +68,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
       author,
       year,
       format,
-      size: size?.replace(/\s+/, " "),
+      size,
       url: href ? (href.startsWith("http") ? href : `${base}${href}`) : undefined,
     });
   });

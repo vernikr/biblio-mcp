@@ -87,6 +87,7 @@ test("the installer runs end to end in dry-run mode and writes nothing", () => {
   assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /\[1\] checking prerequisites/);
   assert.match(r.stdout, /\[7\] MCP client configuration/);
+  assert.match(r.stdout, /skipping the live mirror check.*--live/);
   assert.match(r.stdout, /install complete/);
   // The snippet it prints must be usable as-is.
   const json = /(\{[\s\S]*"mcpServers"[\s\S]*\})/.exec(r.stdout);
@@ -113,6 +114,22 @@ test("the installer refuses npm fallback when the checkout has a pnpm lockfile",
   assert.equal(existsSync(npmMarker), false, "npm must not be probed or run over the pnpm lockfile");
   assert.doesNotMatch(r.stdout, /\$ npm install/);
   assert.doesNotMatch(r.stdout, /\[2\] obtaining/, "the installer should stop at the missing pnpm prerequisite");
+});
+
+test("the installer --live flag runs the live selfcheck", () => {
+  const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
+  const r = runInstaller(["--dry-run", "--live", "--dir", join(dir, "repo")]);
+  assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /--selfcheck --live/);
+  assert.doesNotMatch(r.stdout, /skipping the live mirror check/);
+});
+
+test("the installer rejects contradictory --live and --skip-network flags immediately", () => {
+  const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
+  const r = runInstaller(["--dry-run", "--live", "--skip-network", "--dir", join(dir, "repo")]);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /cannot be used together/);
+  assert.doesNotMatch(r.stdout, /\[1\] checking prerequisites/);
 });
 
 test("the installer refuses to overwrite a config it cannot parse", () => {

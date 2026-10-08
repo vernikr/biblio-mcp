@@ -3,6 +3,16 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- `book_details` queries Anna's Archive and Libgen concurrently, skips Anna's HTML details while all mirrors are cooling down, and shortens repeated provider failures with a process-lifetime circuit breaker.
+- `healthcheck` clears cooldowns without forgetting the preferred mirror; every mirror group now has a positive site-identity marker.
+- `download_book` preserves successful files whose name matches the staging name and warns explicitly when the downloaded MD5 differs from the requested one.
+- `parseSize` uses correct TB conversions, and Z-Library metadata uses the shared year/format/size validators.
+- `search_books` rejects empty source lists and de-duplicates repeated source names; source errors are concise and progress-notification failures are best-effort.
+- The installer honors `--live`, `src/index.ts` no longer recommends the upstream npm executable, and the default agent test suite stays offline.
+
 ## [1.6.0] - 2026-10-08
 
 ### Fixed
@@ -274,6 +284,7 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v1.6.0...HEAD
 [1.6.0]: https://github.com/vernikr/biblio-mcp/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/vernikr/biblio-mcp/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vernikr/biblio-mcp/compare/v1.5.0...v1.5.1

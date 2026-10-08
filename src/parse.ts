@@ -54,7 +54,14 @@ export function parseSize(text: string | undefined | null): string | undefined {
     if (!Number.isFinite(value) || value <= 0) continue;
     const unit = rawUnit.toUpperCase();
     const asTb =
-      value * (unit === "KB" ? 1 / 1048576 : unit === "MB" ? 1 / 1024 : unit === "GB" ? 1 : 1024);
+      value *
+      (unit === "KB"
+        ? 1 / 1_073_741_824
+        : unit === "MB"
+          ? 1 / 1_048_576
+          : unit === "GB"
+            ? 1 / 1024
+            : 1);
     if (asTb >= 100) continue; // implausible for a book; almost certainly an ID
     return `${raw.replace(",", ".")} ${unit}`;
   }

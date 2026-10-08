@@ -130,7 +130,22 @@ export const MIRROR_GROUPS: ReadonlyArray<{
     probePath: "/",
     expect: /Anna[’']s Archive/i,
   },
-  { group: "libgen", mirrors: LIBGEN_MIRRORS, probePath: "/" },
-  { group: "scihub", mirrors: SCIHUB_MIRRORS, probePath: "/" },
-  { group: "zlibrary", mirrors: ZLIBRARY_MIRRORS, probePath: "/" },
+  {
+    group: "libgen",
+    mirrors: LIBGEN_MIRRORS,
+    probePath: "/",
+    expect: /Library Genesis/i,
+  },
+  {
+    group: "scihub",
+    mirrors: SCIHUB_MIRRORS,
+    probePath: "/",
+    expect: /Sci-Hub/i,
+  },
+  {
+    group: "zlibrary",
+    mirrors: ZLIBRARY_MIRRORS,
+    probePath: "/",
+    expect: /Z[- ]Library/i,
+  },
 ];

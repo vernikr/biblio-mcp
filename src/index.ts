@@ -2,8 +2,8 @@
 // biblio-mcp — one MCP server for Anna's Archive, Library Genesis, Sci-Hub, and
 // Z-Library. Search books and papers, resolve download links, fetch files.
 //
-// Transport: stdio. Run with `node dist/index.js`, or through a client such as
-// `npx biblio-mcp`.
+// Transport: stdio. Run with `node dist/index.js` or configure that entry point
+// in your MCP client. The npm name belongs to the upstream package, not this fork.
 //
 // This file is only the entry point: CLI flags and the stdio transport. The tool
 // surface lives in ./server.ts and the health checks in ./selfcheck.ts, so both

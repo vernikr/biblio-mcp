@@ -189,5 +189,27 @@ test("healthcheck is registered and advertises only optional arguments", async (
   });
 });
 
-// The identity-classification path is tested against local HTTP servers in
-// test/http.test.mjs; keep live network traffic out of this agent test suite.
+// The identity check is exercised against local HTTP servers in http.test.mjs;
+// keep live network traffic out of this agent-facing suite.
+
+test("every mirror group has a positive site-identity marker", async () => {
+  const { MIRROR_GROUPS } = await import("../dist/mirrors.js");
+  assert.deepEqual(MIRROR_GROUPS.map((g) => g.group), ["annas", "libgen", "scihub", "zlibrary"]);
+  for (const group of MIRROR_GROUPS) {
+    assert.ok(group.expect instanceof RegExp, `${group.group} needs an identity marker`);
+  }
+  assert.match("Library Genesis", MIRROR_GROUPS.find((g) => g.group === "libgen").expect);
+  assert.match("Sci-Hub", MIRROR_GROUPS.find((g) => g.group === "scihub").expect);
+  assert.match("Z-Library", MIRROR_GROUPS.find((g) => g.group === "zlibrary").expect);
+});
+
+test("search_books rejects an explicitly empty source list", async () => {
+  await withClient(async (client) => {
+    const { isError, text } = await callTool(client, "search_books", {
+      query: "dune",
+      sources: [],
+    });
+    assert.equal(isError, true);
+    assert.match(text, /sources.*at least one source/i);
+  });
+});

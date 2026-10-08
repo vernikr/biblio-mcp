@@ -110,6 +110,14 @@ test("search_books documents which sources are searched by default", async () =>
   });
 });
 
+test("search_books advertises that an explicit source list must be non-empty", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const sb = tools.find((t) => t.name === "search_books");
+    assert.equal(sb.inputSchema.properties.sources.minItems, 1);
+  });
+});
+
 test("the reported version matches package.json", async () => {
   // SERVER_VERSION used to be a hardcoded string, so bumping the version left
   // `--version` and `--selfcheck` advertising the previous release.

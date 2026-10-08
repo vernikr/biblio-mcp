@@ -41,6 +41,7 @@ const TARGET = valueOf("--dir") ?? join(homedir(), "Tools", "biblio-mcp");
 const CONFIG_PATH = valueOf("--write-config");
 const DRY_RUN = has("--dry-run");
 const SKIP_NETWORK = has("--skip-network");
+const LIVE = has("--live");
 
 let failures = 0;
 const step = (n, msg) => process.stdout.write(`\n[${n}] ${msg}\n`);
@@ -79,6 +80,10 @@ function findPackageManager() {
 
 async function main() {
   process.stdout.write(`biblio-mcp installer${DRY_RUN ? " (dry run — nothing is written)" : ""}\n`);
+  if (LIVE && SKIP_NETWORK) {
+    bad("--live and --skip-network cannot be used together");
+    return finish();
+  }
 
   // ---------------------------------------------------------------- 1. check
   step(1, "checking prerequisites");
@@ -133,7 +138,7 @@ async function main() {
 
   // ------------------------------------------------------------- 4. install
   step(4, "installing dependencies");
-  const installArgs = pm.name === "pnpm" ? ["install"] : ["install"];
+  const installArgs = ["install"];
   if (run(pm.name, installArgs, { cwd: projectDir }) !== 0) {
     bad(`${pm.name} install failed`);
     return finish();
@@ -182,8 +187,18 @@ async function main() {
     }
   }
 
-  if (!SKIP_NETWORK) {
-    note("skipping the live mirror check (pass --live to run `--selfcheck`)");
+  if (LIVE) {
+    step("6a", "checking live mirror health");
+    if (run(process.execPath, [entry, "--selfcheck", "--live"], { cwd: projectDir }) !== 0) {
+      bad("live mirror check failed");
+      return finish();
+    }
+  } else {
+    note(
+      SKIP_NETWORK
+        ? "skipping the live mirror check (--skip-network)"
+        : "skipping the live mirror check (pass --live to run `--selfcheck --live`)"
+    );
   }
 
   // -------------------------------------------------------------- 7. config

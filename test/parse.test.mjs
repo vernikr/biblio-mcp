@@ -51,6 +51,12 @@ test("parseSize finds a size embedded in a sentence", () => {
   assert.equal(parseSize("Dune 1965 English 4 MB pdf"), "4 MB");
 });
 
+test("parseSize applies its plausibility limit in terabytes", () => {
+  assert.equal(parseSize("99 TB"), "99 TB");
+  assert.equal(parseSize("100 TB"), undefined);
+  assert.equal(parseSize("9999 GB"), "9999 GB");
+});
+
 // ---------------------------------------------------------------------------
 // parseYear / parseFormat / parseLanguage / parsePages
 // ---------------------------------------------------------------------------

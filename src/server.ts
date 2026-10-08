@@ -10,7 +10,7 @@ import { open } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { probeMirror, resetMirrorCache } from "./http.js";
+import { probeMirror, resetDeadCache } from "./http.js";
 import { MIRROR_GROUPS } from "./mirrors.js";
 import { describeArgsError, describeTool } from "./toolmeta.js";
 import {
@@ -19,6 +19,7 @@ import {
   type DownloadProgress,
 } from "./http.js";
 import { sniffExt } from "./sniff.js";
+import { withSourceCircuit } from "./providers/circuit.js";
 import {
   searchBooks,
   resolveDownloads,
@@ -87,7 +88,7 @@ async function readFileHead(path: string, bytes: number): Promise<Buffer> {
  *
  * No-op when the client did not send a progressToken.
  */
-function makeProgressReporter(extra?: {
+export function makeProgressReporter(extra?: {
   _meta?: { progressToken?: string | number };
   sendNotification?: (n: never) => Promise<void>;
 }) {
@@ -103,17 +104,22 @@ function makeProgressReporter(extra?: {
     const done = total !== undefined && bytes >= total;
     if (!done && now - lastSent < MIN_INTERVAL_MS) return;
     lastSent = now;
-    await send({
-      method: "notifications/progress",
-      params: {
-        progressToken: token,
-        progress: bytes,
-        ...(total !== undefined ? { total } : {}),
-        message: total
-          ? `${(bytes / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`
-          : `${(bytes / 1048576).toFixed(1)} MB`,
-      },
-    } as never);
+    try {
+      await send({
+        method: "notifications/progress",
+        params: {
+          progressToken: token,
+          progress: bytes,
+          ...(total !== undefined ? { total } : {}),
+          message: total
+            ? `${(bytes / 1048576).toFixed(1)} / ${(total / 1048576).toFixed(1)} MB`
+            : `${(bytes / 1048576).toFixed(1)} MB`,
+        },
+      } as never);
+    } catch {
+      // Progress is best-effort; a disconnected client must not reject from
+      // this fire-and-forget callback and become an unhandled rejection.
+    }
   };
 }
 
@@ -188,9 +194,10 @@ export function createServer(): McpServer {
       query: z.string().describe("Title, author, ISBN, or topic to search for."),
       sources: z
         .array(z.enum(["annas", "libgen", "zlibrary"]))
+        .min(1, "select at least one source")
         .optional()
         .describe(
-          `Which sources to search. Default: ${BOOK_SOURCES.join(", ")}.` +
+          `Which sources to search; pass at least one. Duplicate names are ignored. Default: ${BOOK_SOURCES.join(", ")}.` +
             (DISABLED_BOOK_SOURCES.length
               ? ` (${DISABLED_BOOK_SOURCES.join(", ")} excluded by default — pass it` +
                 ` explicitly to include; see BIBLIO_DISABLE_SOURCES.)`
@@ -205,15 +212,12 @@ export function createServer(): McpServer {
         .describe("Max results per source (default 20)."),
     },
     async ({ query, sources, limit }) => {
-      const result = await searchBooks(
-        query,
-        (sources as SourceId[]) ?? BOOK_SOURCES,
-        limit ?? 20
-      );
+      const selectedSources = [...new Set((sources as SourceId[]) ?? BOOK_SOURCES)];
+      const result = await searchBooks(query, selectedSources, limit ?? 20);
       return json({
         ...result,
         total: result.results.length,
-        sourcesSearched: (sources as SourceId[]) ?? BOOK_SOURCES,
+        sourcesSearched: selectedSources,
       });
     }
   );
@@ -226,10 +230,11 @@ export function createServer(): McpServer {
     describeTool(
       "book_details",
       "Get full metadata and download options for a single book by its MD5 hash " +
-        "(from a search_books result). Tries Anna's Archive first and falls back " +
-        "to Library Genesis, whose metadata comes from a BibTeX block and is " +
-        "exact. The response says which source answered in `resolvedVia`, and " +
-        "why Anna's Archive was skipped in `annasUnavailable`.",
+        "(from a search_books result). Queries Anna's Archive and Library Genesis " +
+        "in parallel and returns the first usable result; Libgen metadata comes " +
+        "from a structured BibTeX block. The response says which source answered " +
+        "in `resolvedVia`, and a concise `annasUnavailable` reason when Anna's " +
+        "Archive did not answer first.",
     ),
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
@@ -267,9 +272,9 @@ export function createServer(): McpServer {
       "Download a book file to a local directory by MD5. Streams direct links " +
         "(Libgen/IPFS) to disk in order and keeps the first that yields a real " +
         "file, so peak memory does not scale with book size. Returns the saved " +
-        "path, the byte count, and the MD5 of what was written — compare it with " +
-        "the `md5` you passed to confirm the file is intact. Emits progress " +
-        "notifications while transferring.",
+        "path, byte count, and the MD5 of what was written. Check " +
+        "`md5MatchesRequest`; a mismatch includes an explicit warning. Emits " +
+        "progress notifications while transferring.",
     ),
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
@@ -342,9 +347,17 @@ export function createServer(): McpServer {
             md5: result.md5,
             /** True when the file's own hash equals the catalog hash requested. */
             md5MatchesRequest: result.md5 === hash,
+            ...(result.md5 !== hash
+              ? {
+                  warning:
+                    "Downloaded file MD5 does not match the requested catalog MD5; " +
+                    "verify it before use.",
+                }
+              : {}),
             contentType: result.contentType,
           });
         } catch (e) {
+          await unlink(staging).catch(() => {});
           if (e instanceof HtmlInsteadOfFileError) {
             // The one-time key in a Libgen get.php URL expires, and the page it
             // then serves is HTML. Move on to the next candidate; never save it.
@@ -352,8 +365,6 @@ export function createServer(): McpServer {
             continue;
           }
           errors.push(`${link.label}: ${(e as Error).message}`);
-        } finally {
-          await unlink(staging).catch(() => {});
         }
       }
       return json({ saved: false, errors, links });
@@ -376,7 +387,9 @@ export function createServer(): McpServer {
       limit: z.number().int().min(1).max(100).optional(),
     },
     async ({ query, limit }) => {
-      const papers = await libgen.searchPapers(query, limit ?? 20);
+      const papers = await withSourceCircuit("libgen", () =>
+        libgen.searchPapers(query, limit ?? 20)
+      );
       return json({ query, total: papers.length, results: papers });
     }
   );
@@ -396,7 +409,8 @@ export function createServer(): McpServer {
         .string()
         .describe("DOI (e.g. 10.1038/nature12373), article URL, or title."),
     },
-    async ({ identifier }) => json(await scihub.resolve(identifier))
+    async ({ identifier }) =>
+      json(await withSourceCircuit("scihub", () => scihub.resolve(identifier)))
   );
 
   // -------------------------------------------------------------------------
@@ -424,7 +438,7 @@ export function createServer(): McpServer {
     async ({ timeoutMs }) => {
       // Bypass the negative cache: the point of a healthcheck is to show what is
       // reachable right now, not what was unreachable a minute ago.
-      resetMirrorCache();
+      resetDeadCache();
       const groups = await Promise.all(
         MIRROR_GROUPS.map(async ({ group, mirrors, probePath, expect }) => {
           const results = await Promise.all(
