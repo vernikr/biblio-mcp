@@ -4,16 +4,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { NUMBER_SETTINGS, ENV_SETTINGS, readNumber, environmentHelp } = await import(
-  "../dist/config.js"
-);
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const { NUMBER_SETTINGS, ENV_SETTINGS, readNumber, environmentHelp, environmentTable, ENV_TABLE_START, ENV_TABLE_END } =
+  await import("../dist/config.js");
 
 test("every numeric setting is listed in --help with its real default", () => {
   const names = new Set(ENV_SETTINGS.map((s) => s.name));
   const help = environmentHelp();
   for (const setting of Object.values(NUMBER_SETTINGS)) {
     assert.ok(names.has(setting.name), `${setting.name} missing from ENV_SETTINGS`);
-    assert.match(help, new RegExp(`${setting.name} .*\\(default ${setting.fallback}\\)`));
+    assert.match(help, new RegExp(`${setting.name} .*\\(default: ${setting.fallback}\\)`));
   }
 });
 
@@ -33,4 +36,17 @@ test("readNumber takes a positive number from the environment and falls back oth
     if (saved === undefined) delete process.env[setting.name];
     else process.env[setting.name] = saved;
   }
+});
+
+test("the README environment table is generated from the registry", () => {
+  const readme = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "README.md"), "utf8");
+  const start = readme.indexOf(ENV_TABLE_START);
+  const end = readme.indexOf(ENV_TABLE_END);
+  assert.ok(start !== -1 && end > start, "README must keep the env-table markers");
+  const block = readme.slice(start + ENV_TABLE_START.length, end).trim();
+  assert.equal(
+    block,
+    environmentTable(),
+    "README table is stale; run `node scripts/sync-env-docs.mjs`"
+  );
 });

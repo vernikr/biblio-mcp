@@ -275,21 +275,23 @@ raise its timeout instead.
 
 All optional — sensible defaults ship built-in. Override via environment variables:
 
+<!-- env-table:start (generated from src/config.ts) -->
 | Variable | Purpose | Default |
 |---|---|---|
-| `BIBLIO_ANNAS_MIRRORS` | Comma-separated Anna's Archive base URLs | `.gl, .gd, .pk` |
-| `BIBLIO_LIBGEN_MIRRORS` | Comma-separated Libgen base URLs | `.li, .bz, .vg, .is, .rs, .st, .gs` |
-| `BIBLIO_SCIHUB_MIRRORS` | Comma-separated Sci-Hub base URLs | `.ru, .ren, .mksa.top, .st, .hkvisa.net, .se` |
-| `BIBLIO_ZLIB_MIRRORS` | Comma-separated Z-Library domains | `z-library.sk, 1lib.sk, z-lib.io, zlibrary-global.se` |
-| `BIBLIO_IPFS_GATEWAYS` | IPFS gateway bases for CID fallback | `ipfs.io, cloudflare-ipfs, pinata` |
+| `BIBLIO_TIMEOUT_MS` | Timeout for scraping an HTML page, including reading its response body | 8000 |
+| `BIBLIO_DOWNLOAD_TIMEOUT_MS` | Timeout for fetching a file | 600000 |
+| `BIBLIO_DOWNLOAD_STALL_MS` | Abort a download idle for this long | 30000 |
+| `BIBLIO_MIRROR_DEAD_TTL_MS` | How long a failed mirror is skipped | 300000 |
+| `BIBLIO_MIRROR_STAGGER_MS` | Head start between concurrent mirror attempts | 120 |
 | `BIBLIO_ANNAS_API_KEY` | Anna's Archive member key; enables the fast-download JSON API, which is not behind the DDoS-Guard challenge | unset |
-| `BIBLIO_DISABLE_SOURCES` | Sources excluded from the default search set | `zlibrary` |
-| `BIBLIO_TIMEOUT_MS` | Timeout for scraping an HTML page, including reading its response body | `8000` |
-| `BIBLIO_DOWNLOAD_TIMEOUT_MS` | Timeout for fetching a file | `600000` |
-| `BIBLIO_DOWNLOAD_STALL_MS` | Abort a download idle for this long | `30000` |
-| `BIBLIO_MIRROR_DEAD_TTL_MS` | How long a failed mirror is skipped | `300000` |
-| `BIBLIO_MIRROR_STAGGER_MS` | Head start between concurrent mirror attempts | `120` |
+| `BIBLIO_DISABLE_SOURCES` | Sources excluded from the default search set | zlibrary |
+| `BIBLIO_ANNAS_MIRRORS` | Comma-separated Anna's Archive base URLs | built-in list (src/mirrors.ts) |
+| `BIBLIO_LIBGEN_MIRRORS` | Comma-separated Libgen base URLs | built-in list (src/mirrors.ts) |
+| `BIBLIO_SCIHUB_MIRRORS` | Comma-separated Sci-Hub base URLs | built-in list (src/mirrors.ts) |
+| `BIBLIO_ZLIB_MIRRORS` | Comma-separated Z-Library domains | built-in list (src/mirrors.ts) |
+| `BIBLIO_IPFS_GATEWAYS` | IPFS gateway bases for CID fallback | built-in list (src/mirrors.ts) |
 | `BIBLIO_SKIP_STARTUP_CHECK` | Set to any value to skip the startup tool-surface check and serve even if it is broken | unset |
+<!-- env-table:end -->
 
 Mirror lists are ordered by preference: earlier hosts get a head start, and hosts that were
 unreachable at the last audit are kept at the end rather than deleted, so a domain that comes
