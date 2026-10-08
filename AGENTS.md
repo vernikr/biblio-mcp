@@ -17,6 +17,19 @@ run the first three commands separately and report that the live check could not
 integration tests are under `test/live/` and run with `pnpm run test:live`; do not add them to the
 default offline suite.
 
+Running tests:
+
+- One file: `node --test test/<file>.test.mjs` (after `pnpm run build`, since tests import `dist/`).
+- The full offline suite takes about 15 seconds. `test/install.test.mjs` is the slowest file because
+  its merge case runs a real build.
+- Installer tests that need pnpm are reported as skipped, with the reason, when `pnpm` is not on
+  `PATH`. Put pnpm on `PATH` to run them.
+- Servers that stand in for mirrors start with `listenLocal` and stop with `closeServer` from
+  `test/helpers/mirror-server.mjs`. `closeServer` drops keep-alive sockets first, which keeps the
+  suite from waiting on idle connections.
+- A new behaviour test should fail on the previous code. Check this by stashing `src/` and running
+  the new test.
+
 ## Updating mirrors
 
 - Edit the defaults and `MIRROR_GROUPS` identity markers in `src/mirrors.ts`; environment overrides
@@ -42,6 +55,15 @@ default offline suite.
    define mirror lists are read at module import time; set them before importing built modules (use
    a child process when the test needs an isolated provider graph).
 5. Run the offline checks above and inspect the full diff before committing.
+
+## Settings and tool descriptions
+
+- Every `BIBLIO_*` setting is listed once in `ENV_SETTINGS` in `src/config.ts`. Numeric budgets are
+  read through `readNumber(NUMBER_SETTINGS.…)`, so a default is written in one place. After changing
+  the list, run `node scripts/sync-env-docs.mjs` to rewrite the README table.
+- Each tool's description and call example live together in `TOOL_META` in `src/toolmeta.ts`.
+  `test/tool-meta.test.mjs` checks each example against the tool's input schema, so an example that
+  no longer matches the schema fails the suite. Argument descriptions stay in the Zod schemas.
 
 ## Capturing HTML fixtures
 
