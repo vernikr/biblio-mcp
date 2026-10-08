@@ -224,7 +224,8 @@ function writeConfig(configPath, entry, entryPath) {
   }
 
   let existing = {};
-  if (existsSync(abs)) {
+  const hadConfig = existsSync(abs);
+  if (hadConfig) {
     let raw;
     try {
       raw = readFileSync(abs, "utf8");
@@ -239,17 +240,23 @@ function writeConfig(configPath, entry, entryPath) {
       note("add the snippet above by hand, or fix the file and re-run");
       return;
     }
-    if (!DRY_RUN) {
-      copyFileSync(abs, `${abs}.bak`);
-      note(`backed up the existing config to ${abs}.bak`);
-    }
   }
 
   if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
     bad(`${abs} does not contain a JSON object, so it was left untouched`);
     return;
   }
-  if (!existing.mcpServers || typeof existing.mcpServers !== "object") existing.mcpServers = {};
+  if (existing.mcpServers !== undefined && (
+    !existing.mcpServers || typeof existing.mcpServers !== "object" || Array.isArray(existing.mcpServers)
+  )) {
+    bad(`${abs}: mcpServers must be a JSON object, so the file was left untouched`);
+    return;
+  }
+  if (hadConfig && !DRY_RUN) {
+    copyFileSync(abs, `${abs}.bak`);
+    note(`backed up the existing config to ${abs}.bak`);
+  }
+  existing.mcpServers ??= {};
   if (existing.mcpServers.biblio) note(`replacing the existing "biblio" entry`);
   existing.mcpServers.biblio = entry;
 

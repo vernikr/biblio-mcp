@@ -12,7 +12,7 @@ that something you can rely on.
 
 - **It works the first time.** One setup command installs what is missing and checks the
   server before you use it. A broken setup is caught on the spot, with the fix spelled out,
-  instead of failing every request.
+  instead of failing every request. Invalid client configuration is left untouched.
 - **Faster answers.** Searches come back many times faster, because the server stops waiting on
   websites that are no longer there.
 - **Honest results.** A source that is down is reported, not silently dropped. A website that
@@ -78,9 +78,9 @@ Use the [Quick start](#quick-start) command above.
 
 The installer checks Node and your package manager, installs locked dependencies, checks the
 SDK/Zod pairing, builds, and verifies a real tool call before printing your MCP config.
-Add `--write-config <path>` and it merges the entry into an existing config for you — keeping a
-`.bak` copy, and refusing to touch a file it cannot parse. Add `--dry-run` to see every step
-without writing anything. Live mirror checks are skipped by default; pass `--live` to run
+Add `--write-config <path>` to merge the entry into your config and keep a `.bak` copy.
+Invalid JSON or a non-object `mcpServers` value is refused before changing the file or its backup.
+Add `--dry-run` to see every step without writing anything. Live mirror checks are skipped by default; pass `--live` to run
 `dist/index.js --selfcheck --live` after the build, or `--skip-network` to explicitly skip them.
 Dependency installation may still need registry access. A checkout with `pnpm-lock.yaml`
 requires pnpm and installs with `--frozen-lockfile`; npm is not used as a substitute.

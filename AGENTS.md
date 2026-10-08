@@ -20,10 +20,10 @@ default offline suite.
 Running tests:
 
 - One file: `node --test test/<file>.test.mjs` (after `pnpm run build`, since tests import `dist/`).
-- The full offline suite takes about 15 seconds. `test/install.test.mjs` is the slowest file because
-  its merge case runs a real build.
-- Installer tests that need pnpm are reported as skipped, with the reason, when `pnpm` is not on
-  `PATH`. Put pnpm on `PATH` to run them.
+- The offline suite takes roughly 15–20 seconds, plus its initial build. Installer write-path tests
+  start without `node_modules`/`dist` and run real dependency installation and builds.
+- Installer tests that need pnpm are reported as skipped when it is absent from `PATH`. Run
+  `pnpm install --frozen-lockfile` once to prime the store; clean fixtures install in offline mode.
 - Servers that stand in for mirrors start with `listenLocal` and stop with `closeServer` from
   `test/helpers/mirror-server.mjs`. `closeServer` drops keep-alive sockets first, which keeps the
   suite from waiting on idle connections.

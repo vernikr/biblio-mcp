@@ -180,6 +180,53 @@ test("the installer refuses a config that is not a JSON object", needsPnpm, () =
   assert.equal(readFileSync(cfg, "utf8"), "[1,2,3]\n");
 });
 
+for (const mcpServers of [[], null, "not an object", 42, false]) {
+  test(`the installer rejects mcpServers=${JSON.stringify(mcpServers)} even in dry-run mode`, needsPnpm, (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "biblio-install-shape-"));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const cfg = join(dir, "mcp.json");
+    const original = JSON.stringify({ mcpServers, theme: "dark" });
+    writeFileSync(cfg, original);
+    writeFileSync(`${cfg}.bak`, "previous backup");
+    const r = runInstaller(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
+    assert.equal(r.status, 1, r.stdout);
+    assert.match(r.stdout, /mcpServers must be a JSON object/);
+    assert.doesNotMatch(r.stdout, /install complete|would write/);
+    assert.equal(readFileSync(cfg, "utf8"), original);
+    assert.equal(readFileSync(`${cfg}.bak`, "utf8"), "previous backup");
+    assert.equal(existsSync(`${cfg}.tmp`), false);
+  });
+}
+
+test("the installer accepts a config with an absent mcpServers field", needsPnpm, (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "biblio-install-shape-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const cfg = join(dir, "mcp.json");
+  writeFileSync(cfg, JSON.stringify({ theme: "dark" }));
+  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.stdout, /would write/);
+  assert.equal(existsSync(`${cfg}.bak`), false);
+});
+
+test("the installer leaves a malformed config and its previous backup untouched on a real install", needsPnpm, (t) => {
+  const { dir, projectDir } = freshCheckout(t);
+  const cfg = join(dir, "mcp.json");
+  const original = JSON.stringify({ mcpServers: [], theme: "dark" });
+  writeFileSync(cfg, original);
+  writeFileSync(`${cfg}.bak`, "previous backup");
+  const r = runInstaller(["--skip-network", "--dir", projectDir, "--write-config", cfg], projectDir, {
+    ...process.env,
+    npm_config_offline: "true",
+  });
+  assert.equal(r.status, 1, r.stdout);
+  assert.match(r.stdout, /mcpServers must be a JSON object/);
+  assert.doesNotMatch(r.stdout, /backed up|wrote .*mcp\.json|install complete/);
+  assert.equal(readFileSync(cfg, "utf8"), original);
+  assert.equal(readFileSync(`${cfg}.bak`, "utf8"), "previous backup");
+  assert.equal(existsSync(`${cfg}.tmp`), false);
+});
+
 test("the installer builds a clean checkout, merges an existing config and keeps a backup", needsPnpm, (t) => {
   const { dir, projectDir } = freshCheckout(t);
   const cfg = join(dir, "mcp.json");
