@@ -1,26 +1,27 @@
 # Maintainer and coding-agent guide
 
-This repository is a private source fork of the upstream npm package. Use Node.js 18+ and pnpm;
+This repository is a private source fork of the upstream npm package. Use Node.js 18.17+ and pnpm;
 keep changes testable without live access to shadow-library mirrors.
+For the full suite use Node 18.19+ (or a newer major): older Node 18 root after-hooks can keep
+HTTP fixtures alive. CI checks the exact 18.17 runtime separately with offline/stdio smoke tests.
 
 ## Verification
 
 ```bash
-pnpm run typecheck
-pnpm run build
-pnpm run test          # offline suite, local HTTP servers and captured HTML only
-pnpm run verify        # typecheck + build + offline suite + live mirror selfcheck
+pnpm run verify       # typecheck + one build + offline suite + offline tool selfcheck
+pnpm run verify:live  # the offline gate, then mirror probes and a real search
+pnpm run docs:env     # rebuild before regenerating the README environment table
 ```
 
-`pnpm run verify` includes `selfcheck`, which probes live mirror roots. If the network is blocked,
-run the first three commands separately and report that the live check could not run. Optional live
-integration tests are under `test/live/` and run with `pnpm run test:live`; do not add them to the
-default offline suite.
+Default verification needs no live mirrors. `pnpm run test` also builds independently; for one
+file, build first. Optional mirror tests are under `test/live/` (`pnpm run test:live`) and remain
+outside the default suite. Stdio integration checks actual SDK responses, including a rejected
+invalid call; merely starting the process or grepping a tools list is not verification.
 
 Running tests:
 
 - One file: `node --test test/<file>.test.mjs` (after `pnpm run build`, since tests import `dist/`).
-- The offline suite takes roughly 15–20 seconds, plus its initial build. Installer write-path tests
+- The offline suite takes roughly 20–25 seconds, plus its initial build. Installer write-path tests
   start without `node_modules`/`dist` and run real dependency installation and builds.
 - Installer tests that need pnpm are reported as skipped when it is absent from `PATH`. Run
   `pnpm install --frozen-lockfile` once to prime the store; clean fixtures install in offline mode.
@@ -60,7 +61,7 @@ Running tests:
 
 - Every `BIBLIO_*` setting is listed once in `ENV_SETTINGS` in `src/config.ts`. Numeric budgets are
   read through `readNumber(NUMBER_SETTINGS.…)`, so a default is written in one place. After changing
-  the list, run `node scripts/sync-env-docs.mjs` to rewrite the README table.
+  the list, run `pnpm run docs:env` to rewrite the README table.
 - Each tool's description and call example live together in `TOOL_META` in `src/toolmeta.ts`.
   `test/tool-meta.test.mjs` checks each example against the tool's input schema, so an example that
   no longer matches the schema fails the suite. Argument descriptions stay in the Zod schemas.

@@ -1,6 +1,4 @@
-// Keep the offline suite compatible with every supported Node 18 release.
-// --test-concurrency was added in 18.9; use it where available to amortize the
-// many short-lived test workers, and retain Node's default on older runtimes.
+// Probe the flag: the Node 18.17 runtime floor predates --test-concurrency.
 
 import { readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -9,8 +7,14 @@ import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const [major, minor] = process.versions.node.split(".").map(Number);
+if (major === 18 && minor < 19) {
+  console.error("Full suite requires Node 18.19+; the server runtime floor is 18.17 (checked separately in CI).");
+  process.exit(1);
+}
 const args = ["--test"];
-if (major > 18 || (major === 18 && minor >= 9)) args.push("--test-concurrency=4");
+if (spawnSync(process.execPath, ["--test-concurrency=4", "--eval", ""], { stdio: "ignore" }).status === 0) {
+  args.push("--test-concurrency=4");
+}
 args.push(
   ...readdirSync(join(root, "test"))
     .filter((file) => file.endsWith(".test.mjs"))

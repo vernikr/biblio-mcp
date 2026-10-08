@@ -10,6 +10,7 @@ const USAGE = `${SERVER_NAME} v${SERVER_VERSION}
 
 Usage:
   node dist/index.js                     start the MCP server on stdio
+  node dist/index.js --selfcheck --offline  verify install and a real tool call, no mirrors
   node dist/index.js --selfcheck         verify install, tool surface, mirrors
   node dist/index.js --selfcheck --live  ...and perform one real search
   node dist/index.js --version           print the version
@@ -35,8 +36,12 @@ async function main(argv: string[]): Promise<number> {
     return 0;
   }
 
+  if (argv.includes("--offline") && (!argv.includes("--selfcheck") || argv.includes("--live"))) {
+    process.stderr.write("--offline requires --selfcheck and cannot be combined with --live\n");
+    return 1;
+  }
   if (argv.includes("--selfcheck")) {
-    const report = await runSelfcheck({ live: argv.includes("--live") });
+    const report = await runSelfcheck({ live: argv.includes("--live"), offline: argv.includes("--offline") });
     printSelfcheck(report);
     return report.ok ? 0 : 1;
   }

@@ -98,7 +98,7 @@ test("an empty mirror group rejects immediately with its configuration variable"
   const started = Date.now();
   await assert.rejects(
     () => fetchFromMirrors("zlibrary", [], (base) => `${base}/search`),
-    /No zlibrary mirrors configured; set BIBLIO_ZLIBRARY_MIRRORS/
+    /No zlibrary mirrors configured; set BIBLIO_ZLIB_MIRRORS/
   );
   assert.ok(Date.now() - started < 100, "an empty group should not leave a pending promise");
 });

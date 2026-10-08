@@ -6,7 +6,6 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../dist/server.js";
 import { describeArgsError, TOOL_META } from "../dist/toolmeta.js";
-import { homedir } from "node:os";
 
 async function withClient(fn) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -164,10 +163,7 @@ test("describeArgsError stays informative for an error it does not recognise", (
 // Item 19 — output_dir resolution
 // ---------------------------------------------------------------------------
 
-test("download_book reports the resolved directory for a relative path", async () => {
-  // Uses an md5 with no resolvable link, so this exercises the path handling
-  // without downloading anything. The resolution happens after link resolution,
-  // so we assert on the schema/description contract instead of the file.
+test("download_book schema explains HOME-relative output paths", async () => {
   await withClient(async (client) => {
     const { tools } = await client.listTools();
     const dl = tools.find((t) => t.name === "download_book");
@@ -181,8 +177,6 @@ test("download_book reports the resolved directory for a relative path", async (
     );
     assert.equal(dl.inputSchema.properties.output_dir.minLength, 1);
   });
-  // Sanity: $HOME is resolvable here, which is what the handler relies on.
-  assert.ok(homedir().startsWith("/"), "homedir() must be absolute on POSIX");
 });
 
 test("an empty output_dir is rejected with a readable message", async () => {

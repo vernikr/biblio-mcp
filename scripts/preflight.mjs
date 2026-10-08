@@ -13,7 +13,7 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const INSTALLED_PACKAGE = /[\\/]node_modules[\\/][^\\/]+[\\/]?$/.test(`${PROJECT_ROOT}/`);
 
 /** Minimum Node this server supports (mirrors "engines" in package.json). */
-const MIN_NODE_MAJOR = 18;
+const MIN_NODE = { major: 18, minor: 17 };
 
 /** Read a dependency manifest without importing the dependency. */
 function readPkgJson(name) {
@@ -128,7 +128,7 @@ export function runPreflight({ requireBuild = false } = {}) {
 
   // 1. Node version.
   const node = majorMinor(process.versions.node);
-  const nodeOk = !!node && node.major >= MIN_NODE_MAJOR;
+  const nodeOk = !!node && (node.major > MIN_NODE.major || (node.major === MIN_NODE.major && node.minor >= MIN_NODE.minor));
   push(
     "node",
     nodeOk,
@@ -136,7 +136,7 @@ export function runPreflight({ requireBuild = false } = {}) {
       ? { info: `v${process.versions.node}` }
       : {
           info: `v${process.versions.node}`,
-          problem: `Node >= ${MIN_NODE_MAJOR} is required`,
+          problem: `Node >= ${MIN_NODE.major}.${MIN_NODE.minor} is required`,
         }
   );
 

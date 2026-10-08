@@ -46,6 +46,7 @@ interface StageResult {
   summary: string;
   details?: unknown;
   problem?: string;
+  fix?: string;
 }
 
 /** Run scripts/preflight.mjs as a child process. */
@@ -60,7 +61,7 @@ async function runPreflightStage(): Promise<StageResult> {
   }
   const out = await new Promise<{ code: number; stdout: string; stderr: string }>(
     (done) => {
-      const child = spawn(process.execPath, [PREFLIGHT_SCRIPT, "--json"], {
+      const child = spawn(process.execPath, [PREFLIGHT_SCRIPT, "--json", "--require-build"], {
         stdio: ["ignore", "pipe", "pipe"],
       });
       let stdout = "";
@@ -96,27 +97,44 @@ async function runPreflightStage(): Promise<StageResult> {
   };
 }
 
+const TOOL_FIX =
+  'pnpm add @modelcontextprotocol/sdk@^1.29.0 zod@^4.4.3 && pnpm run build  ' +
+  "(then re-run: pnpm preflight)";
+
 async function runToolsStage(): Promise<StageResult> {
   try {
     return await withInMemoryClient("biblio-selfcheck", async (client) => {
-      const info = await client.getServerVersion();
+      const info = client.getServerVersion();
       const { tools } = await client.listTools();
       const names = tools.map((t) => t.name);
       const missing = REQUIRED_TOOLS.filter((t) => !names.includes(t));
-      return {
-        name: "tools",
-        ok: missing.length === 0,
+      const stage = {
+        name: "tools", ok: false,
         summary: `${names.length} tools exposed by ${info?.name} v${info?.version}`,
         details: { names, serverInfo: info },
-        problem: missing.length ? `missing required tools: ${missing.join(", ")}` : undefined,
       };
+      if (missing.length) return {
+        ...stage, problem: `missing required tools: ${missing.join(", ")}`, fix: "pnpm run build",
+      };
+      const result = await client.callTool({ name: "book_details", arguments: { md5: "not-an-md5" } });
+      const text = String((result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? "");
+      if (/_parse is not a function/.test(text)) throw new Error(text);
+      if (!result.isError || !/"md5" must be a 32-char MD5 hash/.test(text)) return {
+        ...stage,
+        problem: `argument validation did not return the expected md5 error (got: ${text.slice(0, 120)})`,
+        fix: TOOL_FIX,
+      };
+      return { ...stage, ok: true, summary: stage.summary + "; invalid-call validation passed" };
     });
   } catch (e) {
+    const message = String((e as Error)?.message ?? e);
+    const incompatible = /_parse is not a function/.test(message);
     return {
-      name: "tools",
-      ok: false,
-      summary: "could not list tools",
-      problem: String((e as Error)?.message ?? e),
+      name: "tools", ok: false, summary: "could not exercise tools",
+      problem: incompatible
+        ? "the argument validator is broken — @modelcontextprotocol/sdk and zod are an incompatible pair"
+        : `the tool surface could not be exercised: ${message.slice(0, 200)}`,
+      fix: incompatible ? TOOL_FIX : "pnpm run build",
     };
   }
 }
@@ -189,67 +207,16 @@ export interface StartupCheck {
 
 /** Prove the tool surface actually works, before serving a single request. */
 export async function runStartupSelftest(): Promise<StartupCheck> {
-  const FIX =
-    'pnpm add @modelcontextprotocol/sdk@^1.29.0 zod@^4.4.3 && pnpm run build  ' +
-    "(then re-run: pnpm preflight)";
-
-  try {
-    return await withInMemoryClient("biblio-startup", async (client) => {
-      const { tools } = await client.listTools();
-      const missing = REQUIRED_TOOLS.filter((t) => !tools.some((x) => x.name === t));
-      if (missing.length > 0) {
-        return {
-          ok: false,
-          problem: `tool surface is incomplete — missing ${missing.join(", ")}`,
-          fix: "pnpm run build",
-        };
-      }
-
-      const result = await client.callTool({
-        name: "book_details",
-        arguments: { md5: "not-an-md5" },
-      });
-      const text = String(
-        (result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? ""
-      );
-
-      if (/_parse is not a function/.test(text)) {
-        return {
-          ok: false,
-          problem:
-            "the argument validator is broken — @modelcontextprotocol/sdk and zod are an " +
-            "incompatible pair, so every tool call would fail",
-          fix: FIX,
-        };
-      }
-      if (!result.isError) {
-        return {
-          ok: false,
-          problem: `argument validation accepted an invalid md5 (got: ${text.slice(0, 120)})`,
-          fix: FIX,
-        };
-      }
-      return { ok: true };
-    });
-  } catch (e) {
-    const message = String((e as Error)?.message ?? e);
-    return {
-      ok: false,
-      problem:
-        /_parse is not a function/.test(message)
-          ? "the argument validator is broken — @modelcontextprotocol/sdk and zod are an " +
-            "incompatible pair, so every tool call would fail"
-          : `the tool surface could not be exercised: ${message.slice(0, 200)}`,
-      fix: /_parse is not a function/.test(message) ? FIX : "pnpm run build",
-    };
-  }
+  const stage = await runToolsStage();
+  return stage.ok ? { ok: true } : { ok: false, problem: stage.problem, fix: stage.fix };
 }
 
-export async function runSelfcheck(opts: { live?: boolean } = {}): Promise<SelfcheckReport> {
+export async function runSelfcheck(opts: { live?: boolean; offline?: boolean } = {}): Promise<SelfcheckReport> {
+  if (opts.offline && opts.live) throw new Error("--offline cannot be combined with --live");
   const stages: StageResult[] = [];
   stages.push(await runPreflightStage());
   stages.push(await runToolsStage());
-  stages.push(await runMirrorsStage());
+  if (!opts.offline) stages.push(await runMirrorsStage());
   if (opts.live) stages.push(await runLiveStage());
 
   // A dead mirror group is degraded, not broken: report it, but only fail the
@@ -272,6 +239,7 @@ export function printSelfcheck(report: SelfcheckReport): void {
   for (const stage of report.stages) {
     console.log(`${ICON(stage.ok)} ${stage.name.padEnd(9)} ${stage.summary}`);
     if (stage.problem) console.log(`        ↳ ${stage.problem}`);
+    if (!stage.ok && stage.fix) console.log(`        fix: ${stage.fix}`);
     if (stage.name === "mirrors" && Array.isArray(stage.details)) {
       for (const g of stage.details as Array<{
         group: string;

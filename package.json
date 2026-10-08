@@ -24,7 +24,7 @@
     "url": "https://github.com/vernikr/biblio-mcp/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=18.17"
   },
   "packageManager": "pnpm@12.10.1",
   "scripts": {
@@ -41,8 +41,11 @@
     "test": "pnpm run build && node scripts/run-tests.mjs",
     "test:live": "pnpm run build && node --test test/live/*.live.test.mjs",
     "test:all": "pnpm run test && node --test test/live/*.live.test.mjs",
-    "verify": "pnpm run typecheck && pnpm run build && pnpm run test && pnpm run selfcheck",
-    "prepublishOnly": "pnpm run verify"
+    "verify": "pnpm run typecheck && pnpm run test && pnpm run selfcheck:offline",
+    "prepublishOnly": "pnpm run verify",
+    "selfcheck:offline": "node dist/index.js --selfcheck --offline",
+    "verify:live": "pnpm run verify && pnpm run selfcheck:live",
+    "docs:env": "pnpm run build && node scripts/sync-env-docs.mjs"
   },
   "keywords": [
     "mcp",

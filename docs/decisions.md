@@ -34,14 +34,16 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 
 ## MCP surface and startup
 
+- Startup and offline selfcheck share one tool-surface check: required tools plus the expected invalid-MD5 validation response, not any arbitrary `isError`. Default `verify` builds once and stays offline; live mirror/search checks are explicit. CI drives stdio through the SDK rather than grepping unrelated tools-list text.
 - Call examples are manually curated; required/optional field hints come from the registered Zod input schema so validation guidance cannot drift from the tool definition.
 - Validation issues are taken from the SDK's original single schema parse. Do not re-parse invalid arguments to format an error.
-- Selfchecks use one in-memory MCP client/server lifecycle helper. `selfcheck` verifies preflight, tool registration, mirror reachability, and optionally a real search; startup checks exercise an invalid call before stdio is bound.
+- Selfchecks use one in-memory MCP client/server lifecycle helper. `selfcheck` verifies preflight, tool registration, mirror reachability, and optionally a real search; startup checks exercise an invalid call before stdio is bound. `--selfcheck --offline` skips mirror/network stages; ordinary selfcheck and `--live` retain them.
 - Healthcheck and selfcheck share `probeGroup`, keeping reachability, latency, and impostor summaries consistent.
 - `search_papers` resolves direct Sci-Hub PDF URLs only when `resolvePdfs` is explicitly enabled, and caps enrichment at three DOI results. Automatic per-result network lookups would make an otherwise fast catalogue search unexpectedly slow; lookup failures therefore leave the Libgen results intact.
 
 ## Installation and project size
 
+- The runtime floor is Node 18.17, matching Cheerio; engines, installer and preflight agree, and CI smoke-checks that exact runtime. The full test suite uses Node 18.19+ because earlier Node 18 root after-hooks can leave HTTP fixtures alive. `docs:env` rebuilds before reading compiled settings so its output reflects changed source.
 - A checkout with `pnpm-lock.yaml` must stop when pnpm is missing; silently falling back to npm can produce a different dependency tree. After prerequisite checks, install with `--frozen-lockfile` before running the dependency preflight; an incompatible SDK/Zod pair must still stop the build.
 - MCP config writes validate the root object and any existing `mcpServers` object before touching the file or its backup. Create a missing `mcpServers`, never silently replace an invalid value; preserve other entries. Successful writes use a backup and atomic rename.
 - Preflight checks the SDK's Zod range and runtime internals because an incompatible pair can answer `tools/list` but fail every `tools/call`. It locates package manifests by filesystem path before resolving an entry point, since `exports` can hide `package.json`; installed-package checks use the consumer's lockfile and dependencies.

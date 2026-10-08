@@ -11,8 +11,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 18 is the documented floor (engines.node); 20/22 are what people run.
-        node-version: [18, 20, 22]
+        # Full-suite floor: earlier Node 18 root after-hooks can leave HTTP fixtures alive.
+        node-version: ["18.19.0", 20, 22]
 
     steps:
       - uses: actions/checkout@v4
@@ -39,49 +39,9 @@ jobs:
       - name: Preflight (dependencies)
         run: pnpm run preflight
 
-      - name: Typecheck source and scripts
-        run: pnpm run typecheck
-
-      - run: pnpm run build
-
-      # Now dist/ must exist. This is the ordering that matters: preflight
-      # before the build gates the dependency pairing, preflight after it
-      # confirms the artefact a client would actually be pointed at.
-      - name: Preflight (build artefact)
-        run: node scripts/preflight.mjs --require-build
-
-      - name: Unit and integration tests
-        run: pnpm run test
-
-      # Drive the real protocol over stdio.
-      #
-      # The upstream version of this step sent only `initialize` and
-      # `tools/list`. Both succeed even when every `tools/call` fails, which is
-      # exactly how a zod/SDK mismatch shipped looking green. The third message
-      # below is the one that matters: it deliberately passes an INVALID
-      # argument, so a healthy server answers with a validation error while a
-      # server with the broken pairing crashes inside its argument validator.
-      # No network is needed to tell those apart.
-      - name: Smoke-check MCP handshake and a tool call
-        run: |
-          set -euo pipefail
-          out="$(printf '%s\n%s\n%s\n' \
-            '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' \
-            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-            '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"book_details","arguments":{"md5":"not-an-md5"}}}' \
-            | node dist/index.js)"
-
-          echo "$out" | grep -q search_books || { echo "tools/list did not expose search_books"; exit 1; }
-
-          # The failure signature of the broken zod/SDK pairing.
-          if echo "$out" | grep -q "_parse is not a function"; then
-            echo "tool call crashed in the argument validator — zod/SDK pairing is broken"
-            exit 1
-          fi
-
-          # A healthy server rejects the bad md5 with a validation error.
-          echo "$out" | grep -q "md5" || { echo "expected a validation error naming md5"; exit 1; }
-          echo "handshake + tool-call smoke check passed"
+      # Includes real SDK stdio initialize/list/call assertions; no stdout grep.
+      - name: Offline verification (one build)
+        run: pnpm run verify
 
       # The installer is the supported entry point for this fork (it is not
       # published to npm), so a broken installer is a broken install path.
@@ -115,6 +75,22 @@ jobs:
           grep -q "refusing to start" err.txt || { echo "no clear refusal on stderr"; cat err.txt; exit 1; }
           grep -q "@modelcontextprotocol/sdk" err.txt || { echo "the fix is not named"; cat err.txt; exit 1; }
           echo "startup guard correctly refused the broken pairing (exit $code)"
+
+  runtime-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18.17.0"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Exact runtime floor (no live mirrors)
+        run: |
+          node --test test/stdio.test.mjs test/selfcheck.test.mjs test/server.test.mjs test/config.test.mjs test/preflight.test.mjs
+          node dist/index.js --selfcheck --offline
 
   live:
     # Mirror availability depends on the runner's network and can change

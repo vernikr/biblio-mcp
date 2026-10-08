@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO = "https://github.com/vernikr/biblio-mcp.git";
-const NODE_MIN_MAJOR = 18;
+const NODE_MIN = { major: 18, minor: 17 };
 
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(flag);
@@ -69,10 +69,10 @@ async function main() {
 
   // ---------------------------------------------------------------- 1. check
   step(1, "checking prerequisites");
-  const major = Number(process.versions.node.split(".")[0]);
-  if (major >= NODE_MIN_MAJOR) ok(`node ${process.versions.node}`);
+  const [major, minor] = process.versions.node.split(".").map(Number);
+  if (major > NODE_MIN.major || (major === NODE_MIN.major && minor >= NODE_MIN.minor)) ok(`node ${process.versions.node}`);
   else {
-    bad(`node ${process.versions.node} is too old — ${NODE_MIN_MAJOR} or newer is required`);
+    bad(`node ${process.versions.node} is too old — ${NODE_MIN.major}.${NODE_MIN.minor} or newer is required`);
     return finish();
   }
 
@@ -144,35 +144,11 @@ async function main() {
 
   // -------------------------------------------------------------- 6. verify
   step(6, "verifying the tool surface");
-  // The startup self-test: in-process, no network, and it distinguishes "starts"
-  // from "can actually serve a request" — the difference that hid the original
-  // broken release.
-  const selftest = [
-    "--input-type=module",
-    "-e",
-    `import { runStartupSelftest } from ${JSON.stringify(
-      join(projectDir, "dist", "selfcheck.js")
-    )};
-     const r = await runStartupSelftest();
-     process.stdout.write(JSON.stringify(r));
-     process.exitCode = r.ok ? 0 : 1;`,
-  ];
-  if (DRY_RUN) note("would run the in-process tool-surface self-test");
-  else {
-    const r = spawnSync(process.execPath, selftest, { encoding: "utf8", cwd: projectDir });
-    let parsed = {};
-    try {
-      parsed = JSON.parse((r.stdout || "").trim());
-    } catch {
-      /* reported below */
-    }
-    if (r.status === 0 && parsed.ok) ok("the tool surface answers a real tool call");
-    else {
-      bad(`tool surface is broken: ${parsed.problem ?? (r.stderr || r.stdout || "unknown").slice(0, 300)}`);
-      if (parsed.fix) note(`fix: ${parsed.fix}`);
-      return finish();
-    }
+  if (run(process.execPath, [entry, "--selfcheck", "--offline"], { cwd: projectDir }) !== 0) {
+    bad("offline selfcheck failed");
+    return finish();
   }
+  ok("the tool surface answers a real tool call");
 
   if (LIVE) {
     step("6a", "checking live mirror health");

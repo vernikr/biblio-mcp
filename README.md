@@ -23,6 +23,7 @@ that something you can rely on.
   or useless links are filtered out.
 - **Less time lost.** When something goes wrong, the message says what happened and what to do
   next, and a one-call health check tells you whether anything is reachable at all.
+  Empty searches are stopped before contacting websites.
 
 One honest caveat: the sources are third-party websites that can go offline or change at any
 time. This fork cannot promise they stay reachable, but it promises that you will know right
@@ -37,7 +38,7 @@ cd biblio-mcp
 node scripts/install.mjs
 ```
 
-Requires Node.js 18+ and pnpm. The installer builds and verifies the server, then prints the MCP
+Requires Node.js 18.17+ and pnpm. The installer builds and verifies the server, then prints the MCP
 client configuration. See [Install](#install) for manual setup and configuration options.
 
 **One [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that searches Anna's Archive, Library Genesis (Libgen), Sci-Hub, and Z-Library — all at once.**
@@ -102,7 +103,7 @@ publishing under the upstream name. The installer above makes source installatio
 
 ### Manual install
 
-Requires **Node.js ≥ 18** and **pnpm**. This fork installs with pnpm and ships a
+Requires **Node.js ≥ 18.17** and **pnpm**. This fork installs with pnpm and ships a
 `pnpm-lock.yaml`; it deliberately does **not** ship an npm lockfile, because the two
 resolved different dependency trees and one of them was broken (see
 [Why pnpm?](#why-pnpm-and-not-npm)).
@@ -118,11 +119,13 @@ Then check it before you wire it into anything:
 
 ```bash
 pnpm preflight   # dependencies and the zod/SDK pairing — offline, ~1 s
-pnpm selfcheck   # ...plus the tool surface and every mirror, with timings
+pnpm selfcheck:offline # install + a real invalid tool call, no mirror requests
+pnpm selfcheck   # ...plus every mirror, with timings
 pnpm selfcheck:live   # ...plus one real search against live mirrors
 ```
 
-`pnpm verify` runs the build, the test suite and the selfcheck in one go.
+`pnpm verify` runs typecheck, one build, the offline suite and offline selfcheck.
+Use `pnpm verify:live` to additionally probe mirrors and perform a real search.
 
 A healthy `preflight` looks like this:
 
@@ -463,6 +466,9 @@ only hit it after manually changing dependencies.
 
 ## Development
 
+Use Node 18.19+ for the full test suite; the server runtime supports 18.17+. CI also
+checks the exact runtime floor with offline/stdio tests.
+
 ```bash
 pnpm run dev             # run from source via tsx
 pnpm run typecheck       # strict checks for src/
@@ -476,7 +482,9 @@ pnpm run test:live       # optional live mirror/provider checks
 pnpm run test:all        # offline suite, then live suite
 pnpm run selfcheck       # tools + mirror reachability with timings
 pnpm run selfcheck:live  # ...plus one real search
-pnpm run verify          # strict typecheck + build + offline tests + selfcheck
+pnpm run verify          # typecheck + one build + offline tests + offline selfcheck
+pnpm run verify:live     # ...then mirrors and a real search
+pnpm run docs:env        # rebuild and synchronize the environment table
 ```
 
 `pnpm test` uses Node's built-in test runner — there is no test framework to install. The

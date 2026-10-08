@@ -12,6 +12,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -62,8 +63,7 @@ test("runStartupSelftest passes on a healthy build", async () => {
   assert.equal(result.problem, undefined);
 });
 
-test("the entry point refuses to start when the tool surface is broken", () => {
-  // Keep the startup guard actionable for the known SDK/Zod incompatibility.
+test("the version flag prints the package version without starting stdio", () => {
   const r = spawnSync(process.execPath, [join(HERE, "..", "dist", "index.js"), "--version"], {
     encoding: "utf8",
   });
@@ -71,24 +71,30 @@ test("the entry point refuses to start when the tool surface is broken", () => {
   assert.match(r.stdout, /^biblio-mcp v\d+\.\d+\.\d+/);
 });
 
-test("the startup check can be bypassed, and says so when it refuses", () => {
-  const r = spawnSync(
-    process.execPath,
-    ["--input-type=module", "-e", `
-      import { runStartupSelftest } from ${JSON.stringify(
-        join(HERE, "..", "dist", "selfcheck.js")
-      )};
-      const res = await runStartupSelftest();
-      process.stdout.write(JSON.stringify(res));
-    `],
-    { encoding: "utf8", cwd: join(HERE, "..") }
-  );
-  assert.equal(r.status, 0, r.stderr);
-  const parsed = JSON.parse(r.stdout.trim());
-  assert.equal(parsed.ok, true);
-  // The contract the entry point relies on: when it fails, it must carry a fix.
-  assert.ok(parsed.ok || parsed.fix, "a failing startup check must include a fix command");
-});
+for (const bypass of [false, true]) {
+  test(`the entry point ${bypass ? "explicitly bypasses" : "refuses"} an unhealthy startup check`, () => {
+    const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+      Client.prototype.callTool = async () => ({
+        isError: true, content: [{ type: "text", text: "md5 backend unavailable" }],
+      });
+      process.argv = [process.execPath, ${JSON.stringify(join(HERE, "..", "dist", "index.js"))}];
+      await import(${JSON.stringify(pathToFileURL(join(HERE, "..", "dist", "index.js")).href)});
+    `], {
+      encoding: "utf8", cwd: join(HERE, ".."), timeout: 10000,
+      env: { ...process.env, BIBLIO_SKIP_STARTUP_CHECK: bypass ? "1" : "" },
+    });
+    assert.equal(r.status, bypass ? 0 : 1, r.stderr);
+    assert.equal(r.stdout, "");
+    if (bypass) assert.match(r.stderr, /ready on stdio/);
+    else {
+      assert.match(r.stderr, /refusing to start/);
+      assert.match(r.stderr, /@modelcontextprotocol\/sdk/);
+      assert.match(r.stderr, /BIBLIO_SKIP_STARTUP_CHECK=1/);
+      assert.doesNotMatch(r.stderr, /ready on stdio/);
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // The installer (item 24)
@@ -440,4 +446,27 @@ test("every version in the CHANGELOG has a matching compare link", async () => {
     }
   }
   assert.ok(declared.includes(pkg.version), `package.json version ${pkg.version} is not in the CHANGELOG`);
+});
+
+
+test("the installer rejects Node 18.16 before fetching or installing", () => {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    Object.defineProperty(process.versions, "node", { value: "18.16.0" });
+    process.argv = [process.execPath, ${JSON.stringify(INSTALLER)}, "--dry-run"];
+    await import(${JSON.stringify(pathToFileURL(INSTALLER).href)});
+  `], { encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /18\.17.*required/);
+  assert.doesNotMatch(r.stdout, /\[2\] obtaining/);
+});
+
+test("docs:env builds changed source before generating the README table", needsPnpm, (t) => {
+  const { projectDir } = freshCheckout(t);
+  symlinkSync(join(HERE, "..", "node_modules"), join(projectDir, "node_modules"), "junction");
+  const config = join(projectDir, "src", "config.ts");
+  writeFileSync(config, readFileSync(config, "utf8").replace("Timeout for scraping an HTML page", "docs-env-source-marker"));
+  const r = spawnSync("pnpm", ["run", "docs:env"], { cwd: projectDir, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(readFileSync(join(projectDir, "README.md"), "utf8"), /docs-env-source-marker/);
+  assert.ok(existsSync(join(projectDir, "dist", "config.js")));
 });

@@ -6,8 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { tmpdir, homedir } from "node:os";
+import { join, dirname, relative, isAbsolute } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
@@ -92,6 +92,25 @@ test("a plain filename is saved inside output_dir", async () => {
     assert.equal(payload.saved, true);
     assert.equal(dirname(payload.path), box.outDir);
     assert.ok(existsSync(join(box.outDir, "plain-book.pdf")));
+  } finally {
+    box.cleanup();
+  }
+});
+
+
+test("a relative output_dir is resolved from HOME and reported after a real download", async () => {
+  const box = sandbox();
+  try {
+    const relativeDir = relative(homedir(), box.outDir);
+    assert.equal(isAbsolute(relativeDir), false);
+    const result = await callDownload({ output_dir: relativeDir, filename: "relative-book.pdf" });
+    assert.notEqual(result.isError, true);
+    const payload = JSON.parse(result.content[0].text);
+    assert.equal(payload.saved, true);
+    assert.equal(payload.outputDir, box.outDir);
+    assert.equal(payload.path, join(box.outDir, "relative-book.pdf"));
+    assert.match(payload.note, /was relative/);
+    assert.ok(existsSync(payload.path));
   } finally {
     box.cleanup();
   }

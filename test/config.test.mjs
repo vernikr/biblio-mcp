@@ -47,7 +47,7 @@ test("the README environment table is generated from the registry", () => {
   assert.equal(
     block,
     environmentTable(),
-    "README table is stale; run `node scripts/sync-env-docs.mjs`"
+    "README table is stale; run `pnpm run docs:env`"
   );
 });
 

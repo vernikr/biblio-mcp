@@ -182,3 +182,19 @@ test("preflight passes for an installed package, not just a source checkout", as
   assert.equal(byName.dependencies.ok, true, `dependencies failed: ${byName.dependencies.problem}`);
   assert.ok(existsSync(join(pkgDir, "scripts", "preflight.mjs")));
 });
+
+
+test("preflight enforces the actual Node 18.17 floor", async () => {
+  const { runPreflight } = await import("../scripts/preflight.mjs");
+  const original = Object.getOwnPropertyDescriptor(process.versions, "node");
+  try {
+    for (const [version, expected] of [["18.16.9", false], ["18.17.0", true], ["20.0.0", true]]) {
+      Object.defineProperty(process.versions, "node", { value: version, configurable: true });
+      const check = runPreflight().checks.find((c) => c.name === "node");
+      assert.equal(check.ok, expected, version);
+      if (!expected) assert.match(check.problem, /18\.17/);
+    }
+  } finally {
+    Object.defineProperty(process.versions, "node", original);
+  }
+});

@@ -1,14 +1,14 @@
 // Rewrites the environment-variable table in README.md from src/config.ts.
-// Run after changing ENV_SETTINGS: `node scripts/sync-env-docs.mjs`.
+// Run after changing ENV_SETTINGS: `pnpm run docs:env`.
 // config.test.mjs fails when README.md and the registry disagree.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const { environmentTable, ENV_TABLE_START, ENV_TABLE_END } = await import(
-  join(root, "dist", "config.js")
+  pathToFileURL(join(root, "dist", "config.js")).href
 );
 
 const readmePath = join(root, "README.md");

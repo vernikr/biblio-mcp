@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const KEY = "SECRET-MEMBER-KEY-XYZ";
 const md5 = "9".repeat(32);
@@ -37,22 +38,14 @@ const genuine = createServer((req, res) => {
   res.writeHead(404).end("nf");
 });
 
-await Promise.all([
-  new Promise((resolve) => impostor.listen(0, "127.0.0.1", resolve)),
-  new Promise((resolve) => genuine.listen(0, "127.0.0.1", resolve)),
-]);
-const impostorBase = `http://127.0.0.1:${impostor.address().port}`;
-const genuineBase = `http://127.0.0.1:${genuine.address().port}`;
+const [impostorBase, genuineBase] = await Promise.all([listenLocal(impostor), listenLocal(genuine)]);
 process.env.BIBLIO_ANNAS_MIRRORS = `${impostorBase},${genuineBase}`;
 process.env.BIBLIO_ANNAS_API_KEY = KEY;
 process.env.BIBLIO_TIMEOUT_MS = "2000";
 
 const { fastDownload } = await import("../dist/providers/annas.js");
 
-test.after(() => {
-  impostor.close();
-  genuine.close();
-});
+test.after(() => Promise.all([closeServer(impostor), closeServer(genuine)]));
 
 test("the member key is sent only to the mirror that proves it is Anna's Archive", async () => {
   const link = await fastDownload(md5);

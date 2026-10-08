@@ -13,10 +13,10 @@ opening sections describe the state after wave 1. The A16 entry (around line 332
 
 - **P4, cached Anna's detail pages:** deliberately not done. A cached load cannot be cancelled, and
   cancelling the losing Anna's request is the bigger saving.
-- **Slow install tests:** `test/install.test.mjs` runs one real build (about 5 s). The full offline
-  suite takes about 15 s. The "under 5 s" target was dropped rather than losing that coverage.
-- **`downloadToFile` is not fully on `fetchWithTimeout`:** its timer must cover the whole body
-  transfer. This is intentional.
+- **Slow install tests:** `test/install.test.mjs` uses clean offline installation/build fixtures and a fresh docs build.
+  The full offline suite takes roughly 20–25 s. The "under 5 s" target was dropped rather than losing that coverage.
+- **`downloadToFile` is not fully on `fetchWithTimeout`:** the request timer currently covers headers, with a
+  separate body idle watchdog. The total-deadline contract remains an open decision.
 - **Live checks:** mirror availability changes often. The last recorded live run was
   `node dist/index.js --selfcheck`, which passed; re-run it before relying on a mirror list.
 
@@ -35,8 +35,9 @@ pnpm run typecheck
 pnpm run build
 pnpm run test                          # offline suite
 node --test test/<file>.test.mjs       # one file
-pnpm run verify                        # all of the above plus live selfcheck
-node scripts/sync-env-docs.mjs         # after changing src/config.ts
+pnpm run verify                        # deterministic offline gate, one build
+pnpm run verify:live                   # additionally mirrors + a real search
+pnpm run docs:env                      # rebuild after changing src/config.ts
 ```
 
 Some installer tests need `pnpm` on `PATH`; without it they are reported as skipped, with the reason.
