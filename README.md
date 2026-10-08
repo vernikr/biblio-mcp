@@ -16,7 +16,8 @@ that something you can rely on.
 - **Faster answers.** Searches come back many times faster, because the server stops waiting on
   websites that are no longer there.
 - **Honest results.** A source that is down is reported, not silently dropped. A website that
-  has stopped being the real library is refused. Downloaded files are checked, so you know you
+  has stopped being the real library is refused, and a page that asks you to prove you are a
+  human is reported as such, not handed over as the book. Downloaded files are checked, so you know you
   got the right book.
 - **Cleaner information.** Titles, authors and formats come from the right fields, and broken
   or useless links are filtered out.
