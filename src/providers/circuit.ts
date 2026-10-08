@@ -85,10 +85,12 @@ function openMessage(source: SourceId, reason: string): string {
   );
 }
 
-/** Run one complete provider operation through a source circuit. */
+/** Run one complete provider operation through a source circuit. A failure
+ *  after the caller cancelled (`signal` aborted) says nothing about the source. */
 export async function withSourceCircuit<T>(
   source: SourceId,
-  operation: () => Promise<T>
+  operation: () => Promise<T>,
+  opts: { signal?: AbortSignal } = {}
 ): Promise<T> {
   const now = Date.now();
   const current = circuits.get(source);
@@ -105,6 +107,7 @@ export async function withSourceCircuit<T>(
     if (!activeOpen(circuits.get(source), Date.now())) circuits.delete(source);
     return result;
   } catch (error) {
+    if (opts.signal?.aborted) throw error;
     // "Not on this source" proves the source answered. It is health, not failure.
     if (error instanceof ResourceNotFoundError) {
       if (!activeOpen(circuits.get(source), Date.now())) circuits.delete(source);

@@ -81,13 +81,14 @@ export async function search(query: string, limit: number): Promise<Book[]> {
 
 /** Fetch the md5 detail page and extract structured metadata + links. */
 export async function details(
-  md5: string
+  md5: string,
+  signal?: AbortSignal
 ): Promise<Book & { downloadLinks: DownloadLink[] }> {
   const { html, base } = await fetchFromMirrors(
     GROUP,
     ANNAS_MIRRORS,
     (b) => `${b}/md5/${md5}`,
-    undefined,
+    signal ? { signal } : undefined,
     isAnnasArchive
   );
   const $ = cheerio.load(html);
@@ -132,16 +133,23 @@ export async function fastDownload(md5: string): Promise<DownloadLink | null> {
   const key = process.env.BIBLIO_ANNAS_API_KEY?.trim();
   if (!key) return null;
 
-  for (const base of await identityVerifiedMirrors()) {
+  const mirrors = await identityVerifiedMirrors();
+  const controllers = mirrors.map(() => new AbortController());
+
+  // Ask every verified mirror at once; the first usable answer wins and the
+  // rest are cancelled. Sequential tries cost one full timeout per dead mirror.
+  const attempts = mirrors.map(async (base, i) => {
+    const controller = controllers[i]!;
+    const timer = setTimeout(() => controller.abort(), 20_000);
     try {
       const res = await fetch(
         `${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`,
-        { signal: AbortSignal.timeout(20_000) }
+        { signal: controller.signal }
       );
-      if (!res.ok) continue;
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: any = await res.json();
       const url: unknown = data?.download_url ?? data?.url;
-      if (typeof url !== "string" || !url) continue;
+      if (typeof url !== "string" || !url) throw new Error("no download_url");
 
       // Surface remaining quota when the API reports it, so a run can see it
       // is burning through the daily allowance.
@@ -153,12 +161,20 @@ export async function fastDownload(md5: string): Promise<DownloadLink | null> {
           ? `Anna's Archive fast download (member, ${left} left today)`
           : "Anna's Archive fast download (member)";
 
-      return { source: "annas", label, url, direct: true, verified: true };
-    } catch {
-      // Dead or blocked mirror — try the next one.
+      return { source: "annas" as const, label, url, direct: true, verified: true };
+    } finally {
+      clearTimeout(timer);
     }
+  });
+
+  try {
+    const link = await Promise.any(attempts);
+    controllers.forEach((controller) => controller.abort());
+    return link;
+  } catch {
+    // Every verified mirror failed: no member link this time.
+    return null;
   }
-  return null;
 }
 
 function extractDownloadLinks(

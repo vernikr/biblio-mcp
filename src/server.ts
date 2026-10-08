@@ -168,21 +168,23 @@ function plainFileName(name: string): string {
 const MAX_SEARCH_PDF_RESOLUTIONS = 3;
 
 /** Best-effort, bounded Sci-Hub enrichment; search results must survive mirror failures. */
-async function resolvePaperPdfs(papers: Paper[]): Promise<Paper[]> {
+export async function resolvePaperPdfs(papers: Paper[]): Promise<Paper[]> {
   const pdfUrls = new Map<Paper, string>();
-  let attempts = 0;
+  const targets = papers
+    .filter((paper): paper is Paper & { doi: string } => Boolean(paper.doi))
+    .slice(0, MAX_SEARCH_PDF_RESOLUTIONS);
 
-  for (const paper of papers) {
-    const doi = paper.doi;
-    if (!doi || attempts >= MAX_SEARCH_PDF_RESOLUTIONS) continue;
-    attempts += 1;
-    try {
-      const resolved = await withSourceCircuit("scihub", () => scihub.resolve(doi));
-      if (resolved.pdfUrl) pdfUrls.set(paper, resolved.pdfUrl);
-    } catch {
-      // Optional PDF resolution never turns a successful Libgen search into an error.
-    }
-  }
+  // The lookups are independent, so they run together; the cap bounds the load.
+  await Promise.all(
+    targets.map(async (paper) => {
+      try {
+        const resolved = await withSourceCircuit("scihub", () => scihub.resolve(paper.doi));
+        if (resolved.pdfUrl) pdfUrls.set(paper, resolved.pdfUrl);
+      } catch {
+        // Optional PDF resolution never turns a successful Libgen search into an error.
+      }
+    })
+  );
 
   return papers.map((paper) => {
     const pdfUrl = pdfUrls.get(paper);

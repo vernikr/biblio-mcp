@@ -165,12 +165,19 @@ export async function bookDetails(md5: string): Promise<BookDetailsResult> {
   // Both sources are started together when Anna's mirrors are available.
   const skippedAnnasReason = annasHtmlSkipReason();
   const canQueryAnnas = skippedAnnasReason === undefined;
+  // Anna's detail pages are not cached, so a losing Anna's request can be
+  // cancelled. Libgen's ads page is cached and reused by downloads, so it is not.
+  const annasAbort = new AbortController();
   const annasCandidate = canQueryAnnas
-    ? withSourceCircuit("annas", async () => {
-        const book = await annas.details(hash);
-        if (!book.title.trim()) throw new Error("Anna's Archive answered with no usable title");
-        return { source: "annas" as const, book };
-      }).catch((error: unknown) => {
+    ? withSourceCircuit(
+        "annas",
+        async () => {
+          const book = await annas.details(hash, annasAbort.signal);
+          if (!book.title.trim()) throw new Error("Anna's Archive answered with no usable title");
+          return { source: "annas" as const, book };
+        },
+        { signal: annasAbort.signal }
+      ).catch((error: unknown) => {
         annasReason = summarizeSourceFailure("annas", error);
         throw error;
       })
@@ -190,6 +197,7 @@ export async function bookDetails(md5: string): Promise<BookDetailsResult> {
 
   try {
     const winner = await Promise.any([annasCandidate, libgenCandidate]);
+    if (winner.source === "libgen") annasAbort.abort();
     return {
       ...winner.book,
       resolvedVia: winner.source,
