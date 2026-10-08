@@ -1,8 +1,4 @@
 // Tests for the shared parsing helpers.
-//
-// These are the functions that replaced positional column guessing and loose
-// regular expressions, so each test pins a real observed failure rather than a
-// hypothetical one.
 
 import test from "node:test";
 import assert from "node:assert/strict";

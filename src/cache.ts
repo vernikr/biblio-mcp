@@ -7,12 +7,7 @@ interface Entry<Value> {
   value: Promise<Value>;
 }
 
-/**
- * Small bounded TTL cache that shares in-flight work and never stores failures.
- *
- * Expiry begins when the loader resolves, not when it starts. Hits update LRU
- * order but do not extend the TTL, so a hot key cannot stay stale forever.
- */
+/** Small bounded TTL cache that shares in-flight work and never stores failures. */
 export class AsyncTtlCache<Key, Value> {
   private readonly entries = new Map<Key, Entry<Value>>();
 

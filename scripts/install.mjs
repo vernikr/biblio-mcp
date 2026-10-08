@@ -1,23 +1,5 @@
 #!/usr/bin/env node
 // One-command installer for biblio-mcp.
-//
-// WHY THIS EXISTS: the npm package `biblio-mcp` is the *upstream* package, and
-// its published dependency set is the combination that breaks (sdk 1.12.1 with
-// peer `zod: ^3.23.8`, resolved against zod 4). This fork is not published to
-// npm, so the only supported install is from source. That is a worse story than
-// either alternative unless it is one command — so this is that one command.
-//
-// It runs, in order, and STOPS at the first failure with the reason:
-//   1. check      Node version, git, package manager
-//   2. fetch      clone the repository (or use the checkout you are in)
-//   3. preflight  the zod/SDK pairing and the rest of the install guard
-//   4. install    dependencies
-//   5. build      compile to dist/
-//   6. verify     the tool surface, in-process, with no network
-//   7. config     print the MCP client snippet, or write it with --write-config
-//
-// Plain JavaScript with no dependencies, so it can run before anything is
-// installed. Everything is printed as it happens; nothing is silent.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, copyFileSync } from "node:fs";
@@ -224,14 +206,7 @@ async function main() {
   return finish();
 }
 
-/**
- * Merge one server entry into an existing MCP config file.
- *
- * Written atomically (temp file + rename) and with a `.bak` copy, because this
- * is the one step here that touches a file the installer does not own. A config
- * that cannot be parsed is left alone rather than overwritten — destroying a
- * working config to install a book downloader would be a poor trade.
- */
+/** Merge one server entry into an existing MCP config file. */
 function writeConfig(configPath, entry, entryPath) {
   const abs = isAbsolute(configPath) ? configPath : resolvePath(process.cwd(), configPath);
 

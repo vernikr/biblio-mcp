@@ -1,23 +1,5 @@
 #!/usr/bin/env node
-// biblio-mcp — one MCP server for Anna's Archive, Library Genesis, Sci-Hub, and
-// Z-Library. Search books and papers, resolve download links, fetch files.
-//
-// Transport: stdio. Run with `node dist/index.js` or configure that entry point
-// in your MCP client. The npm name belongs to the upstream package, not this fork.
-//
-// This file is only the entry point: CLI flags and the stdio transport. The tool
-// surface lives in ./server.ts and the health checks in ./selfcheck.ts, so both
-// can be exercised without binding a transport.
-//
-// Usage:
-//   node dist/index.js                    start the MCP server on stdio
-//   node dist/index.js --selfcheck        verify install, tools and mirrors
-//   node dist/index.js --selfcheck --live ...and run one real search
-//   node dist/index.js --version
-//   node dist/index.js --help
-//
-// NOTE ON STDOUT: in server mode stdout is the JSON-RPC channel. Anything
-// printed there corrupts the protocol, so diagnostics must go to stderr.
+// biblio-mcp stdio entry point; keep diagnostics on stderr so stdout stays valid JSON-RPC.
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
@@ -72,10 +54,7 @@ async function main(argv: string[]): Promise<number> {
     return report.ok ? 0 : 1;
   }
 
-  // Prove the tool surface works before binding stdio. A server that starts and
-  // then fails every call is worse than one that refuses to start: the client
-  // shows a healthy tool list and every use fails, with no explanation anywhere.
-  // Set BIBLIO_SKIP_STARTUP_CHECK=1 to bypass this in an emergency.
+  // Validate one tool call before binding stdio, so incompatible installs fail early.
   if (!process.env.BIBLIO_SKIP_STARTUP_CHECK) {
     const startup = await runStartupSelftest();
     if (!startup.ok) {
@@ -98,10 +77,7 @@ async function main(argv: string[]): Promise<number> {
 
 main(process.argv.slice(2)).then(
   (code) => {
-    // Always propagate a non-zero result. In server mode the process must stay
-    // alive to serve stdio, but setting exitCode does not exit it — it only
-    // decides what a client sees when the process does end. Discarding the code
-    // here used to make a server that refused to start look like a clean exit.
+    // Preserve the failure exit code for clients and shell scripts.
     if (code !== 0) process.exitCode = code;
   },
   (err) => {

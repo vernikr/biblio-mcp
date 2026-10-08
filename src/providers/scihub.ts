@@ -1,7 +1,4 @@
 // Sci-Hub provider — academic papers by DOI / title / URL.
-//
-// Sci-Hub takes a DOI (or an article URL/title) and returns a page embedding
-// the PDF. We POST the identifier and extract the PDF src from the response.
 
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
@@ -10,10 +7,7 @@ import type { Paper } from "../types.js";
 
 const GROUP = "scihub";
 
-/**
- * Resolve a paper via Sci-Hub. `identifier` may be a DOI, an article URL, or a
- * title. Returns the paper with a `pdfUrl` when one is found.
- */
+/** Resolve a paper via Sci-Hub using a DOI, article URL, or title. */
 export async function resolve(identifier: string): Promise<Paper> {
   const id = identifier.trim();
   const { html, base, finalUrl } = await fetchFromMirrors(

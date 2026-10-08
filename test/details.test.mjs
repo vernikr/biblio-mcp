@@ -1,16 +1,4 @@
 // Tests for book_details metadata resolution and download-link filtering.
-//
-// These are the two behaviours that changed most in phase 2, so both are pinned
-// against local stub servers rather than live mirrors.
-//
-// WHY A SUBPROCESS: ANNAS_MIRRORS / LIBGEN_MIRRORS are `const` bindings read
-// from the environment once, when src/mirrors.ts is first evaluated. Busting the
-// ESM cache with a `?t=N` query does NOT help, because the query only applies to
-// the specifier you name: a freshly evaluated dist/providers/index.js still
-// statically imports dist/mirrors.js, which resolves to the already-cached
-// instance holding the default mirror list. The only reliable way to run the
-// provider graph against a stub is a child process whose environment is set
-// before any import happens. runInProcess() below does that.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -25,12 +13,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = resolvePath(HERE, "..");
 
-/**
- * Run `body` in a fresh Node process against the built dist/, with `env` applied
- * before anything is imported. `body` is stringified and receives `ctx` (its
- * second argument); it must return a JSON-serialisable value, which comes back
- * as the resolved value here.
- */
+/** Run `body` in a fresh Node process against the built dist/, with `env` applied */
 function runInProcess(env, ctx, body) {
   const program = `
     const ctx = ${JSON.stringify(ctx)};

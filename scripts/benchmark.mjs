@@ -1,8 +1,4 @@
 // Opt-in live benchmark for the phase-3 provider paths.
-//
-// This intentionally uses real configured mirrors and is not part of `pnpm test`.
-// Run with `pnpm run benchmark`; output is JSON so before/after runs are easy to
-// compare. One process measures cold then warm calls, matching the agent cycle.
 
 import { performance } from "node:perf_hooks";
 import { BOOK_SOURCES, bookDetails, resolveDownloads, searchBooks } from "../dist/providers/index.js";

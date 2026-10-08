@@ -1,21 +1,5 @@
 // Agent-facing tool metadata: call examples and human-readable argument errors.
-//
-// Two problems this solves, both observed while an agent tried to use the
-// server:
-//
-//  1. Nothing in `tools/list` showed what a call looks like. One MCP bridge
-//     advertised `search_books` as taking no parameters at all, which sent the
-//     agent into a long loop of guesses. A single JSON line in the description
-//     costs nothing and works in every client — cheaper than shipping a
-//     SKILL.md that most clients never read.
-//
-//  2. Validation failures leaked zod's internal issue array
-//     (`[{"expected":"string","code":"invalid_type","path":["output_dir"],...}]`).
-//     That is a debugging artefact, not an instruction. An agent cannot act on
-//     it; a sentence naming the missing argument and showing an example can be
-//     acted on immediately.
-
-/** Per-tool call examples; argument requirements come from the input schemas. */
+/** Per-tool examples; required and optional arguments come from Zod schemas. */
 export interface ToolMeta {
   example: string;
 }

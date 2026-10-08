@@ -1,9 +1,4 @@
 // Tests for the MCP tool surface, driven over an in-memory transport.
-//
-// This is the check whose absence let a broken build look healthy: upstream CI
-// only sent `initialize` and `tools/list`, both of which succeed even when every
-// `tools/call` fails. Talking to a real server in-process is what closes that
-// gap, and doing it here keeps it off the critical path of a live install.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -50,10 +45,7 @@ test("every tool advertises an input schema with its required fields", async () 
     const { tools } = await client.listTools();
     for (const tool of tools) {
       assert.ok(tool.inputSchema, `${tool.name} must publish an inputSchema`);
-      // A tool with no required arguments omits `required` entirely, which is
-      // valid JSON Schema — healthcheck is the only such tool here. What must not
-      // happen is a tool that NEEDS arguments failing to declare them, which is
-      // how an agent ends up calling search_books with no query and guessing.
+      // Empty required lists are valid; tools needing arguments must declare them.
       const required = tool.inputSchema.required;
       assert.ok(
         required === undefined || Array.isArray(required),
@@ -79,13 +71,7 @@ test("download_book requires md5 and output_dir", async () => {
 });
 
 test("argument validation names the field an agent got wrong", async () => {
-  // An agent that guesses `dest` instead of `output_dir` must be told which
-  // field was wanted — that is the difference between a one-turn correction and
-  // an agent going off to read the source code.
-  //
-  // Note the contract: the SDK reports this as an isError result, not a thrown
-  // exception. The payload is still a raw zod issue dump, which phase 3 of the
-  // improvement plan replaces with a human-readable hint plus an example.
+  // Validation errors must name fields so an agent can correct its call.
   await withClient(async (client) => {
     const result = await client.callTool({
       name: "download_book",

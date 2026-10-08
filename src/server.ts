@@ -1,7 +1,4 @@
 // MCP tool surface.
-//
-// Split out from the entry point so the server can be constructed in-process —
-// by `--selfcheck` and by the test suite — without binding a stdio transport.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -33,24 +30,14 @@ import type { SourceId } from "./types.js";
 
 const SERVER_NAME = "biblio-mcp";
 
-/**
- * Read from package.json rather than repeated here.
- *
- * This used to be a hardcoded string, so bumping the version in package.json
- * left `--version` and `--selfcheck` reporting the previous one. `createRequire`
- * is used instead of `import ... from "../package.json"` because tsconfig sets
- * `rootDir: "src"`, and importing a file above it breaks the build.
- */
+/** Read from package.json rather than repeated here. */
 const SERVER_VERSION: string = (() => {
   try {
     const pkg = createRequire(import.meta.url)("../package.json") as {
       name?: string;
       version?: string;
     };
-    // Only trust it if it is OUR package.json. Copying dist/ into another
-    // project otherwise reports that project's version — observed in the wild as
-    // a build that advertised "v1.0.0" while running this code. An unknown
-    // version is honest; a plausible wrong one is not.
+    // Reject another project's manifest; an unknown version is safer than a wrong one.
     if (pkg.name !== SERVER_NAME) return "0.0.0-unknown";
     return pkg.version ?? "0.0.0-unknown";
   } catch {
@@ -75,18 +62,7 @@ async function readFileHead(path: string, bytes: number): Promise<Buffer> {
   }
 }
 
-/**
- * Build a throttled progress reporter for one tool call.
- *
- * MCP clients apply a request timeout (60 s by default in the TypeScript SDK)
- * that is NOT extended by an in-flight response — so a multi-megabyte download
- * could time out on the client while the server was still working and had
- * already written a perfectly good file. Emitting progress notifications keeps
- * the request alive from the client's point of view and gives the caller
- * something to show.
- *
- * No-op when the client did not send a progressToken.
- */
+/** Build a throttled progress reporter for one tool call. */
 export function makeProgressReporter(extra?: {
   _meta?: { progressToken?: string | number };
   sendNotification?: (n: never) => Promise<void>;
@@ -122,24 +98,7 @@ export function makeProgressReporter(extra?: {
   };
 }
 
-/**
- * Replace zod's raw issue dump with a sentence an agent can act on.
- *
- * The SDK validates arguments in `McpServer.validateToolInput` and, on failure,
- * throws an error whose message is the stringified zod issue array. That
- * surfaces to the caller as
- * `Invalid arguments for tool download_book: [{"expected":"string","code":"invalid_type","path":["output_dir"],...}]`
- * — accurate, and useless as an instruction.
- *
- * The method is called as `this.validateToolInput(...)`, so replacing it on the
- * instance is enough; no subclassing and no patching of the SDK. A plain Error
- * is thrown rather than an McpError because the SDK's tool dispatcher turns a
- * plain Error into an `isError: true` tool result carrying just the message,
- * while an McpError prefixes it with `MCP error -32602:`.
- *
- * If the SDK ever stops calling this method the override simply never runs and
- * the original behaviour returns — it cannot make errors worse.
- */
+/** Replace zod's raw issue dump with a sentence an agent can act on. */
 function validationIssuesFrom(error: unknown): unknown[] | undefined {
   if (!error || typeof error !== "object") return undefined;
   const direct = (error as { issues?: unknown }).issues;
@@ -160,19 +119,12 @@ function validationIssuesFrom(error: unknown): unknown[] | undefined {
 }
 
 function useReadableValidationErrors(server: McpServer): void {
-  // The SDK declares validateToolInput private, but it is called as
-  // `this.validateToolInput(...)` at runtime, so replacing it on the instance
-  // works. Reaching it needs a structural cast; that is the price of not
-  // forking the SDK, and it is confined to this wrapper.
+  // The SDK invokes this private method dynamically, so an instance override is enough.
   type ValidatingServer = {
     validateToolInput: (tool: unknown, args: unknown, toolName: string) => Promise<unknown>;
   };
   const target = server as unknown as Partial<ValidatingServer>;
-  // Not every SDK version exposes this method. If it is absent, leave the
-  // server alone: validation errors keep the SDK's own wording, which is worse
-  // but correct. Binding an undefined method here used to throw a cryptic
-  // "Cannot read properties of undefined (reading 'bind')" at startup, which is
-  // exactly the kind of unactionable message this fork exists to eliminate.
+  // Skip the override when this SDK version does not expose the method.
   if (typeof target.validateToolInput !== "function") return;
   const original = target.validateToolInput.bind(server);
 
@@ -321,10 +273,7 @@ export function createServer(): McpServer {
           links,
         });
 
-      // A relative path used to resolve against the server's working directory —
-      // which is wherever the client happened to launch the process, and is
-      // invisible to the agent asking for the download. $HOME is predictable
-      // from both sides, and the resolved directory is reported back below.
+      // Resolve relative output paths from $HOME, a predictable location for both sides.
       const wasRelative = !isAbsolute(output_dir);
       const dir = wasRelative ? resolve(homedir(), output_dir) : output_dir;
       await mkdir(dir, { recursive: true });

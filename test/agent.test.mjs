@@ -1,8 +1,4 @@
-// Tests for the agent-facing surface: call examples in descriptions,
-// human-readable validation errors, output_dir resolution, and healthcheck.
-//
-// Phase 3 exists because an agent once spent eight minutes failing to use this
-// server. Each test here pins one of the specific things that made that slow.
+// Tests for tool examples, validation hints, output paths, and healthcheck.
 
 import test from "node:test";
 import assert from "node:assert/strict";

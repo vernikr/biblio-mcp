@@ -1,8 +1,4 @@
 // Aggregation layer.
-//
-// Fans a query out to every book provider concurrently, merges the results, and
-// dedups by md5 (the universal key) while keeping the richest record. Per-source
-// failures are collected, not thrown, so one dead mirror never blanks the search.
 
 import * as annas from "./annas.js";
 import * as libgen from "./libgen.js";
@@ -29,18 +25,7 @@ import type {
 /** Every book source this server knows how to query. */
 export const ALL_BOOK_SOURCES: SourceId[] = ["annas", "libgen", "zlibrary"];
 
-/** Sources that are off unless explicitly requested.
- *
- * Z-Library ships in this list because of the 2026-10-07 mirror audit: every
- * public Z-Library domain was unreachable or redirecting away from search, so
- * including it by default meant every search paid for four failed mirrors and
- * then reported an error the caller could do nothing about. Excluding it by
- * default is not a removal — an explicit `sources: ["zlibrary"]` still queries
- * it, which is what you want when BIBLIO_ZLIB_MIRRORS points at a working
- * personal domain.
- *
- * Override the whole list with BIBLIO_DISABLE_SOURCES (comma-separated; set it
- * to an empty string to disable nothing and restore upstream behaviour). */
+/** Sources that are off unless explicitly requested. */
 function resolveDisabledSources(): SourceId[] {
   const raw = process.env.BIBLIO_DISABLE_SOURCES;
   const list = (raw === undefined ? "zlibrary" : raw)
@@ -171,26 +156,13 @@ export type BookDetailsResult = (Book & { downloadLinks: DownloadLink[] }) & {
   libgenUnavailable?: string;
 };
 
-/**
- * Full metadata + download links for one md5.
- *
- * Anna's Archive and Library Genesis are queried in parallel; the first one
- * with usable metadata wins. Anna's HTML pages often answer HTTP 403 to
- * non-browser clients (the DDoS-Guard challenge), so serially waiting for it
- * made book_details slow before the reliable Libgen BibTeX fallback ran.
- *
- * The response always says which source answered, so a caller is never left
- * wondering why the shape of the data changed.
- */
+/** Full metadata + download links for one md5. */
 export async function bookDetails(md5: string): Promise<BookDetailsResult> {
   const hash = md5.toLowerCase();
   let annasReason: string | undefined;
   let libgenReason: string | undefined;
 
   // Both sources are started together when Anna's mirrors are available.
-  // Promise.any returns the first usable metadata, without making Libgen wait
-  // through a known-dead source. Cooling mirrors are skipped rather than
-  // immediately retried in their negative-cache window.
   const skippedAnnasReason = annasHtmlSkipReason();
   const canQueryAnnas = skippedAnnasReason === undefined;
   const annasCandidate = canQueryAnnas
@@ -257,10 +229,7 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
     annasDetails,
   ]);
 
-  // Member fast-download goes first when available: it is a direct file URL and
-  // the only path that survives the DDoS-Guard challenge on the HTML mirrors.
-  // Resolves to null when no API key is configured, so unsubscribed setups are
-  // unaffected.
+  // Try the verified member endpoint before scraped partner links.
   if (fastRes.status === "fulfilled" && fastRes.value) links.push(fastRes.value);
   if (libgenRes.status === "fulfilled") links.push(...libgenRes.value);
   if (annasRes.status === "fulfilled" && annasRes.value)

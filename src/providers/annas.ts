@@ -1,8 +1,4 @@
 // Anna's Archive provider.
-//
-// Anna's Archive is the broadest aggregator — it indexes Libgen, Z-Library,
-// Sci-Hub/scimag, IPFS, and more. We use it as the primary book source and as
-// the detail/metadata resolver for any md5.
 
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
@@ -12,35 +8,13 @@ import type { Book, DownloadLink } from "../types.js";
 
 const GROUP = "annas";
 
-/**
- * Reject mirrors that answer 200 but are not Anna's Archive.
- *
- * Abandoned shadow-library domains get re-registered and parked: as of
- * 2026-10-07 `annas-archive.li` answers in ~0.15 s with a ~27 kB page of
- * advertising JavaScript and no <title>. It is faster than every genuine
- * mirror, so without this check it wins the race and the parsers below turn an
- * ad page into "zero results, no error" — an invisible failure. The real site
- * serves ~174 kB and names itself in the title.
- */
+/** Reject mirrors that answer 200 but are not Anna's Archive. */
 const isAnnasArchive = (html: string): boolean | string => {
   if (/Anna[’']s Archive/i.test(html)) return true;
   return "answered but is not Anna's Archive (parked or hijacked domain?)";
 };
 
-/** Pull the first metadata line out of a result block and parse loosely. */
-/**
- * Best-effort metadata from a blob of page text.
- *
- * Unlike Library Genesis, Anna's Archive has no structured metadata block to
- * read here, so this is genuinely heuristic and only ever a fallback — the
- * reliable detail path is libgen.details(), which parses BibTeX. That is why
- * these fields go through the shared validators in src/parse.ts instead of the
- * loose inline regexes they used to use: the old size pattern matched inside
- * longer digit runs and reported values like "0026gB" as a file size.
- *
- * A field it cannot validate is left undefined rather than guessed, because a
- * wrong value is worse than a missing one when an agent acts on it.
- */
+/** Parse known fields from Anna's unstructured result metadata. */
 function parseMeta(metaText: string): Partial<Book> {
   const out: Partial<Book> = {};
   const year = parseYear(metaText);
@@ -133,21 +107,7 @@ export async function details(
   };
 }
 
-/**
- * Member fast-download. Per Anna's Archive's own FAQ this is the ONE stable
- * JSON API they offer: `/dyn/api/fast_download.json` (docs live inside the JSON
- * response itself). Everything else — custom search, iterating files — they
- * point at their ElasticSearch/MariaDB dumps and torrent lists instead.
- *
- * Two reasons this matters beyond speed:
- *   1. It returns a direct file URL, skipping the slow-download waiting page.
- *   2. It is a JSON endpoint, so it is not behind the DDoS-Guard JS challenge
- *      that blocks the HTML mirrors from any non-browser client.
- *
- * No key set => returns null and the caller falls through to the scraped links.
- * The key is read from the environment and never logged, echoed, or included
- * in the returned label.
- */
+/** Use Anna's member API for verified direct downloads when an API key is set. */
 export async function fastDownload(md5: string): Promise<DownloadLink | null> {
   const key = process.env.BIBLIO_ANNAS_API_KEY?.trim();
   if (!key) return null;

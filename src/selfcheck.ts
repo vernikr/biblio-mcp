@@ -1,19 +1,4 @@
 // --selfcheck: prove the server actually works, without an MCP client.
-//
-// The failure this defends against is specific and expensive: a server that
-// starts, answers `tools/list`, and then fails every `tools/call`. Nothing the
-// upstream CI checked distinguished those two states, so a broken build looked
-// green. This routine drives the real tool surface over an in-memory transport,
-// which is the only way to know the difference.
-//
-// Stages, cheapest first, so a broken install is reported in ~1 s and only a
-// healthy one goes on to spend time on the network:
-//   1. preflight  — Node version, deps, the zod/SDK pairing, build artefact
-//   2. tools      — construct the server and list its tools in-process
-//   3. mirrors    — probe every host in src/mirrors.ts, with timings
-//   4. live       — one real search, only with --selfcheck --live
-//
-// Exit code 0 means "ready to serve". Non-zero means something is broken.
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -63,12 +48,7 @@ interface StageResult {
   problem?: string;
 }
 
-/** Run scripts/preflight.mjs as a child process.
- *
- * It is a separate process because that script is deliberately plain JavaScript
- * with no build step, so it can gate `pnpm install` — which means it cannot be
- * imported from compiled TypeScript without breaking `rootDir`. Spawning keeps
- * one source of truth instead of duplicating the checks here. */
+/** Run scripts/preflight.mjs as a child process. */
 async function runPreflightStage(): Promise<StageResult> {
   if (!existsSync(PREFLIGHT_SCRIPT)) {
     return {
@@ -207,23 +187,7 @@ export interface StartupCheck {
   fix?: string;
 }
 
-/**
- * Prove the tool surface actually works, before serving a single request.
- *
- * The failure this exists for is the one that started this fork: a server that
- * starts, answers `tools/list`, and then fails *every* `tools/call` with
- * `keyValidator._parse is not a function`, because `@modelcontextprotocol/sdk`
- * 1.12.1 declares a `zod: ^3.23.8` peer range and was installed against zod 4.
- * Nothing about that state is visible until a real call is made — so the client
- * shows a healthy tool list and every use fails.
- *
- * Listing tools is not enough to detect it. Calling one is, and calling it with
- * a deliberately INVALID argument costs no network: a healthy server answers
- * with a validation error, a broken one crashes inside its own validator.
- *
- * Runs in-process over an in-memory transport, so it adds milliseconds and no
- * network to startup.
- */
+/** Prove the tool surface actually works, before serving a single request. */
 export async function runStartupSelftest(): Promise<StartupCheck> {
   const FIX =
     'pnpm add @modelcontextprotocol/sdk@^1.29.0 zod@^4.4.3 && pnpm run build  ' +

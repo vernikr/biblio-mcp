@@ -1,9 +1,4 @@
 // Tests for the installer and the startup self-test.
-//
-// The installer is the one script here that touches files it does not own, so
-// the cases that matter most are the ones where it must REFUSE to act: a config
-// it cannot parse, and a path that does not exist. Destroying a working client
-// config to install a book downloader would be a bad trade.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -46,11 +41,7 @@ test("runStartupSelftest passes on a healthy build", async () => {
 });
 
 test("the entry point refuses to start when the tool surface is broken", () => {
-  // Reproduces the exact shipped failure: @modelcontextprotocol/sdk 1.12.1 (peer
-  // zod ^3.23.8) resolved against zod 4 makes every tools/call throw
-  // `keyValidator._parse is not a function`. We cannot install that pairing here,
-  // so we assert the contract instead: a non-zero exit and a message that names
-  // the fix. The negative case is exercised in CI against the real pairing.
+  // Keep the startup guard actionable for the known SDK/Zod incompatibility.
   const r = spawnSync(process.execPath, [join(HERE, "..", "dist", "index.js"), "--version"], {
     encoding: "utf8",
   });

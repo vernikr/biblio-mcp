@@ -1,21 +1,4 @@
 // Z-Library provider — best-effort, no-auth public search.
-//
-// Z-Library is the flakiest source to automate: it rotates "personal" domains,
-// gates much of its catalog behind login, and sometimes serves a captcha. This
-// provider makes a best-effort public-search attempt across known domains and
-// returns whatever it can parse. It NEVER hard-fails the aggregate search — an
-// empty result is an acceptable outcome here, since Anna's Archive already
-// indexes the Z-Library collection as a reliable fallback.
-//
-// For authenticated, complete Z-Library access, set BIBLIO_ZLIB_MIRRORS to your
-// working personal domain; richer login-based access is intentionally out of
-// scope to keep the server credential-free by default.
-//
-// As of the 2026-10-07 mirror audit every public domain in the default list was
-// unusable (see src/mirrors.ts), so this source is NOT part of the default
-// search set — opt in with `sources: ["zlibrary"]`. Being excluded by default
-// is what keeps a dead source from taxing every search; being still present
-// means a user-supplied personal domain works without a code change.
 
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";

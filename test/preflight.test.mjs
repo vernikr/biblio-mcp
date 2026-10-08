@@ -1,10 +1,4 @@
 // Tests for the install-time guard.
-//
-// The negative case matters more than the positive one: the whole reason this
-// script exists is to catch @modelcontextprotocol/sdk 1.12.x paired with zod 4,
-// which starts fine and then fails every tool call. So the tests build a real
-// (tiny) node_modules tree with exactly that pairing and run the real script
-// against it — no reimplementation of the check.
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -145,10 +139,7 @@ test("a missing build is a note by default but a failure with --require-build", 
 });
 
 test("preflight passes for an installed package, not just a source checkout", async () => {
-  // A published tarball ships no lockfile and no node_modules of its own. Two
-  // checks used to report those as failures, so `--selfcheck` failed for every
-  // installed copy while telling the user to run `pnpm install` — advice that
-  // cannot help them. Verified against a real `npm pack` output.
+  // Installed packages rely on the consumer's lockfile and node_modules.
   const { mkdtempSync, mkdirSync, writeFileSync, existsSync, cpSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");

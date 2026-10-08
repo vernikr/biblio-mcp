@@ -1,28 +1,4 @@
 // Resilient HTTP layer with mirror rotation.
-//
-// Shadow libraries move between domains constantly and any given mirror may be
-// blocked from a given network. Every provider therefore declares a LIST of
-// candidate mirrors; we try them, remember what worked, and skip what did not.
-//
-// Two properties matter here, because both used to cost real time on every
-// single request:
-//
-//   1. NEGATIVE CACHE. A mirror that just failed is marked dead for a TTL and
-//      is not tried again inside that window. Without this, every request paid
-//      the full timeout for every dead host — measured at ~14 s for a search
-//      against the 2026-10-07 mirror list, where 4 of 6 Libgen hosts were down.
-//      The cache is half-open: if *every* candidate is dead we retry all of
-//      them, so a network blip can never lock a source out permanently.
-//
-//   2. STAGGERED CONCURRENCY. Candidates are started concurrently but with a
-//      small head start for the earlier ones, so declared preference order
-//      still means something while the worst case is bounded by the first
-//      mirror that actually answers instead of the sum of all of them.
-//
-// Timeouts are split by kind of request. Scraping an HTML index and pulling a
-// 5 MB ebook have nothing in common, and sharing one 20 s budget made the first
-// far too patient and the second far too strict (a book larger than a few MB
-// could not finish at all).
 
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
@@ -121,14 +97,7 @@ export function mirrorCacheSnapshot(): { dead: string[]; preferred: Record<strin
   return { dead: [...new Set(dead)], preferred: Object.fromEntries(preferredMirror) };
 }
 
-/**
- * Build the attempt order for a request.
- *
- * Preferred (last-known-good) host first, then the declared preference order
- * minus anything currently marked dead. If that leaves nothing — every host is
- * in its cooldown — we fall back to the full list so the circuit breaker can
- * close again instead of failing the request outright.
- */
+/** Build the attempt order for a request. */
 function orderMirrors(groupKey: string, mirrors: string[]): string[] {
   const preferred = preferredMirror.get(groupKey);
   const ordered =
@@ -222,18 +191,7 @@ export interface MirrorFetchResult {
   attempts: string[];
 }
 
-/**
- * Decide whether a 2xx response really came from the site we asked for.
- *
- * A status code is not evidence of identity, and shadow-library domains get
- * abandoned and re-registered: `annas-archive.li` answers HTTP 200 in ~0.15 s
- * — faster than any genuine mirror — but serves a ~27 kB advertising page. A
- * liveness check that trusts the status code ranks such a host first, and the
- * provider then parses the ad page as catalogue data, returning zero results
- * with no error at all. Providers pass a validator so that a host which answers
- * but is not the expected site is rejected and cooled down like any other
- * failure.
- */
+/** Decide whether a 2xx response really came from the site we asked for. */
 export type MirrorValidator = (html: string, base: string) => boolean | string;
 type MirrorPathBuilder = (base: string) => string | string[];
 
@@ -244,18 +202,7 @@ class MirrorHttpError extends Error {
   }
 }
 
-/**
- * Fetch an HTML page, racing the group's mirrors until one returns 2xx.
- *
- * @param groupKey  Stable key naming the mirror set (used for stickiness and
- *                  for the negative cache).
- * @param mirrors   Ordered list of base URLs (no trailing slash).
- * @param buildPath Given a base, return one URL or ordered route fallbacks. A
- *                  later route is tried on the same mirror only for HTTP 404/405.
- * @param init      Optional fetch init.
- * @param validate  Optional identity check applied to the response body. Return
- *                  `false` (or a reason string) to reject the mirror.
- */
+/** Fetch an HTML page, racing the group's mirrors until one returns 2xx. */
 export async function fetchFromMirrors(
   groupKey: string,
   mirrors: string[],
@@ -362,11 +309,7 @@ export async function getText(url: string, init?: RequestInit): Promise<string> 
   });
 }
 
-/** Fetch binary content fully into memory.
- *
- * Prefer {@link downloadToFile} for user-visible downloads: it streams, so peak
- * memory does not scale with file size, and it verifies the hash. This helper
- * remains for small payloads where buffering is simpler. */
+/** Buffer small payloads; stream user-visible files with `downloadToFile`. */
 export async function getBuffer(
   url: string,
   init?: RequestInit
@@ -384,11 +327,7 @@ export async function getBuffer(
   });
 }
 
-/** Thrown when a "direct" download URL serves an HTML page instead of a file.
- *
- * Libgen's get.php does this when the one-time `key` in the URL has expired or
- * was minted by a different mirror host. Callers should move on to the next
- * candidate link rather than save the page as if it were the book. */
+/** Thrown when a "direct" download URL serves an HTML page instead of a file. */
 export class HtmlInsteadOfFileError extends Error {
   readonly status: number;
   readonly contentType: string | null;
@@ -429,16 +368,7 @@ export interface DownloadToFileResult {
   md5: string;
 }
 
-/**
- * Stream a URL straight to disk and hash it on the way through.
- *
- * Writes to `<dest>.part` and renames on success, so a partial download never
- * leaves a file that looks complete. Three failure modes are handled
- * explicitly, because all three were observed in the wild:
- *   - non-2xx status;
- *   - an HTML interstitial served where a file was promised;
- *   - a connection that opens and then stops sending bytes.
- */
+/** Stream a URL straight to disk and hash it on the way through. */
 export async function downloadToFile(
   url: string,
   destPath: string,
@@ -549,14 +479,7 @@ export interface MirrorProbe {
   impostor?: boolean;
 }
 
-/**
- * Probe a single mirror base for liveness AND identity. Used by --selfcheck.
- *
- * `expect` matters as much as the status code: a parked or hijacked domain
- * answers 200 and would otherwise be reported as the healthiest mirror in its
- * group. Those hosts get `impostor: true` so the health check says what is
- * actually going on instead of recommending a domain that is no longer the site.
- */
+/** Probe a single mirror base for liveness AND identity. Used by --selfcheck. */
 export async function probeMirror(
   base: string,
   probePath = "/",

@@ -1,8 +1,4 @@
 // Tests for source defaults and the Library Genesis result parser.
-//
-// The parser is tested against a captured HTML fixture served from a local
-// server, so the real scraping path runs end to end with no external network.
-// BIBLIO_LIBGEN_MIRRORS must be set before the module is imported.
 
 import test from "node:test";
 import assert from "node:assert/strict";

@@ -1,9 +1,4 @@
 // Tests for the mirror-rotation and download layer.
-//
-// These exercise the real code against real local HTTP servers on 127.0.0.1 —
-// no external network, no mocks of the module under test. The env knobs are set
-// BEFORE the module is imported because the module reads them at load time;
-// `node --test` gives each file its own process, so that is safe.
 
 process.env.BIBLIO_MIRROR_DEAD_TTL_MS = "400"; // keep the cache tests quick
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0"; // no head start; order is explicit
@@ -400,10 +395,7 @@ test("downloadToFile surfaces a non-2xx status as an error", async () => {
 });
 
 test("downloadToFile reports progress repeatedly during a slow transfer", async () => {
-  // A large book over a throttled mirror is the case progress exists for: the
-  // transfer can outlast a client's request timeout, and the only thing that
-  // keeps the request alive from the client's side is a steady stream of
-  // notifications. This asserts the cadence and payload shape, deterministically.
+  // A throttled transfer must emit progress repeatedly until completion.
   const chunk = Buffer.alloc(64 * 1024, 0x62);
   const total = chunk.length * 4;
   const srv = await serve({

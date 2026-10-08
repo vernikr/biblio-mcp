@@ -1,22 +1,4 @@
 // Table and field parsing helpers.
-//
-// Shared by the Library Genesis book and paper scrapers, and by the Anna's
-// Archive metadata parser. Everything here is pure: no I/O, no cheerio, so it
-// can be unit-tested against strings.
-//
-// The reason this module exists is that the parsers it replaces guessed at
-// fields by position and by loose regular expressions, and both guesses were
-// wrong on real data:
-//   - author came from cell 0, but Libgen puts the series+title there and the
-//     author in cell 1, so every Libgen result reported the series name and a
-//     list of ISBNs as the author;
-//   - size came from an unbounded regex, which matched "00264mB" out of
-//     concatenated page text and reported it as a file size.
-// Column names are now read from the table's own header row, and field
-// extraction is validated rather than assumed.
-
-/** Languages Libgen uses in its Language column. Matching against a known set
- *  stops arbitrary words from being reported as a language. */
 export const KNOWN_LANGUAGES: ReadonlySet<string> = new Set([
   "english","spanish","french","german","russian","chinese","arabic","portuguese",
   "italian","dutch","japanese","korean","turkish","persian","hindi","polish",
@@ -31,17 +13,7 @@ const KNOWN_FORMATS = new Set([
   "chm","lit","pdb","azw","azw4","jpg","png","zip","rar","mp3","audiobook",
 ]);
 
-/**
- * Extract a file size such as "4 MB".
- *
- * Deliberately strict. The naive pattern `(\d+(?:\.\d+)?\s?(?:KB|MB|GB))`
- * matches inside longer digit runs, which is how "00264mB" ended up reported as
- * a size. Rules applied here:
- *   - the number must be a standalone token, not part of a longer digit run;
- *   - no leading zeros (so "00264" cannot start a match);
- *   - the value must be plausible (< 100 TB);
- *   - the result is normalised to "<number> <UNIT>".
- */
+/** Extract a file size such as "4 MB". */
 export function parseSize(text: string | undefined | null): string | undefined {
   if (!text) return undefined;
   const re = /(?:^|[\s(,])(\d{1,4}(?:[.,]\d{1,2})?)\s?(KB|MB|GB|TB)(?=[\s),.;]|$)/gi;
@@ -128,16 +100,7 @@ export type LibgenColumn =
   | "format"
   | "mirrors";
 
-/**
- * Map a table's header cells to logical field names.
- *
- * Libgen renders a real header row — `Author(s) ↕`, `Publisher ↕`, `Year ↕`,
- * `Size ↕`, `Ext. ↕`, `Mirrors`, and a wide first column combining
- * "ID / Time add. / Title / Series". Reading it means the parser does not care
- * which column order a given mirror family uses, and it keeps working if a
- * column is inserted. Positional fallbacks live in the caller for pages that
- * ship no header row at all.
- */
+/** Map a table's header cells to logical field names. */
 export function columnMap(headers: string[]): Partial<Record<LibgenColumn, number>> {
   const map: Partial<Record<LibgenColumn, number>> = {};
   headers.forEach((raw, index) => {
@@ -172,17 +135,7 @@ export const LIBGEN_DEFAULT_COLUMNS: Partial<Record<LibgenColumn, number>> = {
   mirrors: 8,
 };
 
-/**
- * Parse a BibTeX entry into flat key/value pairs.
- *
- * Library Genesis embeds a machine-readable `@book{...}` block on the ads.php
- * page. It carries the exact title, author, publisher, ISBN, year and series —
- * which is strictly better than scraping rendered HTML, and it is what makes
- * `book_details` work without depending on Anna's Archive.
- *
- * Only the flat `key = {value}` form Libgen emits is supported; nested braces
- * inside a value are handled by counting depth.
- */
+/** Parse a BibTeX entry into flat key/value pairs. */
 export function parseBibtex(text: string): Record<string, string> {
   const out: Record<string, string> = {};
   // Find the entry body between the first "{" after @type and its match.
@@ -235,21 +188,7 @@ export function parseBibtex(text: string): Record<string, string> {
   return out;
 }
 
-/**
- * Reject "download links" that cannot lead to the file.
- *
- * Providers scrape anchors, and some anchors are not downloads. The clearest
- * case observed in the wild: Libgen's ads.php page links to the bare Anna's
- * Archive homepage, so get_download_links returned
- * `{"label":"mirror: Anna's Archive","url":"http://annas-archive.org/"}` as one
- * of two results. An agent that follows it finds nothing and cannot tell why.
- *
- * Rules: the URL must have a path beyond the domain root, and — for anything
- * that is not an IPFS gateway link — it must actually reference the md5.
- *
- * Kept in this module rather than in providers/index.ts because libgen.ts needs
- * it too, and it cannot import from index.ts (index.ts imports libgen.ts).
- */
+/** Reject "download links" that cannot lead to the file. */
 export function isUsefulLink(url: string, md5: string): boolean {
   let parsed: URL;
   try {

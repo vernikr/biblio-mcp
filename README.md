@@ -463,6 +463,10 @@ test/
   *.test.mjs        unit + integration tests, including captured HTML fixtures
 ```
 
+Design rationale and the reasons for the current source/test footprint are recorded in
+[`docs/decisions.md`](docs/decisions.md); the full audit and worklog are in
+[`docs/worklog/biblio-mcp-audit.md`](docs/worklog/biblio-mcp-audit.md).
+
 ### Contributing
 
 PRs welcome — especially for parser fixes when sites change their HTML. The most common
@@ -474,9 +478,9 @@ Two rules this fork holds to:
 
 1. **A red build must mean "something regressed", not "something we already know about."**
    Known-bad behaviour is pinned with `todo` tests that describe the intended fix.
-2. **CI must be able to tell a working server from one that merely starts.** The smoke check
-   sends a real `tools/call`, because `tools/list` succeeds even on a build that cannot serve a
-   single request.
+2. **CI must be able to tell a working server from one that merely starts.** The offline
+   integration suite sends a real `tools/call` over an in-memory transport, because `tools/list`
+   succeeds even on a build that cannot serve a single request.
 
 ## Legal
 

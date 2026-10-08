@@ -1,15 +1,4 @@
 // Library Genesis provider.
-//
-// Libgen is the fastest path to a *directly downloadable* file: its md5 records
-// resolve to a real get.php link with no waitlist or captcha. It is also the
-// only source here that exposes machine-readable metadata (a BibTeX block on
-// the ads.php page), which is why book_details now prefers it.
-//
-// Parsing is header-driven rather than positional: the search tables render a
-// real <th> row ("Author(s)", "Publisher", "Year", "Size", "Ext.", "Mirrors"),
-// so columns are looked up by name and a positional fallback is used only when
-// a mirror ships no header row. See src/parse.ts for why position guessing was
-// wrong on real data.
 
 import * as cheerio from "cheerio";
 import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
@@ -53,10 +42,7 @@ function fetchAdsPage(md5: string): Promise<{ html: string; base: string }> {
   });
 }
 
-/** A cheerio selection. cheerio 1.0 exports `Cheerio` and `CheerioAPI` but not
- *  the DOM node types they are parameterised over, so the collection type is
- *  derived from the API instead of named — no `any`, and it tracks the installed
- *  cheerio version. */
+/** Selection type derived from the installed Cheerio API. */
 type Selection = ReturnType<cheerio.CheerioAPI>;
 
 /** Read a mapped column from a row, tolerating a missing mapping or cell. */
@@ -102,20 +88,7 @@ function resolveColumns($: cheerio.CheerioAPI): Partial<Record<LibgenColumn, num
   return { ...shift(LIBGEN_DEFAULT_COLUMNS), ...shift(mapped) };
 }
 
-/**
- * Split the wide "Title / Series" column into its parts.
- *
- * The real markup is:
- *   <b>Wiley Finance</b><br>
- *   <a href="edition.php?id=...">Pairs Trading: Quantitative Methods and Analysis</a><br>
- *   <a href="edition.php?id=..."><i><font color="green"> 9780471460671; 0471460672</font></i></a>
- *   <nobr><span class="badge"><a title="Book">b</a></span> <span class="badge">l 239926</span></nobr>
- *
- * For books, the series is the bold text and the title is the first meaningful
- * link outside it. On scimag rows the bold link is the journal/venue, followed
- * by issue metadata; the article title is again the first meaningful link
- * outside the bold block. ISBN links are kept separate from both.
- */
+/** Split the wide "Title / Series" column into its parts. */
 function splitTitleCell(
   $: cheerio.CheerioAPI,
   cell: Selection
@@ -276,15 +249,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
   return books;
 }
 
-/**
- * Full metadata for an md5, from the BibTeX block Libgen embeds on ads.php.
- *
- * This is the reliable detail path. Anna's Archive's HTML pages answer HTTP 403
- * to non-browser clients (their DDoS-Guard challenge), so a details resolver
- * that depended on it returned an empty title and no links. The BibTeX block is
- * plain text inside a page Libgen already serves for downloads, and it carries
- * the exact title, author, publisher, ISBN, year and series.
- */
+/** Full metadata for an md5, from the BibTeX block Libgen embeds on ads.php. */
 export async function details(md5: string): Promise<Book & { downloadLinks: DownloadLink[] }> {
   const hash = md5.toLowerCase();
   const { html, base } = await fetchAdsPage(hash);
@@ -321,12 +286,7 @@ export async function details(md5: string): Promise<Book & { downloadLinks: Down
   };
 }
 
-/**
- * Resolve every candidate download URL for an md5.
- *
- * Pass `{ html, base }` to reuse an already-fetched ads.php page — `details`
- * does this so resolving metadata and links costs one request instead of two.
- */
+/** Resolve every candidate download URL for an md5. */
 export async function downloadLinks(
   md5: string,
   reuse?: { html: string; base: string }

@@ -10,34 +10,7 @@ function fromEnv(name: string, fallback: string[]): string[] {
     .filter(Boolean);
 }
 
-/**
- * Anna's Archive.
- *
- * Refreshed 2026-08-28 upstream, re-measured 2026-10-07. The old defaults were
- * stale and mostly dead:
- *   .org — taken offline by the registrar 2026-01-11
- *   .li  — permanently deleted 2026-03-01 under publisher legal pressure
- *   .se  — no longer resolving
- * Anna's Archive tells users to check its Wikipedia article for the current
- * list, since these rotate under takedown pressure. Verify there before editing;
- * do not trust the SEO "current links" blogspam, which is where fake mirrors live.
- *
- * WARNING ABOUT DEAD DOMAINS — measured 2026-10-07. `annas-archive.li` answers
- * HTTP 200 in ~0.15 s, faster than any real mirror, but it is NO LONGER Anna's
- * Archive: it serves a ~27 kB page with no <title> whose body is advertising
- * JavaScript ("rapidresultsearch.com/.../SAFEFRAME.html"). The real mirrors
- * return the same ~174 kB page with the expected title. Because a hijacked
- * domain answers 200, a naive liveness check ranks it FIRST and every provider
- * then silently parses an ad page as if it were catalogue data — `search`
- * returns zero results with no error, and `details` returns an empty title.
- * That is why providers pass a content validator to fetchFromMirrors (see
- * src/providers/annas.ts) instead of trusting the status code alone.
- *
- * Note also that the real mirrors answer HTTP 403 to the scraped HTML pages
- * (/search, /md5/...) from a non-browser client — that is the DDoS-Guard
- * challenge. The member fast-download JSON API is the path that works without a
- * browser; see BIBLIO_ANNAS_API_KEY and annas.fastDownload().
- */
+/** Anna's Archive. */
 export const ANNAS_MIRRORS = fromEnv("BIBLIO_ANNAS_MIRRORS", [
   "https://annas-archive.gl", // 200, ~1.2 s, real site
   "https://annas-archive.gd", // 200, ~1.1 s, real site
@@ -71,15 +44,7 @@ export const SCIHUB_MIRRORS = fromEnv("BIBLIO_SCIHUB_MIRRORS", [
   "https://sci-hub.se", // DNS failure at last audit
 ]);
 
-/** Z-Library. Every public domain in this list was unusable at the 2026-10-07
- *  audit: `.io` and `-global.se` did not resolve or hung, while `.sk` redirected
- *  away from search. Kept for completeness and because a user-supplied personal
- *  domain is the only reliable way in — see BIBLIO_ZLIB_MIRRORS. This source is
- *  therefore DISABLED BY DEFAULT; opt in with `sources: ["zlibrary"]`.
- *
- *  NOTE: this list used to live inside src/providers/zlibrary.ts, which broke
- *  the "one file to rule them all" contract documented at the top of this file.
- *  It now lives here with the others; the env var name is unchanged. */
+/** Public Z-Library mirrors; none worked in the 2026-10-07 probe. */
 export const ZLIBRARY_MIRRORS = fromEnv("BIBLIO_ZLIB_MIRRORS", [
   "https://z-library.sk", // redirected away from search at last audit
   "https://1lib.sk", // redirected away from search at last audit
@@ -95,15 +60,7 @@ export const IPFS_GATEWAYS = fromEnv("BIBLIO_IPFS_GATEWAYS", [
   "https://gateway.pinata.cloud/ipfs",
 ]);
 
-/**
- * Every mirror group the selfcheck probe walks.
- *
- * `expect` is a marker the real site's homepage contains. It exists because a
- * status code is not evidence of identity: annas-archive.li returns 200 and is
- * not Anna's Archive. A host that answers but lacks its marker is reported as
- * "not the expected site" rather than as reachable — otherwise the health check
- * would rank a hijacked domain as the best mirror available.
- */
+/** Every mirror group the selfcheck probe walks. */
 export interface MirrorGroup {
   group: string;
   mirrors: string[];
