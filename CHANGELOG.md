@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [2.0.0] - 2026-10-09
 
 ### Prepared distribution (not yet published to npm)
+- Updated GitHub Actions to current stable Node-24-compatible releases; launcher acceptance distinguishes first registry bootstrap from warm offline reuse.
 - Own npm identity `@vernikr/biblio-mcp`, one compiled stdio runtime for npm and MCPB. Source installer remains a developer utility, not a consumer prerequisite.
 
 - Runtime support is now Node 22+ (user-approved); CI targets 22/24 LTS.

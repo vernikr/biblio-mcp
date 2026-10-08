@@ -54,7 +54,7 @@ async function exercise(label, command, args, cwd, extraEnv = {}) {
   const errors = [];
   client.onerror = (e) => { errors.push(e.message); };
   try {
-    await client.connect(transport, { timeout: 30000 });
+    await client.connect(transport, { timeout: 120000 });
     assert.equal(client.getServerVersion().version, pkg.version);
     const { tools } = await client.listTools({}, { timeout: 5000 });
     assert.equal(tools.length, 7);
@@ -94,7 +94,8 @@ try {
   await exercise("npm-installed", process.execPath, [join(installed, "dist", "index.js")], consumer);
   await exercise("npx-pinned", "npx", ["--yes", "--offline", `${pkg.name}@${pkg.version}`], consumer);
   // A local tarball substitutes only the unpublished registry address, not the launcher.
-  await exercise("pnpm-dlx", "pnpm", ["--silent", "dlx", "--offline", archive], box);
+  await exercise("pnpm-dlx", "pnpm", ["--silent", "dlx", archive], box);
+  await exercise("pnpm-dlx-offline", "pnpm", ["--silent", "dlx", "--offline", archive], box);
 
   const unpacked = join(box, "mcpb with spaces");
   assert.equal(await unpackExtension({ mcpbPath: bundle, outputDir: unpacked, silent: true }), true);
