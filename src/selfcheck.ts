@@ -42,6 +42,19 @@ const REQUIRED_TOOLS = [
   "healthcheck",
 ];
 
+async function withInMemoryClient<T>(name: string, run: (client: Client) => Promise<T>): Promise<T> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createServer();
+  const client = new Client({ name, version: "0.0.0" });
+  try {
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    return await run(client);
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
+}
+
 interface StageResult {
   name: string;
   ok: boolean;
@@ -104,24 +117,20 @@ async function runPreflightStage(): Promise<StageResult> {
 }
 
 async function runToolsStage(): Promise<StageResult> {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createServer();
-  const client = new Client({ name: "biblio-selfcheck", version: "0.0.0" });
-
   try {
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-    const info = await client.getServerVersion();
-    const { tools } = await client.listTools();
-    const names = tools.map((t) => t.name);
-    const missing = REQUIRED_TOOLS.filter((t) => !names.includes(t));
-
-    return {
-      name: "tools",
-      ok: missing.length === 0,
-      summary: `${names.length} tools exposed by ${info?.name} v${info?.version}`,
-      details: { names, serverInfo: info },
-      problem: missing.length ? `missing required tools: ${missing.join(", ")}` : undefined,
-    };
+    return await withInMemoryClient("biblio-selfcheck", async (client) => {
+      const info = await client.getServerVersion();
+      const { tools } = await client.listTools();
+      const names = tools.map((t) => t.name);
+      const missing = REQUIRED_TOOLS.filter((t) => !names.includes(t));
+      return {
+        name: "tools",
+        ok: missing.length === 0,
+        summary: `${names.length} tools exposed by ${info?.name} v${info?.version}`,
+        details: { names, serverInfo: info },
+        problem: missing.length ? `missing required tools: ${missing.join(", ")}` : undefined,
+      };
+    });
   } catch (e) {
     return {
       name: "tools",
@@ -129,9 +138,6 @@ async function runToolsStage(): Promise<StageResult> {
       summary: "could not list tools",
       problem: String((e as Error)?.message ?? e),
     };
-  } finally {
-    await client.close().catch(() => {});
-    await server.close().catch(() => {});
   }
 }
 
@@ -163,36 +169,31 @@ async function runMirrorsStage(): Promise<StageResult> {
 }
 
 async function runLiveStage(): Promise<StageResult> {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createServer();
-  const client = new Client({ name: "biblio-selfcheck", version: "0.0.0" });
-
   try {
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
-    // This is the call that distinguishes a working server from one that merely
-    // starts: it exercises argument validation and a real network round trip.
-    const result = await client.callTool(
-      { name: "search_books", arguments: { query: "dune frank herbert", limit: 3 } },
-      undefined,
-      { timeout: 120_000 }
-    );
-    const text = String((result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? "");
-    let parsed: { total?: number; errors?: unknown[] } = {};
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      /* fall through with the raw text below */
-    }
-    return {
-      name: "live",
-      ok: !result.isError && (parsed.total ?? 0) > 0,
-      summary: `search_books returned ${parsed.total ?? 0} results`,
-      details: { isError: !!result.isError, errors: parsed.errors, sample: text.slice(0, 400) },
-      problem:
-        result.isError || (parsed.total ?? 0) === 0
-          ? "the tool surface is reachable but a live search produced nothing"
-          : undefined,
-    };
+    return await withInMemoryClient("biblio-selfcheck", async (client) => {
+      const result = await client.callTool(
+        { name: "search_books", arguments: { query: "dune frank herbert", limit: 3 } },
+        undefined,
+        { timeout: 120_000 }
+      );
+      const text = String((result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? "");
+      let parsed: { total?: number; errors?: unknown[] } = {};
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        /* fall through with the raw text below */
+      }
+      return {
+        name: "live",
+        ok: !result.isError && (parsed.total ?? 0) > 0,
+        summary: `search_books returned ${parsed.total ?? 0} results`,
+        details: { isError: !!result.isError, errors: parsed.errors, sample: text.slice(0, 400) },
+        problem:
+          result.isError || (parsed.total ?? 0) === 0
+            ? "the tool surface is reachable but a live search produced nothing"
+            : undefined,
+      };
+    });
   } catch (e) {
     return {
       name: "live",
@@ -200,9 +201,6 @@ async function runLiveStage(): Promise<StageResult> {
       summary: "live search_books call failed",
       problem: String((e as Error)?.message ?? e),
     };
-  } finally {
-    await client.close().catch(() => {});
-    await server.close().catch(() => {});
   }
 }
 
@@ -239,55 +237,48 @@ export interface StartupCheck {
  * network to startup.
  */
 export async function runStartupSelftest(): Promise<StartupCheck> {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createServer();
-  const client = new Client({ name: "biblio-startup", version: "0.0.0" });
-
   const FIX =
     'pnpm add @modelcontextprotocol/sdk@^1.29.0 zod@^4.4.3 && pnpm run build  ' +
     "(then re-run: pnpm preflight)";
 
   try {
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    return await withInMemoryClient("biblio-startup", async (client) => {
+      const { tools } = await client.listTools();
+      const missing = REQUIRED_TOOLS.filter((t) => !tools.some((x) => x.name === t));
+      if (missing.length > 0) {
+        return {
+          ok: false,
+          problem: `tool surface is incomplete — missing ${missing.join(", ")}`,
+          fix: "pnpm run build",
+        };
+      }
 
-    const { tools } = await client.listTools();
-    const missing = REQUIRED_TOOLS.filter((t) => !tools.some((x) => x.name === t));
-    if (missing.length > 0) {
-      return {
-        ok: false,
-        problem: `tool surface is incomplete — missing ${missing.join(", ")}`,
-        fix: "pnpm run build",
-      };
-    }
+      const result = await client.callTool({
+        name: "book_details",
+        arguments: { md5: "not-an-md5" },
+      });
+      const text = String(
+        (result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? ""
+      );
 
-    // An invalid md5 on purpose: this must produce a validation error, and the
-    // call must not blow up inside the argument validator.
-    const result = await client.callTool({
-      name: "book_details",
-      arguments: { md5: "not-an-md5" },
+      if (/_parse is not a function/.test(text)) {
+        return {
+          ok: false,
+          problem:
+            "the argument validator is broken — @modelcontextprotocol/sdk and zod are an " +
+            "incompatible pair, so every tool call would fail",
+          fix: FIX,
+        };
+      }
+      if (!result.isError) {
+        return {
+          ok: false,
+          problem: `argument validation accepted an invalid md5 (got: ${text.slice(0, 120)})`,
+          fix: FIX,
+        };
+      }
+      return { ok: true };
     });
-    const text = String(
-      (result.content as Array<{ text?: string }> | undefined)?.[0]?.text ?? ""
-    );
-
-    if (/_parse is not a function/.test(text)) {
-      return {
-        ok: false,
-        problem:
-          "the argument validator is broken — @modelcontextprotocol/sdk and zod are an " +
-          "incompatible pair, so every tool call would fail",
-        fix: FIX,
-      };
-    }
-    if (!result.isError) {
-      return {
-        ok: false,
-        problem: `argument validation accepted an invalid md5 (got: ${text.slice(0, 120)})`,
-        fix: FIX,
-      };
-    }
-
-    return { ok: true };
   } catch (e) {
     const message = String((e as Error)?.message ?? e);
     return {
@@ -299,9 +290,6 @@ export async function runStartupSelftest(): Promise<StartupCheck> {
           : `the tool surface could not be exercised: ${message.slice(0, 200)}`,
       fix: /_parse is not a function/.test(message) ? FIX : "pnpm run build",
     };
-  } finally {
-    await client.close().catch(() => {});
-    await server.close().catch(() => {});
   }
 }
 
