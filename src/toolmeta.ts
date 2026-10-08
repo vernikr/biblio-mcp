@@ -1,26 +1,49 @@
-// Agent-facing tool metadata: call examples and human-readable argument errors.
-/** Per-tool examples; required and optional arguments come from Zod schemas. */
+// Agent-facing tool metadata: what each tool does, one call example, and
+// human-readable argument errors. Argument descriptions stay in the Zod schemas.
+
 export interface ToolMeta {
+  /** What the tool does; shown to agents with the example appended. */
+  description: string;
+  /** One call, checked against the tool's schema by test/tool-meta.test.mjs. */
   example: string;
 }
 
 export const TOOL_META: Record<string, ToolMeta> = {
-  search_books: { example: '{"query":"dune frank herbert","limit":5}' },
-  book_details: { example: '{"md5":"524037f395462d37b31f2b28fede24fb"}' },
-  get_download_links: { example: '{"md5":"524037f395462d37b31f2b28fede24fb"}' },
-  download_book: {
-    example: '{"md5":"524037f395462d37b31f2b28fede24fb","output_dir":"/home/me/books"}',
+  search_books: {
+    description: "Search for books/documents across Anna's Archive, Library Genesis, and Z-Library at once. Results are merged and de-duplicated by MD5 hash. Each result includes an `md5` you can pass to get_download_links or download_book. Per-source failures are reported in `errors` without failing the call.",
+    example: "{\"query\":\"dune frank herbert\",\"limit\":5}",
   },
-  search_papers: { example: '{"query":"attention is all you need","limit":5}' },
-  get_paper: { example: '{"identifier":"10.48550/arXiv.1706.03762"}' },
-  healthcheck: { example: "{}" },
+  book_details: {
+    description: "Get full metadata and download options for a single book by its MD5 hash (from a search_books result). Queries Anna's Archive and Library Genesis in parallel and returns the first usable result; Libgen metadata comes from a structured BibTeX block. The response says which source answered in `resolvedVia`, and a concise `annasUnavailable` reason when Anna's Archive did not answer first.",
+    example: "{\"md5\":\"524037f395462d37b31f2b28fede24fb\"}",
+  },
+  get_download_links: {
+    description: "Resolve every available download link for a book by MD5 — Libgen direct (get.php), Anna's Archive partners, and IPFS gateways. Links marked `direct: true` point straight at the file.",
+    example: "{\"md5\":\"524037f395462d37b31f2b28fede24fb\"}",
+  },
+  download_book: {
+    description: "Download a book file to a local directory by MD5. Streams direct links (Libgen/IPFS) to disk in order and keeps the first that yields a real file, so peak memory does not scale with book size. Returns the saved path, byte count, and the MD5 of what was written. Check `md5MatchesRequest`; a mismatch includes an explicit warning. Emits progress notifications while transferring.",
+    example: "{\"md5\":\"524037f395462d37b31f2b28fede24fb\",\"output_dir\":\"/home/me/books\"}",
+  },
+  search_papers: {
+    description: "Search academic papers / journal articles by keyword, author, title, or DOI via Library Genesis scimag. Returns DOIs and mirror links. Set `resolvePdfs: true` to best-effort resolve direct PDF URLs via Sci-Hub for up to three results (extra network requests; off by default).",
+    example: "{\"query\":\"attention is all you need\",\"limit\":5}",
+  },
+  get_paper: {
+    description: "Resolve a paper's PDF via Sci-Hub. Accepts a DOI (best), an article URL, or a title. Returns metadata and a direct `pdfUrl` when available.",
+    example: "{\"identifier\":\"10.48550/arXiv.1706.03762\"}",
+  },
+  healthcheck: {
+    description: "Report whether this server can reach its sources, with per-mirror latency. Probes host roots only — it never queries a catalogue, so it is cheap and safe to call before a search. Use it to tell 'the network is blocked' apart from 'the query matched nothing'. A mirror that answers but is not the site it claims to be is reported as `impostor`, not as healthy.",
+    example: "{}",
+  },
 };
 
-/** Append the call example to a tool description. */
-export function describeTool(name: string, base: string): string {
+/** The full description an agent sees: what the tool does, then one example call. */
+export function toolDescription(name: string): string {
   const meta = TOOL_META[name];
-  if (!meta) return base;
-  return `${base}\n\nExample: ${meta.example}`;
+  if (!meta) throw new Error(`no TOOL_META entry for ${name}`);
+  return `${meta.description}\n\nExample: ${meta.example}`;
 }
 
 /** Minimal shape of a zod issue, read defensively across zod versions. */

@@ -14,7 +14,7 @@ import {
   type DownloadProgress,
 } from "./http.js";
 import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
-import { describeArgsError, describeTool } from "./toolmeta.js";
+import { describeArgsError, toolDescription } from "./toolmeta.js";
 import { sniffExt } from "./sniff.js";
 import { withSourceCircuit } from "./providers/circuit.js";
 import {
@@ -204,14 +204,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "search_books",
-    describeTool(
-      "search_books",
-      "Search for books/documents across Anna's Archive, Library Genesis, and " +
-        "Z-Library at once. Results are merged and de-duplicated by MD5 hash. Each " +
-        "result includes an `md5` you can pass to get_download_links or " +
-        "download_book. Per-source failures are reported in `errors` without " +
-        "failing the call.",
-    ),
+    toolDescription("search_books"),
     {
       query: z.string().describe("Title, author, ISBN, or topic to search for."),
       sources: z
@@ -249,15 +242,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "book_details",
-    describeTool(
-      "book_details",
-      "Get full metadata and download options for a single book by its MD5 hash " +
-        "(from a search_books result). Queries Anna's Archive and Library Genesis " +
-        "in parallel and returns the first usable result; Libgen metadata comes " +
-        "from a structured BibTeX block. The response says which source answered " +
-        "in `resolvedVia`, and a concise `annasUnavailable` reason when Anna's " +
-        "Archive did not answer first.",
-    ),
+    toolDescription("book_details"),
     {
       md5: md5Schema,
     },
@@ -273,12 +258,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "get_download_links",
-    describeTool(
-      "get_download_links",
-      "Resolve every available download link for a book by MD5 — Libgen direct " +
-        "(get.php), Anna's Archive partners, and IPFS gateways. Links marked " +
-        "`direct: true` point straight at the file.",
-    ),
+    toolDescription("get_download_links"),
     {
       md5: md5Schema,
     },
@@ -293,15 +273,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "download_book",
-    describeTool(
-      "download_book",
-      "Download a book file to a local directory by MD5. Streams direct links " +
-        "(Libgen/IPFS) to disk in order and keeps the first that yields a real " +
-        "file, so peak memory does not scale with book size. Returns the saved " +
-        "path, byte count, and the MD5 of what was written. Check " +
-        "`md5MatchesRequest`; a mismatch includes an explicit warning. Emits " +
-        "progress notifications while transferring.",
-    ),
+    toolDescription("download_book"),
     {
       md5: md5Schema,
       output_dir: z
@@ -410,13 +382,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "search_papers",
-    describeTool(
-      "search_papers",
-      "Search academic papers / journal articles by keyword, author, title, or " +
-        "DOI via Library Genesis scimag. Returns DOIs and mirror links. Set " +
-        "`resolvePdfs: true` to best-effort resolve direct PDF URLs via Sci-Hub " +
-        "for up to three results (extra network requests; off by default).",
-    ),
+    toolDescription("search_papers"),
     {
       query: z.string().describe("Keywords, title, author, or DOI."),
       limit: z.number().int().min(1).max(100).optional(),
@@ -441,11 +407,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "get_paper",
-    describeTool(
-      "get_paper",
-      "Resolve a paper's PDF via Sci-Hub. Accepts a DOI (best), an article URL, or " +
-        "a title. Returns metadata and a direct `pdfUrl` when available.",
-    ),
+    toolDescription("get_paper"),
     {
       identifier: z
         .string()
@@ -460,14 +422,7 @@ export function createServer(): McpServer {
   // -------------------------------------------------------------------------
   server.tool(
     "healthcheck",
-    describeTool(
-      "healthcheck",
-      "Report whether this server can reach its sources, with per-mirror latency. " +
-        "Probes host roots only — it never queries a catalogue, so it is cheap and " +
-        "safe to call before a search. Use it to tell 'the network is blocked' " +
-        "apart from 'the query matched nothing'. A mirror that answers but is not " +
-        "the site it claims to be is reported as `impostor`, not as healthy.",
-    ),
+    toolDescription("healthcheck"),
     {
       timeoutMs: z
         .number()

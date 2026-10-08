@@ -78,7 +78,7 @@ test("TOOL_META covers every registered tool", async () => {
     const { tools } = await client.listTools();
     for (const tool of tools) {
       assert.ok(TOOL_META[tool.name], `${tool.name} is missing from TOOL_META`);
-      assert.deepEqual(Object.keys(TOOL_META[tool.name]), ["example"]);
+      assert.deepEqual(Object.keys(TOOL_META[tool.name]).sort(), ["description", "example"]);
     }
   });
 });
