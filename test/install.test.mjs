@@ -8,7 +8,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,10 +26,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER = join(HERE, "..", "scripts", "install.mjs");
 
 /** Run the installer and return { status, stdout, stderr }. */
-function runInstaller(args, cwd) {
+function runInstaller(args, cwd, env) {
   const r = spawnSync(process.execPath, [INSTALLER, ...args], {
     encoding: "utf8",
     cwd: cwd ?? join(HERE, ".."),
+    env: env ?? process.env,
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
@@ -84,6 +93,26 @@ test("the installer runs end to end in dry-run mode and writes nothing", () => {
   assert.ok(json, "must print a config snippet");
   const parsed = JSON.parse(json[1]);
   assert.ok(parsed.mcpServers.biblio.args[0].endsWith("dist/index.js"));
+});
+
+test("the installer refuses npm fallback when the checkout has a pnpm lockfile", () => {
+  const dir = mkdtempSync(join(tmpdir(), "biblio-install-pm-"));
+  const bin = join(dir, "bin");
+  const npmMarker = join(dir, "npm-was-run");
+  mkdirSync(bin, { recursive: true });
+  const fakeNpm = join(bin, "npm");
+  writeFileSync(fakeNpm, `#!/bin/sh\nprintf ran > ${JSON.stringify(npmMarker)}\necho 99.0.0\n`);
+  chmodSync(fakeNpm, 0o755);
+
+  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo")], join(HERE, ".."), {
+    ...process.env,
+    PATH: bin,
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /no package manager found — install pnpm/);
+  assert.equal(existsSync(npmMarker), false, "npm must not be probed or run over the pnpm lockfile");
+  assert.doesNotMatch(r.stdout, /\$ npm install/);
+  assert.doesNotMatch(r.stdout, /\[2\] obtaining/, "the installer should stop at the missing pnpm prerequisite");
 });
 
 test("the installer refuses to overwrite a config it cannot parse", () => {

@@ -63,12 +63,17 @@ function run(cmd, args, opts = {}) {
   return r.status ?? 1;
 }
 
-/** Locate a package manager, preferring pnpm (the only supported one here). */
+/** Locate a package manager without replacing a pnpm-locked tree with npm. */
 function findPackageManager() {
-  for (const pm of ["pnpm", "npm"]) {
-    const r = spawnSync(pm, ["--version"], { encoding: "utf8" });
-    if (r.status === 0) return { name: pm, version: (r.stdout || "").trim() };
-  }
+  const pnpm = spawnSync("pnpm", ["--version"], { encoding: "utf8" });
+  if (pnpm.status === 0) return { name: "pnpm", version: (pnpm.stdout || "").trim() };
+
+  // This repository deliberately pins dependency resolution with pnpm. Falling
+  // back to npm here can create a different tree or fail inside npm's resolver.
+  if (existsSync(join(HERE, "..", "pnpm-lock.yaml"))) return null;
+
+  const npm = spawnSync("npm", ["--version"], { encoding: "utf8" });
+  if (npm.status === 0) return { name: "npm", version: (npm.stdout || "").trim() };
   return null;
 }
 
@@ -82,8 +87,11 @@ async function main() {
   else bad(`node ${process.versions.node} is too old — ${NODE_MIN_MAJOR} or newer is required`);
 
   const pm = findPackageManager();
-  if (pm) ok(`${pm.name} ${pm.version}`);
-  else bad("no package manager found — install pnpm: npm install -g pnpm");
+  if (!pm) {
+    bad("no package manager found — install pnpm: npm install -g pnpm");
+    return finish();
+  }
+  ok(`${pm.name} ${pm.version}`);
 
   const git = spawnSync("git", ["--version"], { encoding: "utf8" });
   if (git.status === 0) ok((git.stdout || "").trim());
@@ -125,10 +133,6 @@ async function main() {
 
   // ------------------------------------------------------------- 4. install
   step(4, "installing dependencies");
-  if (!pm) {
-    bad("no package manager; cannot install");
-    return finish();
-  }
   const installArgs = pm.name === "pnpm" ? ["install"] : ["install"];
   if (run(pm.name, installArgs, { cwd: projectDir }) !== 0) {
     bad(`${pm.name} install failed`);
