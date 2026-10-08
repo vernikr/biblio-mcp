@@ -172,7 +172,7 @@ export async function fastDownload(md5: string): Promise<DownloadLink | null> {
           ? `Anna's Archive fast download (member, ${left} left today)`
           : "Anna's Archive fast download (member)";
 
-      return { source: "annas", label, url, direct: true };
+      return { source: "annas", label, url, direct: true, verified: true };
     } catch {
       // Dead or blocked mirror — try the next one.
     }

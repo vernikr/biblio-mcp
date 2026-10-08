@@ -145,24 +145,29 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-async function fetchWithTimeout(
+async function fetchWithTimeout<T>(
   url: string,
-  init: RequestInit = {},
+  init: RequestInit,
+  consume: (response: Response) => Promise<T>,
   externalSignal?: AbortSignal,
   timeoutMs = TIMEOUT_MS
-): Promise<Response> {
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const onExternalAbort = () => controller.abort();
   externalSignal?.addEventListener("abort", onExternalAbort, { once: true });
 
   try {
-    return await fetch(url, {
+    const response = await fetch(url, {
       ...init,
       redirect: "follow",
       signal: controller.signal,
       headers: { ...DEFAULT_HEADERS, ...(init.headers as object) },
     });
+    // Keep the timeout and external-abort listener alive until the body has
+    // been consumed; otherwise a fast 200 header can leave a stalled HTML body
+    // hanging a tool call indefinitely.
+    return await consume(response);
   } finally {
     clearTimeout(timer);
     externalSignal?.removeEventListener("abort", onExternalAbort);
@@ -212,6 +217,12 @@ export async function fetchFromMirrors(
   validate?: MirrorValidator
 ): Promise<MirrorFetchResult> {
   const ordered = orderMirrors(groupKey, mirrors);
+  if (ordered.length === 0) {
+    const envName = `BIBLIO_${groupKey.toUpperCase()}_MIRRORS`;
+    throw new Error(
+      `No ${groupKey} mirrors configured; set ${envName} to one or more base URLs.`
+    );
+  }
   const attempts: string[] = [];
 
   return await new Promise<MirrorFetchResult>((resolve, reject) => {
@@ -231,19 +242,29 @@ export async function fetchFromMirrors(
         // Stagger so declared order still decides who wins a close race.
         await sleep(index * STAGGER_MS, controller.signal);
         const url = buildPath(base);
-        const res = await fetchWithTimeout(url, init, controller.signal);
-        if (!res.ok) throw new Error(`${base} -> HTTP ${res.status}`);
-        // Read the body BEFORE winning the race: aborting the losers must not
-        // be able to tear down the response we are about to return.
-        const html = await res.text();
-        if (validate) {
-          const verdict = validate(html, base);
-          if (verdict !== true) {
-            const why = typeof verdict === "string" ? verdict : "response is not the expected site";
-            throw new Error(`${base} -> ${why}`);
-          }
-        }
-        return { html, base, finalUrl: res.url || url, attempts };
+        return fetchWithTimeout(
+          url,
+          init ?? {},
+          async (res) => {
+            if (!res.ok) {
+              await res.body?.cancel().catch(() => {});
+              throw new Error(`${base} -> HTTP ${res.status}`);
+            }
+            // Read the body BEFORE winning the race: aborting the losers must
+            // not tear down the response we are about to return.
+            const html = await res.text();
+            if (validate) {
+              const verdict = validate(html, base);
+              if (verdict !== true) {
+                const why =
+                  typeof verdict === "string" ? verdict : "response is not the expected site";
+                throw new Error(`${base} -> ${why}`);
+              }
+            }
+            return { html, base, finalUrl: res.url || url, attempts };
+          },
+          controller.signal
+        );
       };
 
       run().then(
@@ -278,9 +299,13 @@ export async function fetchFromMirrors(
 
 /** Single-URL GET returning text, with timeout. Throws on non-2xx. */
 export async function getText(url: string, init?: RequestInit): Promise<string> {
-  const res = await fetchWithTimeout(url, init);
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  return res.text();
+  return fetchWithTimeout(url, init ?? {}, async (res) => {
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`HTTP ${res.status} for ${url}`);
+    }
+    return res.text();
+  });
 }
 
 /** Fetch binary content fully into memory.
@@ -292,13 +317,17 @@ export async function getBuffer(
   url: string,
   init?: RequestInit
 ): Promise<{ buffer: Buffer; contentType: string | null }> {
-  const res = await fetchWithTimeout(url, init);
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-  const arrayBuf = await res.arrayBuffer();
-  return {
-    buffer: Buffer.from(arrayBuf),
-    contentType: res.headers.get("content-type"),
-  };
+  return fetchWithTimeout(url, init ?? {}, async (res) => {
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      throw new Error(`HTTP ${res.status} for ${url}`);
+    }
+    const arrayBuf = await res.arrayBuffer();
+    return {
+      buffer: Buffer.from(arrayBuf),
+      contentType: res.headers.get("content-type"),
+    };
+  });
 }
 
 /** Thrown when a "direct" download URL serves an HTML page instead of a file.
@@ -392,14 +421,19 @@ export async function downloadToFile(
 
     // An HTML answer here means the link was an interstitial, not a file.
     if (contentType?.includes("text/html")) {
-      const text = await res.text();
-      throw new HtmlInsteadOfFileError({
-        url,
-        status: res.status,
-        contentType,
-        bytes: Buffer.byteLength(text),
-        snippet: text.replace(/\s+/g, " ").trim().slice(0, 160),
-      });
+      const bodyTimer = setTimeout(() => controller.abort(), budget);
+      try {
+        const text = await res.text();
+        throw new HtmlInsteadOfFileError({
+          url,
+          status: res.status,
+          contentType,
+          bytes: Buffer.byteLength(text),
+          snippet: text.replace(/\s+/g, " ").trim().slice(0, 160),
+        });
+      } finally {
+        clearTimeout(bodyTimer);
+      }
     }
 
     if (!res.body) throw new Error(`Empty response body from ${url}`);

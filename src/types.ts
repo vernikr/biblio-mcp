@@ -51,6 +51,8 @@ export interface DownloadLink {
   url: string;
   /** True when the URL points straight at the file (not an intermediate page). */
   direct: boolean;
+  /** True when the URL was returned by a source API for this exact MD5. */
+  verified?: boolean;
 }
 
 /** Per-source error surfaced without failing the whole aggregate search. */

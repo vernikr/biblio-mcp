@@ -54,13 +54,31 @@ function cellText(
 
 /** Column indices for this table, from its header row when it has one. */
 function resolveColumns($: cheerio.CheerioAPI): Partial<Record<LibgenColumn, number>> {
-  const headers = $("table th")
+  const headerRow = $("table tr")
+    .filter((_i, row) => $(row).find("th").length > 0)
+    .first();
+  const headers = headerRow
+    .find("th")
     .map((_i, th) => $(th).text())
     .get() as string[];
   const mapped = columnMap(headers);
+  // Scimag rows can contain an unlabelled status cell before the data columns.
+  // The corresponding header row has a plain <td> before its <th>s; shift both
+  // detected and fallback indices by that count so columns stay aligned.
+  const offset = headers.length > 0 ? headerRow.children("td").length : 0;
+  const shift = (
+    columns: Partial<Record<LibgenColumn, number>>
+  ): Partial<Record<LibgenColumn, number>> => {
+    const result: Partial<Record<LibgenColumn, number>> = {};
+    for (const field of Object.keys(columns) as LibgenColumn[]) {
+      const index = columns[field];
+      if (index !== undefined) result[field] = index + offset;
+    }
+    return result;
+  };
   // Anything the header row did not name falls back to the common layout, so a
   // partially-rendered header cannot blank out fields.
-  return { ...LIBGEN_DEFAULT_COLUMNS, ...mapped };
+  return { ...shift(LIBGEN_DEFAULT_COLUMNS), ...shift(mapped) };
 }
 
 /**
@@ -72,24 +90,26 @@ function resolveColumns($: cheerio.CheerioAPI): Partial<Record<LibgenColumn, num
  *   <a href="edition.php?id=..."><i><font color="green"> 9780471460671; 0471460672</font></i></a>
  *   <nobr><span class="badge"><a title="Book">b</a></span> <span class="badge">l 239926</span></nobr>
  *
- * So the series is the bold text, the title is the first anchor that is not an
- * ISBN list, and the ISBNs are the anchor that is. The old approach took the
- * longest anchor text and the first cell, which produced a title containing the
- * series and ISBNs and an author containing all three.
+ * For books, the series is the bold text and the title is the first meaningful
+ * link outside it. On scimag rows the bold link is the journal/venue, followed
+ * by issue metadata; the article title is again the first meaningful link
+ * outside the bold block. ISBN links are kept separate from both.
  */
 function splitTitleCell(
   $: cheerio.CheerioAPI,
   cell: Selection
-): { title?: string; series?: string; isbn?: string } {
+): { title?: string; series?: string; isbn?: string; venue?: string } {
   const series = cell.find("b").first().text().replace(/\s+/g, " ").trim() || undefined;
 
-  const anchors: Array<{ href?: string; text: string }> = [];
+  const anchors: Array<{ href?: string; text: string; insideBold: boolean }> = [];
   cell.find("a").each((_i, el) => {
     anchors.push({
       href: $(el).attr("href"),
       text: $(el).text().replace(/\s+/g, " ").trim(),
+      insideBold: $(el).parents("b").length > 0,
     });
   });
+  const venue = anchors.find((a) => /series\.php/i.test(a.href ?? ""))?.text || series;
 
   let title: string | undefined;
   let isbn: string | undefined;
@@ -99,14 +119,13 @@ function splitTitleCell(
       isbn ??= parseIsbns(a.text);
       continue;
     }
-    // Skip the single-letter type badges ("b" = book, "l" = libgen mirror).
-    if (a.text.length <= 2) continue;
+    // Skip venue/issue links in the bold block and single-letter record badges.
+    if (a.insideBold || a.text.length <= 2) continue;
     title ??= a.text;
   }
 
   if (!title) {
-    // No usable anchor: fall back to the cell text minus the series, the type
-    // badges and any ISBN run.
+    // No usable title anchor: remove the bold series/venue, type badges and ISBN.
     const raw = cell.text().replace(/\s+/g, " ").trim();
     const withoutSeries = series ? raw.replace(series, "").trim() : raw;
     const cleaned = withoutSeries
@@ -121,7 +140,7 @@ function splitTitleCell(
     title = (noIsbn || cleaned).slice(0, 300) || undefined;
   }
 
-  return { title, series, isbn };
+  return { title, series, isbn, venue };
 }
 
 /** Search Library Genesis scimag (academic articles) by keyword or DOI. */
@@ -152,7 +171,7 @@ export async function searchPapers(query: string, limit: number): Promise<Paper[
     if (cells.length < 3) return;
 
     const titleCell = cells.eq(cols.title ?? 0);
-    const { title: fromCell } = splitTitleCell($, titleCell);
+    const { title: fromCell, venue } = splitTitleCell($, titleCell);
     let title = fromCell;
 
     // The scimag title cell sometimes holds the venue rather than the article
@@ -172,7 +191,7 @@ export async function searchPapers(query: string, limit: number): Promise<Paper[
       author: cellText(cells, cols, "author"),
       doi,
       year: parseYear(cellText(cells, cols, "year")),
-      journal: cellText(cells, cols, "publisher"),
+      journal: venue ?? cellText(cells, cols, "publisher"),
       url: md5 ? `${base}/ads.php?md5=${md5}` : undefined,
       mirrors: md5 ? [`${base}/ads.php?md5=${md5}`] : undefined,
     });

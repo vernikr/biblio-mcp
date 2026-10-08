@@ -69,6 +69,16 @@ test("fetchFromMirrors falls through a failing mirror to a working one", async (
   }
 });
 
+test("an empty mirror group rejects immediately with its configuration variable", async () => {
+  resetMirrorCache();
+  const started = Date.now();
+  await assert.rejects(
+    () => fetchFromMirrors("zlibrary", [], (base) => `${base}/search`),
+    /No zlibrary mirrors configured; set BIBLIO_ZLIBRARY_MIRRORS/
+  );
+  assert.ok(Date.now() - started < 100, "an empty group should not leave a pending promise");
+});
+
 test("a failed mirror is skipped on the next request (negative cache)", async () => {
   resetMirrorCache();
   // `flaky` answers 500 the first time and 200 afterwards. If the negative

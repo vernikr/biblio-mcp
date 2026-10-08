@@ -217,7 +217,7 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   }
 
   const hash = md5.toLowerCase();
-  const useful = links.filter((l) => isUsefulLink(l.url, hash));
+  const useful = links.filter((l) => l.verified === true || isUsefulLink(l.url, hash));
   return useful;
 }
 

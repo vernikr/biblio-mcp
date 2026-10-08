@@ -13,17 +13,18 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = await readFile(join(HERE, "fixtures", "libgen-search.html"), "utf8");
+const SCIMAG_FIXTURE = await readFile(join(HERE, "fixtures", "libgen-scimag.html"), "utf8");
 
-const srv = createServer((_req, res) => {
+const srv = createServer((req, res) => {
   res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
-  res.end(FIXTURE);
+  res.end(req.url?.includes("topics%5B%5D=a") ? SCIMAG_FIXTURE : FIXTURE);
 });
 await new Promise((r) => srv.listen(0, "127.0.0.1", r));
 const MIRROR = `http://127.0.0.1:${srv.address().port}`;
 process.env.BIBLIO_LIBGEN_MIRRORS = MIRROR;
 process.env.BIBLIO_TIMEOUT_MS = "3000";
 
-const { search } = await import("../dist/providers/libgen.js");
+const { search, searchPapers } = await import("../dist/providers/libgen.js");
 const { BOOK_SOURCES, ALL_BOOK_SOURCES, DISABLED_BOOK_SOURCES } = await import(
   "../dist/providers/index.js"
 );
@@ -46,6 +47,19 @@ test("Z-Library is excluded from the default source set", () => {
 // ---------------------------------------------------------------------------
 // Libgen parser
 // ---------------------------------------------------------------------------
+
+test("libgen.searchPapers separates the article title, journal, and author on the live scimag layout", async () => {
+  const papers = await searchPapers("10.1038/nature12373", 5);
+  assert.equal(papers.length, 1);
+  assert.equal(papers[0].title, "Nanometre-scale thermometry in a living cell");
+  assert.equal(papers[0].journal, "Nature");
+  assert.equal(
+    papers[0].author,
+    "Kucsko, G.; Maurer, P. C.; Yao, N. Y.; Kubo, M.; Noh, H. J.; Lo, P. K.; Park, H.; Lukin, M. D."
+  );
+  assert.equal(papers[0].year, "2013");
+  assert.equal(papers[0].doi, "10.1038/nature12373");
+});
 
 test("libgen.search extracts md5 and the reliable metadata columns", async () => {
   const books = await search("Vidyamurthy Pairs Trading", 10);
