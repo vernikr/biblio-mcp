@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-08
+
 ### Fixed
 - `book_details` queries Anna's Archive and Libgen concurrently, skips Anna's HTML details while all mirrors are cooling down, and shortens repeated provider failures with a process-lifetime circuit breaker.
 - `healthcheck` clears cooldowns without forgetting the preferred mirror; every mirror group now has a positive site-identity marker.
@@ -284,7 +286,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/vernikr/biblio-mcp/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/vernikr/biblio-mcp/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/vernikr/biblio-mcp/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vernikr/biblio-mcp/compare/v1.5.0...v1.5.1

@@ -343,8 +343,8 @@ that admits them.
   `<title>`. A liveness check that trusts status codes therefore ranked it *first*, and the
   parsers quietly turned an ad page into "zero results, no error". Providers now pass a content
   validator, so such a host is rejected with an explicit reason, and `pnpm selfcheck` reports it
-  as `HTTP 200 — NOT the expected site` instead of as healthy. If you add mirrors, add a marker
-  to check for.
+  as `HTTP 200 — NOT the expected site` instead of as healthy. Every source group now has a
+  positive identity marker; if you add mirrors, keep the corresponding marker accurate.
 - **Libgen columns are read by header name, not by position.** Libgen's first column combines
   series, title and ISBNs; the author is the second. A parser that assumed positions reported the
   series name and a list of ISBNs as the author, and glued `Wiley Finance` onto the front of every
