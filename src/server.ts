@@ -10,8 +10,8 @@ import { open } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { probeMirror, resetDeadCache } from "./http.js";
-import { MIRROR_GROUPS } from "./mirrors.js";
+import { resetDeadCache } from "./http.js";
+import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
 import { describeArgsError, describeTool } from "./toolmeta.js";
 import {
   downloadToFile,
@@ -456,39 +456,12 @@ export function createServer(): McpServer {
       // Bypass the negative cache: the point of a healthcheck is to show what is
       // reachable right now, not what was unreachable a minute ago.
       resetDeadCache();
-      const groups = await Promise.all(
-        MIRROR_GROUPS.map(async ({ group, mirrors, probePath, expect }) => {
-          const results = await Promise.all(
-            mirrors.map((base) => probeMirror(base, probePath, { timeoutMs, expect }))
-          );
-          const alive = results.filter((r) => r.ok);
-          const fastest = alive.reduce<number | undefined>(
-            (min, r) => (min === undefined || r.ms < min ? r.ms : min),
-            undefined
-          );
-          return {
-            group,
-            reachable: alive.length,
-            total: mirrors.length,
-            ok: alive.length > 0,
-            // null rather than undefined, so the field is always present in the
-            // JSON and a caller can render it without a special case.
-            fastestMs: fastest ?? null,
-            impostors: results.filter((r) => r.impostor).map((r) => r.base),
-            mirrors: results.map((r) => ({
-              base: r.base,
-              ok: r.ok,
-              status: r.status,
-              ms: r.ms,
-              ...(r.impostor ? { impostor: true } : {}),
-              ...(r.error ? { error: r.error } : {}),
-            })),
-          };
-        })
+      const probes = await Promise.all(
+        MIRROR_GROUPS.map((group) => probeGroup(group, { timeoutMs }))
       );
-
-      const reachable = groups.filter((g) => g.ok).map((g) => g.group);
-      const impostors = groups.flatMap((g) => g.impostors);
+      const groups = probes.map(toHealthcheckGroup);
+      const reachable = probes.filter((group) => group.ok).map((group) => group.group);
+      const impostors = probes.flatMap((group) => group.impostors);
       return json({
         version: SERVER_VERSION,
         ready: reachable.length > 0,

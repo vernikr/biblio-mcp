@@ -22,8 +22,8 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "./server.js";
-import { probeMirror, resetMirrorCache } from "./http.js";
-import { MIRROR_GROUPS } from "./mirrors.js";
+import { resetMirrorCache } from "./http.js";
+import { MIRROR_GROUPS, probeGroup } from "./mirrors.js";
 import { BOOK_SOURCES, DISABLED_BOOK_SOURCES } from "./providers/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -142,27 +142,15 @@ async function runToolsStage(): Promise<StageResult> {
 }
 
 async function runMirrorsStage(): Promise<StageResult> {
-  // Probe everything, including hosts the negative cache would normally skip —
-  // the whole point is to show what is reachable right now.
   resetMirrorCache();
-  const groups: Array<{ group: string; results: Awaited<ReturnType<typeof probeMirror>>[] }> = [];
-  let anyAlive = false;
-
-  for (const { group, mirrors, probePath, expect } of MIRROR_GROUPS) {
-    const results = await Promise.all(
-      mirrors.map((base) => probeMirror(base, probePath, { expect }))
-    );
-    if (results.some((r) => r.ok)) anyAlive = true;
-    groups.push({ group, results });
-  }
-
-  const alive = groups.filter((g) => g.results.some((r) => r.ok)).map((g) => g.group);
+  const groups = await Promise.all(MIRROR_GROUPS.map((group) => probeGroup(group)));
+  const alive = groups.filter((group) => group.ok).map((group) => group.group);
   return {
     name: "mirrors",
-    ok: anyAlive,
+    ok: alive.length > 0,
     summary: `reachable sources: ${alive.length ? alive.join(", ") : "none"}`,
-    details: groups,
-    problem: anyAlive
+    details: groups.map(({ group, results }) => ({ group, results })),
+    problem: alive.length
       ? undefined
       : "no mirror in any group answered — this looks like a network or DNS block, not a code fault",
   };

@@ -19,6 +19,7 @@ const {
   mirrorCacheSnapshot,
   probeMirror,
 } = await import("../dist/http.js");
+const { probeGroup, toHealthcheckGroup } = await import("../dist/mirrors.js");
 
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -289,6 +290,37 @@ test("probeMirror flags an answering host that is not the expected site", async 
     const good = await probeMirror(real.url, "/", { expect });
     assert.equal(good.ok, true);
     assert.notEqual(good.impostor, true);
+  } finally {
+    await impostor.close();
+    await real.close();
+  }
+});
+
+test("probeGroup shares reachability and identity summaries", async () => {
+  const impostor = await serve({ "/": (_q, res) => res.writeHead(200).end("parked domain") });
+  const real = await serve({ "/": (_q, res) => res.writeHead(200).end("Expected site") });
+
+  try {
+    const group = await probeGroup(
+      {
+        group: "local-test",
+        mirrors: [impostor.url, real.url],
+        probePath: "/",
+        expect: /Expected site/,
+      },
+      { timeoutMs: 500 }
+    );
+    assert.equal(group.reachable, 1);
+    assert.equal(group.total, 2);
+    assert.equal(group.ok, true);
+    assert.deepEqual(group.impostors, [impostor.url]);
+    assert.ok(group.fastestMs >= 0);
+
+    const healthcheck = toHealthcheckGroup(group);
+    assert.equal(healthcheck.fastestMs, group.fastestMs);
+    assert.equal(healthcheck.mirrors.length, 2);
+    assert.equal(healthcheck.mirrors[0].impostor, true);
+    assert.equal("results" in healthcheck, false);
   } finally {
     await impostor.close();
     await real.close();

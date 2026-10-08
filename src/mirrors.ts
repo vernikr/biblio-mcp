@@ -1,18 +1,6 @@
-// Centralized mirror registry.
-//
-// These domains rotate over time. When a source stops working, this is the ONE
-// file to update — add/reorder hosts here and every provider picks it up.
-//
-// Order = preference. The HTTP layer gives earlier entries a head start and
-// falls through to later ones automatically, so a dead host only costs the
-// stagger interval rather than a full timeout (see src/http.ts).
-//
-// Overridable at runtime via comma-separated env vars, e.g.:
-//   BIBLIO_ANNAS_MIRRORS="https://annas-archive.gl,https://annas-archive.gd"
-//
-// Re-measure the list with `pnpm selfcheck`, which probes every host here and
-// prints status codes and timings.
+import { probeMirror, type MirrorProbe } from "./http.js";
 
+// Centralized mirror registry and probe summaries.
 function fromEnv(name: string, fallback: string[]): string[] {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -116,14 +104,24 @@ export const IPFS_GATEWAYS = fromEnv("BIBLIO_IPFS_GATEWAYS", [
  * "not the expected site" rather than as reachable — otherwise the health check
  * would rank a hijacked domain as the best mirror available.
  */
-export const MIRROR_GROUPS: ReadonlyArray<{
+export interface MirrorGroup {
   group: string;
   mirrors: string[];
-  /** Path appended to a base URL for a cheap liveness probe. */
   probePath: string;
-  /** Marker that must appear in the response for the host to count as genuine. */
   expect?: RegExp;
-}> = [
+}
+
+export interface MirrorGroupProbe {
+  group: string;
+  results: MirrorProbe[];
+  reachable: number;
+  total: number;
+  ok: boolean;
+  fastestMs: number | null;
+  impostors: string[];
+}
+
+export const MIRROR_GROUPS: ReadonlyArray<MirrorGroup> = [
   {
     group: "annas",
     mirrors: ANNAS_MIRRORS,
@@ -149,3 +147,39 @@ export const MIRROR_GROUPS: ReadonlyArray<{
     expect: /Z[- ]Library/i,
   },
 ];
+
+export async function probeGroup(
+  group: MirrorGroup,
+  options: { timeoutMs?: number } = {}
+): Promise<MirrorGroupProbe> {
+  const results = await Promise.all(
+    group.mirrors.map((base) =>
+      probeMirror(base, group.probePath, { timeoutMs: options.timeoutMs, expect: group.expect })
+    )
+  );
+  const alive = results.filter((result) => result.ok);
+  return {
+    group: group.group,
+    results,
+    reachable: alive.length,
+    total: group.mirrors.length,
+    ok: alive.length > 0,
+    fastestMs: alive.length ? Math.min(...alive.map((result) => result.ms)) : null,
+    impostors: results.filter((result) => result.impostor).map((result) => result.base),
+  };
+}
+
+export function toHealthcheckGroup(probe: MirrorGroupProbe) {
+  const { results, ...summary } = probe;
+  return {
+    ...summary,
+    mirrors: results.map((result) => ({
+      base: result.base,
+      ok: result.ok,
+      status: result.status,
+      ms: result.ms,
+      ...(result.impostor ? { impostor: true } : {}),
+      ...(result.error ? { error: result.error } : {}),
+    })),
+  };
+}
