@@ -82,6 +82,7 @@ test("TOOL_META covers every registered tool", async () => {
     const { tools } = await client.listTools();
     for (const tool of tools) {
       assert.ok(TOOL_META[tool.name], `${tool.name} is missing from TOOL_META`);
+      assert.deepEqual(Object.keys(TOOL_META[tool.name]), ["example"]);
     }
   });
 });
@@ -96,6 +97,7 @@ test("a missing argument names the argument, instead of dumping zod issues", asy
     assert.equal(isError, true);
     assert.match(text, /search_books: "query" is missing/);
     // The point of the change: an agent must be able to act on this.
+    assert.match(text, /Schema: required: "query" — Title, author, ISBN, or topic to search for/);
     assert.match(text, /Example: \{"query":"dune frank herbert"/);
     // And must NOT have to read zod internals.
     assert.ok(!/"code":\s*"invalid_type"/.test(text), `raw zod issue leaked: ${text}`);

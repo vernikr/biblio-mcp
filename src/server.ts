@@ -185,7 +185,9 @@ function useReadableValidationErrors(server: McpServer): void {
     } catch (error) {
       const issues = validationIssuesFrom(error);
       if (!issues) throw error;
-      throw new Error(describeArgsError(String(toolName), { issues }));
+      const inputSchema =
+        tool && typeof tool === "object" ? (tool as { inputSchema?: unknown }).inputSchema : undefined;
+      throw new Error(describeArgsError(String(toolName), { issues }, inputSchema));
     }
   };
 }

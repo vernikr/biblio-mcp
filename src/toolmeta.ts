@@ -15,44 +15,21 @@
 //     it; a sentence naming the missing argument and showing an example can be
 //     acted on immediately.
 
-/** Per-tool metadata used to build descriptions and error messages. */
+/** Per-tool call examples; argument requirements come from the input schemas. */
 export interface ToolMeta {
-  /** One line of JSON showing a valid call. Appended to the description. */
   example: string;
-  /** Plain sentence naming what the tool needs, used in validation errors. */
-  requires: string;
 }
 
 export const TOOL_META: Record<string, ToolMeta> = {
-  search_books: {
-    example: '{"query":"dune frank herbert","limit":5}',
-    requires: 'a "query" string. Optional: a non-empty "sources" list (annas, libgen, zlibrary; duplicates are ignored) and "limit" (1-100).',
-  },
-  book_details: {
-    example: '{"md5":"524037f395462d37b31f2b28fede24fb"}',
-    requires: 'an "md5" — the 32-character hex hash from a search_books result.',
-  },
-  get_download_links: {
-    example: '{"md5":"524037f395462d37b31f2b28fede24fb"}',
-    requires: 'an "md5" — the 32-character hex hash from a search_books result.',
-  },
+  search_books: { example: '{"query":"dune frank herbert","limit":5}' },
+  book_details: { example: '{"md5":"524037f395462d37b31f2b28fede24fb"}' },
+  get_download_links: { example: '{"md5":"524037f395462d37b31f2b28fede24fb"}' },
   download_book: {
     example: '{"md5":"524037f395462d37b31f2b28fede24fb","output_dir":"/home/me/books"}',
-    requires:
-      'an "md5" (32-character hex hash) and an "output_dir" (absolute path to a directory). Optional: "filename".',
   },
-  search_papers: {
-    example: '{"query":"attention is all you need","limit":5}',
-    requires: 'a "query" string. Optional: "limit" (1-100).',
-  },
-  get_paper: {
-    example: '{"identifier":"10.48550/arXiv.1706.03762"}',
-    requires: 'an "identifier" — a DOI, a URL, or a paper title.',
-  },
-  healthcheck: {
-    example: "{}",
-    requires: "no arguments. Optional: \"timeoutMs\" per mirror probe.",
-  },
+  search_papers: { example: '{"query":"attention is all you need","limit":5}' },
+  get_paper: { example: '{"identifier":"10.48550/arXiv.1706.03762"}' },
+  healthcheck: { example: "{}" },
 };
 
 /** Append the call example to a tool description. */
@@ -76,33 +53,54 @@ function issuesOf(error: unknown): Issue[] {
   return [];
 }
 
-/**
- * Turn a zod validation failure into one sentence an agent can act on.
- *
- * Format: `<tool>: <what is wrong with which argument>. It needs <requires>
- * Example: <json>`. Falls back to the raw message when the error is not shaped
- * like a zod error, so this can never make an error less informative than the
- * one it replaces.
- */
-export function describeArgsError(name: string, error: unknown): string {
+/** Minimal Zod object-field shape needed for agent-facing requirements. */
+interface InputFieldSchema {
+  description?: string;
+  isOptional?: () => boolean;
+}
+
+function requirementsFromSchema(schema: unknown): string | undefined {
+  if (!schema || typeof schema !== "object") return undefined;
+  const shape = (schema as { shape?: Record<string, InputFieldSchema> }).shape;
+  if (!shape) return undefined;
+
+  const fields = Object.entries(shape);
+  if (fields.length === 0) return "no arguments";
+  const label = ([name, field]: [string, InputFieldSchema]) => {
+    const description = typeof field.description === "string" ? field.description.trim() : "";
+    return `"${name}"${description ? ` — ${description.replace(/[.!?]+$/, "")}` : ""}`;
+  };
+  const required = fields.filter(([, field]) => !field.isOptional?.());
+  const optional = fields.filter(([, field]) => field.isOptional?.());
+  return [
+    required.length ? `required: ${required.map(label).join(", ")}` : "no required arguments",
+    optional.length ? `optional: ${optional.map(label).join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ");
+}
+
+/** Format one validation failure from its issues and the tool's own schema. */
+export function describeArgsError(name: string, error: unknown, schema?: unknown): string {
   const meta = TOOL_META[name];
   const issues = issuesOf(error);
-
   const problems: string[] = [];
+
   for (const issue of issues) {
     const field = issue.path && issue.path.length > 0 ? issue.path.join(".") : "arguments";
-    // zod capitalises its messages ("Too big: ..."); lower-case the first letter
-    // so the sentence reads naturally after the field name.
     const raw = issue.message ?? "is invalid";
     const message = raw.charAt(0).toLowerCase() + raw.slice(1);
-    // zod reports a missing optional-vs-required field as invalid_type with
-    // "received undefined"; say "missing" instead, which is what it means.
     const missing = issue.code === "invalid_type" && /undefined/.test(message);
     problems.push(missing ? `"${field}" is missing` : `"${field}" ${message}`);
   }
 
   const what = problems.length > 0 ? problems.join("; ") : String((error as Error)?.message ?? error);
-
-  if (!meta) return `${name}: ${what}`;
-  return `${name}: ${what}. It needs ${meta.requires} Example: ${meta.example}`;
+  const requirements = requirementsFromSchema(schema);
+  return [
+    `${name}: ${what}.`,
+    requirements ? `Schema: ${requirements}.` : "",
+    meta ? `Example: ${meta.example}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
