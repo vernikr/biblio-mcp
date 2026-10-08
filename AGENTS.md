@@ -53,6 +53,13 @@ default offline suite.
 - After a capture, update the SHA-256 entry and semantic assertions in `test/fixtures.test.mjs`,
   then run `pnpm run test`.
 
+## README cover
+
+The text between `<!-- cover:start -->` and `<!-- cover:end -->` in `README.md` is the
+user-facing summary of what this fork gives people. It is written for end users, in plain
+language, without implementation detail. Update it in the same commit whenever a change alters
+what a user gets (a new benefit, a removed limitation, a changed default), and keep it short.
+
 ## Packaging and credentials
 
 - `package.json` is marked `private` because the `biblio-mcp` npm name belongs to upstream. Supported

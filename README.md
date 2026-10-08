@@ -3,6 +3,31 @@
 [![CI](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/biblio-mcp.svg)](LICENSE)
 
+<!-- cover:start -->
+## Why this fork
+
+The idea is the same as the original: one tool that lets your AI assistant find books and
+research papers across the shadow libraries and get them for you. This fork is about making
+that something you can rely on.
+
+- **It works the first time.** Setup is a single command, and it checks itself before you use
+  it. A broken setup is caught on the spot, with the fix spelled out, instead of failing every
+  request.
+- **Faster answers.** Searches come back many times faster, because the server stops waiting on
+  websites that are no longer there.
+- **Honest results.** A source that is down is reported, not silently dropped. A website that
+  has stopped being the real library is refused. Downloaded files are checked, so you know you
+  got the right book.
+- **Cleaner information.** Titles, authors and formats come from the right fields, and broken
+  or useless links are filtered out.
+- **Less time lost.** When something goes wrong, the message says what happened and what to do
+  next, and a one-call health check tells you whether anything is reachable at all.
+
+One honest caveat: the sources are third-party websites that can go offline or change at any
+time. This fork cannot promise they stay reachable, but it promises that you will know right
+away when they do not.
+<!-- cover:end -->
+
 ## Quick start
 
 ```bash
