@@ -1,14 +1,12 @@
 import type { SourceId } from "../types.js";
 import { ResourceNotFoundError } from "../http.js";
+import { NUMBER_SETTINGS, readNumber } from "../config.js";
 
 const FAILURE_THRESHOLD = 3;
 
 /** How long a source stays skipped once it trips. Shares the mirror cooldown
  *  setting, since both mean "stop asking this for a while". */
-const COOLDOWN_MS = (() => {
-  const n = Number(process.env.BIBLIO_MIRROR_DEAD_TTL_MS);
-  return Number.isFinite(n) && n > 0 ? n : 300_000;
-})();
+const COOLDOWN_MS = readNumber(NUMBER_SETTINGS.mirrorDeadTtlMs);
 
 type CircuitState = {
   consecutiveFailures: number;

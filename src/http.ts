@@ -5,6 +5,7 @@ import { createWriteStream } from "node:fs";
 import { rename, unlink } from "node:fs/promises";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
+import { NUMBER_SETTINGS, readNumber } from "./config.js";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
@@ -16,29 +17,22 @@ const DEFAULT_HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=0.9",
 };
 
-function envNum(name: string, fallback: number): number {
-  const raw = process.env[name];
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : fallback;
-}
-
 /** Budget for scraping an HTML page (search results, ads.php, md5 detail). */
-export const TIMEOUT_MS = envNum("BIBLIO_TIMEOUT_MS", 8000);
+export const TIMEOUT_MS = readNumber(NUMBER_SETTINGS.timeoutMs);
 
 /** Budget for pulling an actual file. Books are megabytes, not kilobytes. */
-export const DOWNLOAD_TIMEOUT_MS = envNum("BIBLIO_DOWNLOAD_TIMEOUT_MS", 600_000);
+export const DOWNLOAD_TIMEOUT_MS = readNumber(NUMBER_SETTINGS.downloadTimeoutMs);
 
 /** How long a failed mirror is skipped before being given another chance. */
-const DEAD_TTL_MS = envNum("BIBLIO_MIRROR_DEAD_TTL_MS", 300_000);
+const DEAD_TTL_MS = readNumber(NUMBER_SETTINGS.mirrorDeadTtlMs);
 
 /** Head start between concurrent mirror attempts. 0 disables staggering and
  *  makes the race fully simultaneous (fastest, least polite to the mirrors). */
-const STAGGER_MS = envNum("BIBLIO_MIRROR_STAGGER_MS", 120);
+const STAGGER_MS = readNumber(NUMBER_SETTINGS.mirrorStaggerMs);
 
 /** Abort a download if no bytes arrive for this long. Guards against a mirror
  *  that accepts the connection and then stalls forever. */
-const DOWNLOAD_STALL_MS = envNum("BIBLIO_DOWNLOAD_STALL_MS", 30_000);
+const DOWNLOAD_STALL_MS = readNumber(NUMBER_SETTINGS.downloadStallMs);
 
 /** Remembers, per mirror-group, which host last succeeded. */
 const preferredMirror = new Map<string, string>();

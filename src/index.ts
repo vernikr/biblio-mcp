@@ -4,6 +4,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
 import { runSelfcheck, printSelfcheck, runStartupSelftest } from "./selfcheck.js";
+import { environmentHelp } from "./config.js";
 
 const USAGE = `${SERVER_NAME} v${SERVER_VERSION}
 
@@ -21,21 +22,7 @@ Install / update (from a source checkout):
                                          merge the MCP entry into a config file
 
 Environment:
-  BIBLIO_TIMEOUT_MS              HTML request budget (default 8000)
-  BIBLIO_DOWNLOAD_TIMEOUT_MS     file download budget (default 600000)
-  BIBLIO_DOWNLOAD_STALL_MS       abort a download idle this long (default 30000)
-  BIBLIO_MIRROR_DEAD_TTL_MS      how long a failed mirror is skipped (default 300000)
-  BIBLIO_MIRROR_STAGGER_MS       head start between mirror attempts (default 120)
-  BIBLIO_ANNAS_API_KEY           Anna's Archive member key; enables the
-                                 fast-download JSON API, which is not behind
-                                 the DDoS-Guard challenge
-  BIBLIO_DISABLE_SOURCES         comma list; defaults to "zlibrary"
-  BIBLIO_ANNAS_MIRRORS           override the Anna's Archive mirror list
-  BIBLIO_LIBGEN_MIRRORS          override the Library Genesis mirror list
-  BIBLIO_SCIHUB_MIRRORS          override the Sci-Hub mirror list
-  BIBLIO_ZLIB_MIRRORS            override the Z-Library mirror list
-  BIBLIO_IPFS_GATEWAYS           override the IPFS gateway list
-  BIBLIO_SKIP_STARTUP_CHECK      set to bypass the startup tool-surface check`
+${environmentHelp()}`
 
 async function main(argv: string[]): Promise<number> {
   if (argv.includes("--help") || argv.includes("-h")) {
