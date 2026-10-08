@@ -192,6 +192,9 @@ export async function resolvePaperPdfs(papers: Paper[]): Promise<Paper[]> {
   });
 }
 
+/** One rule for every tool that takes a catalogue hash. */
+const md5Schema = z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash");
+
 export function createServer(): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
   useReadableValidationErrors(server);
@@ -256,7 +259,7 @@ export function createServer(): McpServer {
         "Archive did not answer first.",
     ),
     {
-      md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
+      md5: md5Schema,
     },
     async ({ md5 }) => {
       const details = await bookDetails(md5.toLowerCase());
@@ -277,7 +280,7 @@ export function createServer(): McpServer {
         "`direct: true` point straight at the file.",
     ),
     {
-      md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
+      md5: md5Schema,
     },
     async ({ md5 }) => {
       const links = await resolveDownloads(md5.toLowerCase());
@@ -300,7 +303,7 @@ export function createServer(): McpServer {
         "progress notifications while transferring.",
     ),
     {
-      md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
+      md5: md5Schema,
       output_dir: z
         .string()
         .min(1)

@@ -139,6 +139,17 @@ function splitTitleCell(
 }
 
 /** Search Library Genesis scimag (academic articles) by keyword or DOI. */
+/** Visit every table row with its serialised HTML, once. Return false to stop. */
+function forEachRow(
+  $: cheerio.CheerioAPI,
+  visit: (row: cheerio.Cheerio<any>, rowHtml: string) => boolean | void
+): void {
+  $("table tr").each((_i, row) => {
+    const $row = $(row);
+    return visit($row, $row.html() || "");
+  });
+}
+
 export async function searchPapers(query: string, limit: number): Promise<Paper[]> {
   // topics[]=a scopes the search to scimag (articles). The alternate route is
   // tried on the same mirror only when the first path is missing.
@@ -154,10 +165,8 @@ export async function searchPapers(query: string, limit: number): Promise<Paper[
   const papers: Paper[] = [];
   const seen = new Set<string>();
 
-  $("table tr").each((_i, row) => {
+  forEachRow($, ($row, rowHtml) => {
     if (papers.length >= limit) return false;
-    const $row = $(row);
-    const rowHtml = $row.html() || "";
     const doi = rowHtml.match(/10\.\d{4,9}\/[^\s"'<>]+/)?.[0];
     const md5 = rowHtml.match(/md5=([a-f0-9]{32})/i)?.[1]?.toLowerCase();
     const key = doi || md5;
@@ -211,10 +220,8 @@ export async function search(query: string, limit: number): Promise<Book[]> {
   const books: Book[] = [];
   const seen = new Set<string>();
 
-  $("table tr").each((_i, row) => {
+  forEachRow($, ($row, rowHtml) => {
     if (books.length >= limit) return false;
-    const $row = $(row);
-    const rowHtml = $row.html() || "";
     const md5 =
       rowHtml.match(/md5=([a-f0-9]{32})/i)?.[1]?.toLowerCase() ||
       rowHtml.match(/\/md5\/([a-f0-9]{32})/i)?.[1]?.toLowerCase();
