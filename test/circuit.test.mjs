@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const paths = [];
 const server = createServer((req, res) => {
@@ -12,8 +13,7 @@ const server = createServer((req, res) => {
   res.writeHead(403, { "content-type": "text/plain; charset=UTF-8" });
   res.end("DDoS-Guard challenge");
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const mirror = `http://127.0.0.1:${server.address().port}`;
+const mirror = await listenLocal(server);
 process.env.BIBLIO_ANNAS_MIRRORS = mirror;
 process.env.BIBLIO_LIBGEN_MIRRORS = mirror;
 process.env.BIBLIO_SCIHUB_MIRRORS = mirror;
@@ -23,7 +23,7 @@ process.env.BIBLIO_MIRROR_DEAD_TTL_MS = "60000";
 
 const { searchBooks, bookDetails, resolveDownloads } = await import("../dist/providers/index.js");
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 test("Anna's Archive is summarized, skipped while all mirrors are cooling down, and circuit-broken after three failures", async () => {
   const first = await searchBooks("dune attempt 1", ["annas"], 5);

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const md5 = "a".repeat(32);
 const server = createServer((req, res) => {
@@ -18,8 +19,7 @@ const server = createServer((req, res) => {
   }
   res.writeHead(200, { "content-type": "text/html" }).end(body);
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const mirror = `http://127.0.0.1:${server.address().port}`;
+const mirror = await listenLocal(server);
 process.env.BIBLIO_ANNAS_MIRRORS = mirror;
 process.env.BIBLIO_LIBGEN_MIRRORS = mirror;
 process.env.BIBLIO_SCIHUB_MIRRORS = mirror;
@@ -34,7 +34,7 @@ const [annas, libgen, scihub, zlibrary] = await Promise.all([
   import("../dist/providers/zlibrary.js"),
 ]);
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 test("Anna's Archive resolves protocol-relative image and download URLs", async () => {
   const [book] = await annas.search("relative", 1);

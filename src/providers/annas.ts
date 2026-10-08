@@ -1,7 +1,7 @@
 // Anna's Archive provider.
 
 import * as cheerio from "cheerio";
-import { fetchFromMirrors, probeMirror } from "../http.js";
+import { fetchFromMirrors, fetchWithTimeout, probeMirror } from "../http.js";
 import { ANNAS_IDENTITY, ANNAS_MIRRORS } from "../mirrors.js";
 import { absoluteUrl, parseLanguage, parseSize, parseYear } from "../parse.js";
 import type { Book, DownloadLink } from "../types.js";
@@ -129,47 +129,48 @@ async function identityVerifiedMirrors(): Promise<string[]> {
 }
 
 /** Use Anna's member API for verified direct downloads when an API key is set. */
+/** A member link is worth waiting for, but not for a dead mirror's full budget. */
+const FAST_DOWNLOAD_TIMEOUT_MS = 20_000;
+
 export async function fastDownload(md5: string): Promise<DownloadLink | null> {
   const key = process.env.BIBLIO_ANNAS_API_KEY?.trim();
   if (!key) return null;
 
   const mirrors = await identityVerifiedMirrors();
-  const controllers = mirrors.map(() => new AbortController());
+  const cancels = mirrors.map(() => new AbortController());
 
   // Ask every verified mirror at once; the first usable answer wins and the
   // rest are cancelled. Sequential tries cost one full timeout per dead mirror.
-  const attempts = mirrors.map(async (base, i) => {
-    const controller = controllers[i]!;
-    const timer = setTimeout(() => controller.abort(), 20_000);
-    try {
-      const res = await fetch(
-        `${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`,
-        { signal: controller.signal }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data: any = await res.json();
-      const url: unknown = data?.download_url ?? data?.url;
-      if (typeof url !== "string" || !url) throw new Error("no download_url");
+  const attempts = mirrors.map((base, i) =>
+    fetchWithTimeout(
+      `${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`,
+      {},
+      async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: any = await res.json();
+        const url: unknown = data?.download_url ?? data?.url;
+        if (typeof url !== "string" || !url) throw new Error("no download_url");
 
-      // Surface remaining quota when the API reports it, so a run can see it
-      // is burning through the daily allowance.
-      const left =
-        data?.account_fast_download_info?.downloads_left ??
-        data?.downloads_left;
-      const label =
-        typeof left === "number"
-          ? `Anna's Archive fast download (member, ${left} left today)`
-          : "Anna's Archive fast download (member)";
+        // Surface remaining quota when the API reports it, so a run can see it
+        // is burning through the daily allowance.
+        const left =
+          data?.account_fast_download_info?.downloads_left ??
+          data?.downloads_left;
+        const label =
+          typeof left === "number"
+            ? `Anna's Archive fast download (member, ${left} left today)`
+            : "Anna's Archive fast download (member)";
 
-      return { source: "annas" as const, label, url, direct: true, verified: true };
-    } finally {
-      clearTimeout(timer);
-    }
-  });
+        return { source: "annas" as const, label, url, direct: true, verified: true };
+      },
+      cancels[i]!.signal,
+      FAST_DOWNLOAD_TIMEOUT_MS
+    )
+  );
 
   try {
     const link = await Promise.any(attempts);
-    controllers.forEach((controller) => controller.abort());
+    cancels.forEach((cancel) => cancel.abort());
     return link;
   } catch {
     // Every verified mirror failed: no member link this time.

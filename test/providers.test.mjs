@@ -8,6 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = await readFile(join(HERE, "fixtures", "libgen-search.html"), "utf8");
@@ -50,8 +51,7 @@ const srv = createServer((req, res) => {
     res.end(isScimag ? fixture : FIXTURE);
   }
 });
-await new Promise((r) => srv.listen(0, "127.0.0.1", r));
-const MIRROR = `http://127.0.0.1:${srv.address().port}`;
+const MIRROR = await listenLocal(srv);
 process.env.BIBLIO_LIBGEN_MIRRORS = MIRROR;
 process.env.BIBLIO_SCIHUB_MIRRORS = MIRROR;
 process.env.BIBLIO_TIMEOUT_MS = "3000";
@@ -65,7 +65,7 @@ const {
   searchBooks,
 } = await import("../dist/providers/index.js");
 
-test.after(() => srv.close());
+test.after(() => closeServer(srv));
 
 // ---------------------------------------------------------------------------
 // Defaults

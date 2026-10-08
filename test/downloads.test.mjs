@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const md5 = "5".repeat(32);
 const cdnUrl = "https://cdn.example.test/dl/opaque-token/book.epub";
@@ -28,8 +29,7 @@ const server = createServer((req, res) => {
   }
   res.writeHead(404).end("not found");
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const mirror = `http://127.0.0.1:${server.address().port}`;
+const mirror = await listenLocal(server);
 process.env.BIBLIO_ANNAS_MIRRORS = mirror;
 process.env.BIBLIO_LIBGEN_MIRRORS = mirror;
 process.env.BIBLIO_ANNAS_API_KEY = "test-key";
@@ -38,7 +38,7 @@ process.env.BIBLIO_TIMEOUT_MS = "1000";
 
 const { resolveDownloads } = await import("../dist/providers/index.js");
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 test("resolveDownloads keeps a verified member URL without an MD5 in its signed URL", async () => {
   const links = await resolveDownloads(md5);

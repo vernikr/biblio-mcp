@@ -150,7 +150,7 @@ function linkAbortSignals(...signals: Array<AbortSignal | null | undefined>): Li
   };
 }
 
-async function fetchWithTimeout<T>(
+export async function fetchWithTimeout<T>(
   url: string,
   init: RequestInit,
   consume: (response: Response) => Promise<T>,

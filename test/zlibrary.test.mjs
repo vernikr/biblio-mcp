@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const html = `<!doctype html><html><body>
   <z-bookcard title="A valid result" author="Ada Lovelace" year="2024" extension="pdf" filesize="4.5 MB">
@@ -17,15 +18,14 @@ const server = createServer((_req, res) => {
   res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
   res.end(html);
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const mirror = `http://127.0.0.1:${server.address().port}`;
+const mirror = await listenLocal(server);
 process.env.BIBLIO_ZLIB_MIRRORS = mirror;
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 process.env.BIBLIO_TIMEOUT_MS = "1000";
 
 const { search } = await import("../dist/providers/zlibrary.js");
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 test("zlibrary.search validates its parsed year, format, and size", async () => {
   const books = await search("example", 5);

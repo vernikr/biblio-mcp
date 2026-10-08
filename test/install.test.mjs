@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runStartupSelftest } from "../dist/selfcheck.js";
+import { readRootPackage } from "../scripts/lib/pkg.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER = join(HERE, "..", "scripts", "install.mjs");
@@ -246,7 +247,7 @@ test("every BIBLIO_* variable in the code is documented in --help and the README
 test("every command the README tells you to run actually exists", async () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const readme = readFileSync(join(here, "..", "README.md"), "utf8");
-  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const pkg = readRootPackage();
 
   const scripts = new Set(Object.keys(pkg.scripts));
   // pnpm's own builtins are not package scripts, and prose words are not
@@ -265,7 +266,7 @@ test("every command the README tells you to run actually exists", async () => {
 
 test("the published tarball contains the installer the README points at", async () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const pkg = readRootPackage();
   const readme = readFileSync(join(here, "..", "README.md"), "utf8");
 
   // The README's primary install path is `node scripts/install.mjs`, so the
@@ -280,7 +281,7 @@ test("the published tarball contains the installer the README points at", async 
 });
 
 test("the fork package is private while the upstream owns the npm name", () => {
-  const pkg = JSON.parse(readFileSync(join(HERE, "..", "package.json"), "utf8"));
+  const pkg = readRootPackage();
   assert.equal(pkg.name, "biblio-mcp");
   assert.equal(pkg.private, true, "avoid accidentally publishing over the upstream package");
 });
@@ -301,7 +302,7 @@ test("every version in the CHANGELOG has a matching compare link", async () => {
 
   // Fork releases must point at the fork; upstream releases at upstream. A fork
   // release linked to upstream would misattribute the work.
-  const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8"));
+  const pkg = readRootPackage();
   const forkHost = /vernikr\/biblio-mcp/;
   for (const m of changelog.matchAll(/^\[(\d+\.\d+\.\d+)\]:\s+(\S+)$/gm)) {
     const [, version, url] = m;

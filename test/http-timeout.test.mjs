@@ -7,6 +7,7 @@ import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 process.env.BIBLIO_TIMEOUT_MS = "200";
 process.env.BIBLIO_DOWNLOAD_TIMEOUT_MS = "200";
@@ -22,15 +23,9 @@ const server = createServer((req, res) => {
   res.write(html ? "<html>" : "x");
   // Intentionally do not finish the body. Client-side timeout must abort it.
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const base = `http://127.0.0.1:${server.address().port}`;
+const base = await listenLocal(server);
 
-test.after(async () => {
-  // The stalled bodies are abandoned by the client, but keep-alive sockets can
-  // linger; closing them here stops the suite waiting for the idle timeout.
-  server.closeAllConnections();
-  await new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); });
-});
+test.after(() => closeServer(server));
 
 async function assertFastRejection(operation, label) {
   const started = Date.now();

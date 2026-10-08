@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const md5 = "7".repeat(32);
 const server = createServer((req, res) => {
@@ -28,8 +29,7 @@ const server = createServer((req, res) => {
   }
   res.writeHead(404).end("not found");
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const mirror = `http://127.0.0.1:${server.address().port}`;
+const mirror = await listenLocal(server);
 process.env.BIBLIO_LIBGEN_MIRRORS = mirror;
 process.env.BIBLIO_ANNAS_MIRRORS = mirror;
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
@@ -38,7 +38,7 @@ delete process.env.BIBLIO_ANNAS_API_KEY;
 
 const { createServer: createMcpServer } = await import("../dist/server.js");
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 async function callDownload(args) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

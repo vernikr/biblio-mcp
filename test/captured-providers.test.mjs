@@ -8,6 +8,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFile(join(HERE, "fixtures", name), "utf8");
@@ -32,8 +33,7 @@ const server = createServer(async (req, res) => {
   }
   res.writeHead(200, { "content-type": "text/html; charset=UTF-8" }).end(html);
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const mirror = `http://127.0.0.1:${server.address().port}`;
+const mirror = await listenLocal(server);
 process.env.BIBLIO_LIBGEN_MIRRORS = mirror;
 process.env.BIBLIO_SCIHUB_MIRRORS = mirror;
 process.env.BIBLIO_TIMEOUT_MS = "1500";
@@ -42,7 +42,7 @@ process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 const libgen = await import("../dist/providers/libgen.js");
 const scihub = await import("../dist/providers/scihub.js");
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 test("Libgen book search parses the captured live table", async () => {
   const books = await libgen.search("Vidyamurthy Pairs Trading", 10);

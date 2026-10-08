@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const good = "a".repeat(32);
 const server = createServer((req, res) => {
@@ -20,8 +21,7 @@ const server = createServer((req, res) => {
   }
   res.writeHead(404, { "content-type": "text/html" }).end("<html>Not found</html>");
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-const base = `http://127.0.0.1:${server.address().port}`;
+const base = await listenLocal(server);
 process.env.BIBLIO_LIBGEN_MIRRORS = base;
 process.env.BIBLIO_ANNAS_MIRRORS = base;
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
@@ -33,7 +33,7 @@ const http = await import("../dist/http.js");
 const providers = await import("../dist/providers/index.js");
 const circuit = await import("../dist/providers/circuit.js");
 
-test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
+test.after(() => closeServer(server));
 
 test("a single 404 for one record does not put the mirror into cooldown", async () => {
   http.resetMirrorCache();
