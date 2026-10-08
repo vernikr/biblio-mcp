@@ -5,19 +5,18 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { mkdir, rename, unlink } from "node:fs/promises";
-import { open } from "node:fs/promises";
+import { mkdir, open, rename, unlink } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { resetDeadCache } from "./http.js";
-import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
-import { describeArgsError, describeTool } from "./toolmeta.js";
 import {
   downloadToFile,
   HtmlInsteadOfFileError,
+  resetDeadCache,
   type DownloadProgress,
 } from "./http.js";
+import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
+import { describeArgsError, describeTool } from "./toolmeta.js";
 import { sniffExt } from "./sniff.js";
 import { withSourceCircuit } from "./providers/circuit.js";
 import {
