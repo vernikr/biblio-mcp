@@ -156,6 +156,37 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+interface LinkedAbortSignal {
+  signal: AbortSignal;
+  dispose: () => void;
+}
+
+function linkAbortSignals(...signals: Array<AbortSignal | null | undefined>): LinkedAbortSignal {
+  const active = signals.filter((signal): signal is AbortSignal => signal != null);
+  const nativeAny = (AbortSignal as unknown as {
+    any?: (signals: AbortSignal[]) => AbortSignal;
+  }).any;
+  if (nativeAny) return { signal: nativeAny.call(AbortSignal, active), dispose: () => {} };
+
+  const controller = new AbortController();
+  const listeners: Array<[AbortSignal, () => void]> = [];
+  for (const signal of active) {
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    const onAbort = () => controller.abort(signal.reason);
+    signal.addEventListener("abort", onAbort, { once: true });
+    listeners.push([signal, onAbort]);
+  }
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      for (const [signal, listener] of listeners) signal.removeEventListener("abort", listener);
+    },
+  };
+}
+
 async function fetchWithTimeout<T>(
   url: string,
   init: RequestInit,
@@ -165,23 +196,19 @@ async function fetchWithTimeout<T>(
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onExternalAbort = () => controller.abort();
-  externalSignal?.addEventListener("abort", onExternalAbort, { once: true });
+  const linked = linkAbortSignals(controller.signal, externalSignal, init.signal);
 
   try {
     const response = await fetch(url, {
       ...init,
       redirect: "follow",
-      signal: controller.signal,
+      signal: linked.signal,
       headers: { ...DEFAULT_HEADERS, ...(init.headers as object) },
     });
-    // Keep the timeout and external-abort listener alive until the body has
-    // been consumed; otherwise a fast 200 header can leave a stalled HTML body
-    // hanging a tool call indefinitely.
     return await consume(response);
   } finally {
     clearTimeout(timer);
-    externalSignal?.removeEventListener("abort", onExternalAbort);
+    linked.dispose();
   }
 }
 
@@ -243,100 +270,85 @@ export async function fetchFromMirrors(
       `No ${groupKey} mirrors configured; set ${envName} to one or more base URLs.`
     );
   }
+
   const attempts: string[] = [];
+  const controllers = new Set<AbortController>();
+  const pending = ordered.map(async (base, index) => {
+    const controller = new AbortController();
+    controllers.add(controller);
+    const signal = linkAbortSignals(controller.signal, init?.signal);
 
-  return await new Promise<MirrorFetchResult>((resolve, reject) => {
-    let remaining = ordered.length;
-    let settled = false;
-    const controllers: AbortController[] = [];
+    try {
+      await sleep(index * STAGGER_MS, signal.signal);
+      const urls = [buildPath(base)].flat();
+      if (urls.length === 0) throw new Error(`${base} -> no request path configured`);
 
-    const cancelOthers = (except: AbortController) => {
-      for (const c of controllers) if (c !== except && !c.signal.aborted) c.abort();
-    };
-
-    ordered.forEach((base, index) => {
-      const controller = new AbortController();
-      controllers.push(controller);
-
-      const run = async (): Promise<MirrorFetchResult> => {
-        // Stagger mirrors, not routes, so a fallback stays local to its host.
-        await sleep(index * STAGGER_MS, controller.signal);
-        const urls = [buildPath(base)].flat();
-        if (urls.length === 0) throw new Error(`${base} -> no request path configured`);
-
-        let lastError: unknown;
-        for (let pathIndex = 0; pathIndex < urls.length; pathIndex++) {
-          const url = urls[pathIndex]!;
-          try {
-            return await fetchWithTimeout(
-              url,
-              init ?? {},
-              async (res) => {
-                if (!res.ok) {
-                  await res.body?.cancel().catch(() => {});
-                  throw new MirrorHttpError(base, res.status);
+      let lastError: unknown;
+      for (let pathIndex = 0; pathIndex < urls.length; pathIndex++) {
+        const url = urls[pathIndex]!;
+        try {
+          const result = await fetchWithTimeout(
+            url,
+            init ?? {},
+            async (res) => {
+              if (!res.ok) {
+                await res.body?.cancel().catch(() => {});
+                throw new MirrorHttpError(base, res.status);
+              }
+              const html = await res.text();
+              if (validate) {
+                const verdict = validate(html, base);
+                if (verdict !== true) {
+                  const why =
+                    typeof verdict === "string"
+                      ? verdict
+                      : "response is not the expected site";
+                  throw new Error(`${base} -> ${why}`);
                 }
-                // Read the body BEFORE winning the race: aborting the losers
-                // must not tear down the response we are about to return.
-                const html = await res.text();
-                if (validate) {
-                  const verdict = validate(html, base);
-                  if (verdict !== true) {
-                    const why =
-                      typeof verdict === "string"
-                        ? verdict
-                        : "response is not the expected site";
-                    throw new Error(`${base} -> ${why}`);
-                  }
-                }
-                return { html, base, finalUrl: res.url || url, attempts };
-              },
-              controller.signal
-            );
-          } catch (error) {
-            lastError = error;
-            const hasRouteFallback = pathIndex < urls.length - 1;
-            if (
-              controller.signal.aborted ||
-              !hasRouteFallback ||
-              !(error instanceof MirrorHttpError) ||
-              (error.status !== 404 && error.status !== 405)
-            ) {
-              throw error;
-            }
+              }
+              return { html, base, finalUrl: res.url || url, attempts: [] };
+            },
+            signal.signal
+          );
+          return { base, controller, result };
+        } catch (error) {
+          lastError = error;
+          const hasRouteFallback = pathIndex < urls.length - 1;
+          if (
+            signal.signal.aborted ||
+            !hasRouteFallback ||
+            !(error instanceof MirrorHttpError) ||
+            (error.status !== 404 && error.status !== 405)
+          ) {
+            throw error;
           }
         }
-        throw lastError ?? new Error(`${base} -> no request path succeeded`);
-      };
-
-      run().then(
-        (result) => {
-          if (settled) return;
-          settled = true;
-          noteAlive(groupKey, base);
-          cancelOthers(controller);
-          resolve(result);
-        },
-        (err: unknown) => {
-          const message = String((err as Error)?.message ?? err);
-          // Our own cancellation is not evidence about the mirror.
-          if (!controller.signal.aborted) {
-            noteDead(groupKey, base);
-            attempts.push(message);
-          }
-          if (--remaining === 0 && !settled) {
-            settled = true;
-            reject(
-              new Error(
-                `All ${mirrors.length} ${groupKey} mirror(s) failed: ` +
-                  `${(attempts.length ? attempts : ["cancelled"]).join("; ")}`
-              )
-            );
-          }
-        }
-      );
-    });
+      }
+      throw lastError ?? new Error(`${base} -> no request path succeeded`);
+    } catch (error) {
+      if (!signal.signal.aborted) {
+        noteDead(groupKey, base);
+        attempts.push(String((error as Error)?.message ?? error));
+      }
+      throw error;
+    } finally {
+      signal.dispose();
+    }
   });
+
+  try {
+    const winner = await Promise.any(pending);
+    noteAlive(groupKey, winner.base);
+    for (const controller of controllers) {
+      if (controller !== winner.controller && !controller.signal.aborted) controller.abort();
+    }
+    return { ...winner.result, attempts };
+  } catch {
+    throw new Error(
+      `All ${mirrors.length} ${groupKey} mirror(s) failed: ` +
+        `${(attempts.length ? attempts : ["cancelled"]).join("; ")}`
+    );
+  }
 }
 
 /** Single-URL GET returning text, with timeout. Throws on non-2xx. */
