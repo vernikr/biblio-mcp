@@ -3,6 +3,18 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [1.6.0] - 2026-10-08
+
+### Fixed
+- `search_papers` now separates the article title from the bold journal/issue block and keeps the journal name in `journal`.
+- API-issued Anna's Archive member links survive the MD5 filter even when signed URLs contain no MD5; scraped unrelated links remain filtered.
+- Empty mirror lists fail immediately with the corresponding `BIBLIO_*_MIRRORS` setting named in the error.
+- HTML request timeouts remain active through full response-body consumption, including error bodies and HTML download interstitials.
+- The installer no longer falls back to `npm` in a checkout with a `pnpm-lock.yaml`; it stops and asks for pnpm.
+
+### Added
+- Offline regression tests for the four critical fixes, including locally served captured provider pages and stalled response bodies.
+
 ## [1.5.2] - 2026-10-08
 
 ### Added
@@ -262,6 +274,7 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
+[1.6.0]: https://github.com/vernikr/biblio-mcp/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/vernikr/biblio-mcp/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vernikr/biblio-mcp/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/vernikr/biblio-mcp/compare/v1.4.0...v1.5.0

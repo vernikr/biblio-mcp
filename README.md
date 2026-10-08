@@ -91,7 +91,8 @@ The installer checks Node and your package manager, installs, builds, verifies t
 surface actually answers a call, and prints the config snippet to paste into your MCP client.
 Add `--write-config <path>` and it merges the entry into an existing config for you — keeping a
 `.bak` copy, and refusing to touch a file it cannot parse. Add `--dry-run` to see every step
-without writing anything.
+without writing anything. If the checkout has a `pnpm-lock.yaml`, the installer requires pnpm
+and will not try npm as a substitute.
 
 ```bash
 node scripts/install.mjs --write-config ~/.config/claude/mcp.json
@@ -190,9 +191,9 @@ python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
 |---|---|
 | `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus `errors` for any source that failed. |
 | `book_details` | Full metadata + download options for one book by MD5 hash. Tries Anna's Archive, falls back to Libgen's BibTeX block, and reports which one answered (`resolvedVia`) and why the other did not. |
-| `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; links that cannot lead to it are dropped. |
+| `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. |
 | `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, the byte count, and **the MD5 of what was written** so you can confirm the file is the one you asked for. Emits progress notifications while transferring. |
-| `search_papers` | Academic paper / article search via Library Genesis scimag; returns DOIs and metadata. |
+| `search_papers` | Academic paper / article search via Library Genesis scimag; returns the article title, journal, authors, DOI, and year from the live result layout. |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
 | `healthcheck` | Can this server reach its sources? Per-mirror status and latency, without querying a catalogue. Use it to tell "the network is blocked" apart from "the query matched nothing". |
 
@@ -286,7 +287,7 @@ All optional — sensible defaults ship built-in. Override via environment varia
 | `BIBLIO_IPFS_GATEWAYS` | IPFS gateway bases for CID fallback | `ipfs.io, cloudflare-ipfs, pinata` |
 | `BIBLIO_ANNAS_API_KEY` | Anna's Archive member key; enables the fast-download JSON API, which is not behind the DDoS-Guard challenge | unset |
 | `BIBLIO_DISABLE_SOURCES` | Sources excluded from the default search set | `zlibrary` |
-| `BIBLIO_TIMEOUT_MS` | Timeout for scraping an HTML page | `8000` |
+| `BIBLIO_TIMEOUT_MS` | Timeout for scraping an HTML page, including reading its response body | `8000` |
 | `BIBLIO_DOWNLOAD_TIMEOUT_MS` | Timeout for fetching a file | `600000` |
 | `BIBLIO_DOWNLOAD_STALL_MS` | Abort a download idle for this long | `30000` |
 | `BIBLIO_MIRROR_DEAD_TTL_MS` | How long a failed mirror is skipped | `300000` |
