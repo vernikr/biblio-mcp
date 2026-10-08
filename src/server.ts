@@ -141,11 +141,30 @@ export function makeProgressReporter(extra?: {
  * If the SDK ever stops calling this method the override simply never runs and
  * the original behaviour returns — it cannot make errors worse.
  */
+function validationIssuesFrom(error: unknown): unknown[] | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const direct = (error as { issues?: unknown }).issues;
+  if (Array.isArray(direct)) return direct;
+
+  // The SDK currently includes Zod's serialized issue array in its message.
+  // Parse that diagnostic instead of validating the same arguments a second time.
+  const message = (error as { message?: unknown }).message;
+  if (typeof message !== "string") return undefined;
+  const start = message.indexOf("[");
+  if (start < 0) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(message.slice(start));
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function useReadableValidationErrors(server: McpServer): void {
   // The SDK declares validateToolInput private, but it is called as
   // `this.validateToolInput(...)` at runtime, so replacing it on the instance
   // works. Reaching it needs a structural cast; that is the price of not
-  // forking the SDK, and it is confined to these four lines.
+  // forking the SDK, and it is confined to this wrapper.
   type ValidatingServer = {
     validateToolInput: (tool: unknown, args: unknown, toolName: string) => Promise<unknown>;
   };
@@ -159,17 +178,15 @@ function useReadableValidationErrors(server: McpServer): void {
   const original = target.validateToolInput.bind(server);
 
   target.validateToolInput = async (tool, args, toolName) => {
-    // Re-run the parse ourselves so we get structured issues. `inputSchema` is a
-    // zod object schema by the time it reaches here; if a future SDK hands us
-    // something without safeParseAsync we delegate and keep the old message.
-    const schema = (tool as { inputSchema?: unknown })?.inputSchema as
-      | { safeParseAsync?: (v: unknown) => Promise<{ success: boolean; error?: unknown }> }
-      | undefined;
-    if (schema && typeof schema.safeParseAsync === "function") {
-      const result = await schema.safeParseAsync(args);
-      if (!result.success) throw new Error(describeArgsError(String(toolName), result.error));
+    try {
+      // Let the SDK perform its one authoritative parse, then translate its
+      // structured issue array into the agent-facing sentence.
+      return await original(tool, args, toolName);
+    } catch (error) {
+      const issues = validationIssuesFrom(error);
+      if (!issues) throw error;
+      throw new Error(describeArgsError(String(toolName), { issues }));
     }
-    return original(tool, args, toolName);
   };
 }
 

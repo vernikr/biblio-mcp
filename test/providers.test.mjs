@@ -18,8 +18,10 @@ const FIXTURE = await readFile(join(HERE, "fixtures", "libgen-search.html"), "ut
 const SCIMAG_FIXTURE = await readFile(join(HERE, "fixtures", "libgen-scimag.html"), "utf8");
 
 let requestCount = 0;
+const requestUrls = [];
 const srv = createServer((req, res) => {
   requestCount += 1;
+  requestUrls.push(req.url ?? "");
   res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
   res.end(req.url?.includes("topics%5B%5D=a") ? SCIMAG_FIXTURE : FIXTURE);
 });
@@ -57,13 +59,34 @@ test("searchBooks rejects an explicitly empty source list", async () => {
 
 test("searchBooks deduplicates requested sources before making requests", async () => {
   requestCount = 0;
+  requestUrls.length = 0;
   const result = await searchBooks("Vidyamurthy Pairs Trading", ["libgen", "libgen"], 10);
   assert.equal(requestCount, 1);
+  assert.match(requestUrls[0], /[?&]res=30(?:&|$)/);
   assert.equal(result.results.length, 2);
+});
+
+test("searchBooks reuses source results for 45 seconds, keyed by source, query, and limit", async () => {
+  requestCount = 0;
+  requestUrls.length = 0;
+  const query = "cache key regression query";
+  const [first, concurrent] = await Promise.all([
+    searchBooks(query, ["libgen"], 5),
+    searchBooks(query, ["libgen"], 5),
+  ]);
+  assert.equal(requestCount, 1, "concurrent identical searches should share one request");
+  assert.deepEqual(concurrent.results, first.results);
+
+  await searchBooks(query, ["libgen"], 5);
+  assert.equal(requestCount, 1, "a successful result should be reused while fresh");
+
+  await searchBooks(query, ["libgen"], 6);
+  assert.equal(requestCount, 2, "limit is part of the cache key");
 });
 
 test("search_books reports the de-duplicated source list over MCP", async () => {
   requestCount = 0;
+  requestUrls.length = 0;
   const { createServer: createMcpServer } = await import("../dist/server.js");
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const server = createMcpServer();
@@ -72,15 +95,26 @@ test("search_books reports the de-duplicated source list over MCP", async () => 
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     const response = await client.callTool({
       name: "search_books",
-      arguments: { query: "Vidyamurthy Pairs Trading", sources: ["libgen", "libgen"], limit: 10 },
+      arguments: { query: "Vidyamurthy Pairs Trading via MCP", sources: ["libgen", "libgen"], limit: 10 },
     });
     const result = JSON.parse(response.content[0].text);
     assert.equal(requestCount, 1);
+    assert.match(requestUrls[0], /[?&]res=30(?:&|$)/);
     assert.deepEqual(result.sourcesSearched, ["libgen"]);
   } finally {
     await client.close().catch(() => {});
     await server.close().catch(() => {});
   }
+});
+
+test("Libgen caps requested result rows and scales them with the caller's limit", async () => {
+  requestUrls.length = 0;
+  await search("small limit", 1);
+  assert.match(requestUrls[0], /[?&]res=25(?:&|$)/, "small limits keep the minimum result window");
+
+  requestUrls.length = 0;
+  await searchPapers("large limit", 100);
+  assert.match(requestUrls[0], /[?&]res=100(?:&|$)/, "large limits are capped at 100 rows");
 });
 
 // ---------------------------------------------------------------------------

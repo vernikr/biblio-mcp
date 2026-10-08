@@ -9,10 +9,10 @@ import * as libgen from "./libgen.js";
 import * as scihub from "./scihub.js";
 import * as zlibrary from "./zlibrary.js";
 import { ANNAS_MIRRORS, IPFS_GATEWAYS } from "../mirrors.js";
+import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
 import { areMirrorsCoolingDown } from "../http.js";
 import { isUsefulLink } from "../parse.js";
 import {
-  isSourceCircuitOpen,
   sourceCircuitMessage,
   summarizeSourceFailure,
   withSourceCircuit,
@@ -68,6 +68,40 @@ const bookSearchers: Record<
   zlibrary: zlibrary.search,
 };
 
+type BookSearchOutcome = { ok: true; books: Book[] } | { ok: false; error: string };
+
+// Cache both successful results and concise provider failures for the short
+// agent loop; do not retry the same dead source/query on every adjacent call.
+const bookSearchCache = new AsyncTtlCache<string, BookSearchOutcome>(PROVIDER_CACHE_TTL_MS, 128);
+
+function searchSource(source: SourceId, query: string, limit: number): Promise<BookSearchOutcome> {
+  const key = JSON.stringify([source, query, limit]);
+  return bookSearchCache.getOrLoad(key, async () => {
+    try {
+      const books = await withSourceCircuit(source, () => bookSearchers[source]!(query, limit));
+      return { ok: true, books };
+    } catch (error) {
+      return { ok: false, error: summarizeSourceFailure(source, error) };
+    }
+  });
+}
+
+function annasHtmlSkipReason(): string | undefined {
+  const circuit = sourceCircuitMessage("annas");
+  if (circuit) return circuit;
+  if (ANNAS_MIRRORS.length === 0) {
+    return "unavailable — no Anna's Archive mirrors configured; set BIBLIO_ANNAS_MIRRORS";
+  }
+  if (areMirrorsCoolingDown("annas", ANNAS_MIRRORS)) {
+    return "unavailable — all Anna's Archive mirrors are cooling down; retry after the cooldown";
+  }
+  return undefined;
+}
+
+function shouldQueryAnnasHtml(): boolean {
+  return annasHtmlSkipReason() === undefined;
+}
+
 /** Merge two records for the same md5, preferring non-empty fields. */
 function mergeBook(a: Book, b: Book): Book {
   const pick = <K extends keyof Book>(k: K) => a[k] || b[k];
@@ -98,21 +132,19 @@ export async function searchBooks(
     throw new Error("At least one book source must be selected.");
   }
 
-  const settled = await Promise.allSettled(
-    active.map((s) => withSourceCircuit(s, () => bookSearchers[s]!(query, limit)))
-  );
+  const sourceResults = await Promise.all(active.map((source) => searchSource(source, query, limit)));
 
   const errors: SourceError[] = [];
   const byMd5 = new Map<string, Book>();
   const noMd5: Book[] = [];
 
-  settled.forEach((r, i) => {
+  sourceResults.forEach((result, i) => {
     const source = active[i]!;
-    if (r.status === "rejected") {
-      errors.push({ source, error: summarizeSourceFailure(source, r.reason) });
+    if (!result.ok) {
+      errors.push({ source, error: result.error });
       return;
     }
-    for (const book of r.value) {
+    for (const book of result.books) {
       if (book.md5) {
         const existing = byMd5.get(book.md5);
         byMd5.set(book.md5, existing ? mergeBook(existing, book) : book);
@@ -155,17 +187,25 @@ export async function bookDetails(md5: string): Promise<BookDetailsResult> {
   let annasReason: string | undefined;
   let libgenReason: string | undefined;
 
-  // Both sources are started together. Promise.any returns the first source
-  // that produced usable metadata instead of making Libgen wait through all of
-  // Anna's DDoS-Guard mirror failures first.
-  const annasCandidate = withSourceCircuit("annas", async () => {
-    const book = await annas.details(hash);
-    if (!book.title.trim()) throw new Error("Anna's Archive answered with no usable title");
-    return { source: "annas" as const, book };
-  }).catch((error: unknown) => {
-    annasReason = summarizeSourceFailure("annas", error);
-    throw error;
-  });
+  // Both sources are started together when Anna's mirrors are available.
+  // Promise.any returns the first usable metadata, without making Libgen wait
+  // through a known-dead source. Cooling mirrors are skipped rather than
+  // immediately retried in their negative-cache window.
+  const skippedAnnasReason = annasHtmlSkipReason();
+  const canQueryAnnas = skippedAnnasReason === undefined;
+  const annasCandidate = canQueryAnnas
+    ? withSourceCircuit("annas", async () => {
+        const book = await annas.details(hash);
+        if (!book.title.trim()) throw new Error("Anna's Archive answered with no usable title");
+        return { source: "annas" as const, book };
+      }).catch((error: unknown) => {
+        annasReason = summarizeSourceFailure("annas", error);
+        throw error;
+      })
+    : Promise.reject(
+        new Error(skippedAnnasReason ?? "unavailable — Anna's Archive request skipped")
+      );
+  if (skippedAnnasReason) annasReason = skippedAnnasReason;
 
   const libgenCandidate = withSourceCircuit("libgen", async () => {
     const book = await libgen.details(hash);
@@ -205,9 +245,7 @@ export async function bookDetails(md5: string): Promise<BookDetailsResult> {
 /** Resolve every download candidate we can find for an md5. */
 export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   const links: DownloadLink[] = [];
-  const shouldFetchAnnasDetails =
-    !isSourceCircuitOpen("annas") && !areMirrorsCoolingDown("annas", ANNAS_MIRRORS);
-  const annasDetails = shouldFetchAnnasDetails
+  const annasDetails = shouldQueryAnnasHtml()
     ? withSourceCircuit("annas", () => annas.details(md5))
     : Promise.resolve(undefined);
 

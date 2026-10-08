@@ -208,6 +208,14 @@ export interface MirrorFetchResult {
  * failure.
  */
 export type MirrorValidator = (html: string, base: string) => boolean | string;
+type MirrorPathBuilder = (base: string) => string | string[];
+
+class MirrorHttpError extends Error {
+  constructor(base: string, readonly status: number) {
+    super(`${base} -> HTTP ${status}`);
+    this.name = "MirrorHttpError";
+  }
+}
 
 /**
  * Fetch an HTML page, racing the group's mirrors until one returns 2xx.
@@ -215,7 +223,8 @@ export type MirrorValidator = (html: string, base: string) => boolean | string;
  * @param groupKey  Stable key naming the mirror set (used for stickiness and
  *                  for the negative cache).
  * @param mirrors   Ordered list of base URLs (no trailing slash).
- * @param buildPath Given a base, return the full URL to fetch.
+ * @param buildPath Given a base, return one URL or ordered route fallbacks. A
+ *                  later route is tried on the same mirror only for HTTP 404/405.
  * @param init      Optional fetch init.
  * @param validate  Optional identity check applied to the response body. Return
  *                  `false` (or a reason string) to reject the mirror.
@@ -223,7 +232,7 @@ export type MirrorValidator = (html: string, base: string) => boolean | string;
 export async function fetchFromMirrors(
   groupKey: string,
   mirrors: string[],
-  buildPath: (base: string) => string,
+  buildPath: MirrorPathBuilder,
   init?: RequestInit,
   validate?: MirrorValidator
 ): Promise<MirrorFetchResult> {
@@ -250,32 +259,54 @@ export async function fetchFromMirrors(
       controllers.push(controller);
 
       const run = async (): Promise<MirrorFetchResult> => {
-        // Stagger so declared order still decides who wins a close race.
+        // Stagger mirrors, not routes, so a fallback stays local to its host.
         await sleep(index * STAGGER_MS, controller.signal);
-        const url = buildPath(base);
-        return fetchWithTimeout(
-          url,
-          init ?? {},
-          async (res) => {
-            if (!res.ok) {
-              await res.body?.cancel().catch(() => {});
-              throw new Error(`${base} -> HTTP ${res.status}`);
+        const urls = [buildPath(base)].flat();
+        if (urls.length === 0) throw new Error(`${base} -> no request path configured`);
+
+        let lastError: unknown;
+        for (let pathIndex = 0; pathIndex < urls.length; pathIndex++) {
+          const url = urls[pathIndex]!;
+          try {
+            return await fetchWithTimeout(
+              url,
+              init ?? {},
+              async (res) => {
+                if (!res.ok) {
+                  await res.body?.cancel().catch(() => {});
+                  throw new MirrorHttpError(base, res.status);
+                }
+                // Read the body BEFORE winning the race: aborting the losers
+                // must not tear down the response we are about to return.
+                const html = await res.text();
+                if (validate) {
+                  const verdict = validate(html, base);
+                  if (verdict !== true) {
+                    const why =
+                      typeof verdict === "string"
+                        ? verdict
+                        : "response is not the expected site";
+                    throw new Error(`${base} -> ${why}`);
+                  }
+                }
+                return { html, base, finalUrl: res.url || url, attempts };
+              },
+              controller.signal
+            );
+          } catch (error) {
+            lastError = error;
+            const hasRouteFallback = pathIndex < urls.length - 1;
+            if (
+              controller.signal.aborted ||
+              !hasRouteFallback ||
+              !(error instanceof MirrorHttpError) ||
+              (error.status !== 404 && error.status !== 405)
+            ) {
+              throw error;
             }
-            // Read the body BEFORE winning the race: aborting the losers must
-            // not tear down the response we are about to return.
-            const html = await res.text();
-            if (validate) {
-              const verdict = validate(html, base);
-              if (verdict !== true) {
-                const why =
-                  typeof verdict === "string" ? verdict : "response is not the expected site";
-                throw new Error(`${base} -> ${why}`);
-              }
-            }
-            return { html, base, finalUrl: res.url || url, attempts };
-          },
-          controller.signal
-        );
+          }
+        }
+        throw lastError ?? new Error(`${base} -> no request path succeeded`);
       };
 
       run().then(
@@ -531,6 +562,7 @@ export async function probeMirror(
       headers: DEFAULT_HEADERS,
     });
     if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
       return { base, ok: false, status: res.status, ms: Date.now() - started };
     }
     if (opts.expect) {
@@ -545,6 +577,9 @@ export async function probeMirror(
           error: "answered, but the page is not the expected site",
         };
       }
+    } else {
+      // Health-only probes do not inspect the body; release the connection now.
+      await res.body?.cancel().catch(() => {});
     }
     return { base, ok: true, status: res.status, ms: Date.now() - started };
   } catch (err) {

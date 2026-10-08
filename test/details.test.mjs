@@ -292,6 +292,23 @@ test("bookDetails starts Anna's and Libgen concurrently and returns the first us
   }
 });
 
+test("bookDetails identifies an explicitly empty Anna's mirror list", async () => {
+  const md5 = "524037f395462d37b31f2b28fede24fb";
+  const result = await runInProcess(
+    {
+      BIBLIO_ANNAS_MIRRORS: " ",
+      BIBLIO_LIBGEN_MIRRORS: UNREACHABLE,
+    },
+    { md5 },
+    async (c) => {
+      const { bookDetails } = await import("./dist/providers/index.js");
+      return bookDetails(c.md5);
+    }
+  );
+  assert.match(result.annasUnavailable, /no Anna's Archive mirrors configured/i);
+  assert.match(result.annasUnavailable, /BIBLIO_ANNAS_MIRRORS/);
+});
+
 test("bookDetails reports both failures instead of a plausible-looking stub", async () => {
   const md5 = "524037f395462d37b31f2b28fede24fb";
 
@@ -400,6 +417,43 @@ test("download_book preserves a successful staging file and warns on an MD5 mism
   } finally {
     await stub.close();
     await rm(outputDir, { recursive: true, force: true });
+  }
+});
+
+test("Libgen reuses ads.php HTML across details and download-link lookups", async () => {
+  const md5 = "cccccccccccccccccccccccccccccccc";
+  let adsRequests = 0;
+  const stub = await startStub((req, res) => {
+    if (req.url?.startsWith("/ads.php")) {
+      adsRequests += 1;
+      res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+      res.end(
+        `<html><body><table><tr><td>${BIBTEX(md5)}</td></tr></table>` +
+          `<a href="get.php?md5=${md5}&key=KEY123">GET</a></body></html>`
+      );
+      return;
+    }
+    res.writeHead(404).end("not found");
+  });
+
+  try {
+    const result = await runInProcess(
+      { BIBLIO_LIBGEN_MIRRORS: stub.origin },
+      { md5 },
+      async (c) => {
+        const { libgen } = await import("./dist/providers/index.js");
+        const details = await libgen.details(c.md5);
+        const firstLinks = await libgen.downloadLinks(c.md5);
+        const secondLinks = await libgen.downloadLinks(c.md5);
+        return { title: details.title, firstCount: firstLinks.length, secondCount: secondLinks.length };
+      }
+    );
+    assert.equal(result.title, "Pairs Trading: Quantitative Methods and Analysis");
+    assert.ok(result.firstCount > 0);
+    assert.equal(result.secondCount, result.firstCount);
+    assert.equal(adsRequests, 1, "one fresh ads.php response should serve all three lookups");
+  } finally {
+    await stub.close();
   }
 });
 

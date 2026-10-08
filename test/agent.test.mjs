@@ -103,6 +103,30 @@ test("a missing argument names the argument, instead of dumping zod issues", asy
   });
 });
 
+test("readable tool validation performs only the SDK's single schema parse", async () => {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createServer();
+  const client = new Client({ name: "single-parse-test", version: "0.0.0" });
+  const schema = server._registeredTools.search_books.inputSchema;
+  const original = schema._zod.run.bind(schema._zod);
+  let parseCalls = 0;
+  schema._zod.run = (...args) => {
+    parseCalls += 1;
+    return original(...args);
+  };
+
+  try {
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const response = await client.callTool({ name: "search_books", arguments: {} });
+    assert.equal(response.isError, true);
+    assert.match(response.content[0].text, /search_books: "query" is missing/);
+    assert.equal(parseCalls, 1, "formatting the validation error must not parse arguments again");
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
+});
+
 test("a malformed md5 says what a valid one looks like", async () => {
   await withClient(async (client) => {
     const { isError, text } = await callTool(client, "book_details", { md5: "nothex" });

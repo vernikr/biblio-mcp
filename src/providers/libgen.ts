@@ -12,6 +12,7 @@
 // wrong on real data.
 
 import * as cheerio from "cheerio";
+import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
 import { fetchFromMirrors } from "../http.js";
 import { LIBGEN_MIRRORS } from "../mirrors.js";
 import {
@@ -31,6 +32,26 @@ import {
 import type { Book, DownloadLink, Paper } from "../types.js";
 
 const GROUP = "libgen";
+
+function requestedResultRows(limit: number): number {
+  const count = Number.isFinite(limit) ? Math.ceil(limit * 3) : 100;
+  return Math.max(25, Math.min(100, count));
+}
+
+const adsPageCache = new AsyncTtlCache<string, { html: string; base: string }>(
+  PROVIDER_CACHE_TTL_MS,
+  64
+);
+
+function fetchAdsPage(md5: string): Promise<{ html: string; base: string }> {
+  const hash = md5.toLowerCase();
+  return adsPageCache.getOrLoad(hash, async () => {
+    const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (mirror) =>
+      `${mirror}/ads.php?md5=${hash}`
+    );
+    return { html, base };
+  });
+}
 
 /** A cheerio selection. cheerio 1.0 exports `Cheerio` and `CheerioAPI` but not
  *  the DOM node types they are parameterised over, so the collection type is
@@ -145,13 +166,14 @@ function splitTitleCell(
 
 /** Search Library Genesis scimag (academic articles) by keyword or DOI. */
 export async function searchPapers(query: string, limit: number): Promise<Paper[]> {
-  // topics[]=a scopes the search to scimag (articles). Confirmed against the
-  // .li family; the .is family exposes the same collection at /scimag/.
-  const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
-    `${b}/index.php?req=${encodeURIComponent(query)}&topics%5B%5D=a&res=100`
-  ).catch(() =>
-    fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) => `${b}/scimag/?q=${encodeURIComponent(query)}`)
-  );
+  // topics[]=a scopes the search to scimag (articles). The alternate route is
+  // tried on the same mirror only when the first path is missing.
+  const rows = requestedResultRows(limit);
+  const encoded = encodeURIComponent(query);
+  const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) => [
+    `${b}/index.php?req=${encoded}&topics%5B%5D=a&res=${rows}`,
+    `${b}/scimag/?q=${encoded}&res=${rows}`,
+  ]);
 
   const $ = cheerio.load(html);
   const cols = resolveColumns($);
@@ -201,15 +223,14 @@ export async function searchPapers(query: string, limit: number): Promise<Paper[
 }
 
 export async function search(query: string, limit: number): Promise<Book[]> {
-  // The .li family uses index.php; the .is/.rs family uses search.php. Try a
-  // path that both understand, then fall back.
-  const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
-    `${b}/index.php?req=${encodeURIComponent(query)}&res=100`
-  ).catch(() =>
-    fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
-      `${b}/search.php?req=${encodeURIComponent(query)}&res=100&column=def`
-    )
-  );
+  // Try the .li-family route, then its legacy alternative on the same mirror
+  // only if that route is absent; do not make a second full mirror round.
+  const rows = requestedResultRows(limit);
+  const encoded = encodeURIComponent(query);
+  const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) => [
+    `${b}/index.php?req=${encoded}&res=${rows}`,
+    `${b}/search.php?req=${encoded}&res=${rows}&column=def`,
+  ]);
 
   const $ = cheerio.load(html);
   const cols = resolveColumns($);
@@ -266,9 +287,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
  */
 export async function details(md5: string): Promise<Book & { downloadLinks: DownloadLink[] }> {
   const hash = md5.toLowerCase();
-  const { html, base } = await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) =>
-    `${b}/ads.php?md5=${md5}`
-  );
+  const { html, base } = await fetchAdsPage(hash);
 
   const $ = cheerio.load(html);
   const bodyText = $("body").text().replace(/\s+/g, " ");
@@ -312,9 +331,7 @@ export async function downloadLinks(
   md5: string,
   reuse?: { html: string; base: string }
 ): Promise<DownloadLink[]> {
-  const { html, base } =
-    reuse ??
-    (await fetchFromMirrors(GROUP, LIBGEN_MIRRORS, (b) => `${b}/ads.php?md5=${md5}`));
+  const { html, base } = reuse ?? (await fetchAdsPage(md5));
   const $ = cheerio.load(html);
   const links: DownloadLink[] = [];
   const push = (url: string, label: string, direct: boolean) => {

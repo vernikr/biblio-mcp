@@ -5,6 +5,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-08
+
+### Performance
+- `search_books` caches each `(source, query, limit)` outcome for 45 seconds (including concise failures); repeated agent-loop searches reuse results instead of retrying slow mirrors.
+- Libgen `ads.php` HTML is cached by MD5 for 45 seconds and shared between `book_details` and download-link resolution. Anna's HTML details are skipped while all its mirrors are cooling down.
+- Libgen search requests now ask for `clamp(limit × 3, 25, 100)` rows. Legacy route fallbacks are attempted on the same mirror after HTTP 404/405 rather than launching a second full mirror race.
+- Anna's result comment markers are stripped in one pass; tool argument validation now formats the SDK's existing issues without parsing the same schema twice. Health probes cancel bodies they do not inspect.
+- Added opt-in `pnpm run benchmark`; the offline test runner uses four workers on Node 18.9+ while preserving support for earlier Node 18 releases.
+
+### Benchmarks (one live run; mirror latency varies)
+- Using `scripts/benchmark.mjs`, warm `search_books` measured **3119 ms → <1 ms**; warm `book_details` measured **458 ms → 19 ms**; `get_download_links` measured **600 ms → 9 ms**.
+- Cold `search_books` and `book_details` remained network-bound and varied between runs; the warm-cache targets (≤800 ms and ≤700 ms) were met in this sample.
+- Full offline test execution measured **20.2 s for 131 tests before** and **10.9 s for 132 tests after** adaptive concurrency. The plan's <5 s target remains unmet locally; intentional timeout tests and child-process integration tests account for much of the remaining time.
+
 ## [1.7.0] - 2026-10-08
 
 ### Fixed
@@ -286,7 +300,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/vernikr/biblio-mcp/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/vernikr/biblio-mcp/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/vernikr/biblio-mcp/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/vernikr/biblio-mcp/compare/v1.5.1...v1.5.2

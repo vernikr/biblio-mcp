@@ -68,7 +68,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
   // Each record is an <a href="/md5/HASH"> block. Anna's ships some results
   // inside HTML comments (lazy-render); strip comment markers first so the
   // parser sees them too.
-  const normalized = html.replace(/<!--/g, "").replace(/-->/g, "");
+  const normalized = html.replace(/<!--|-->/g, "");
   const $$ = cheerio.load(normalized);
 
   $$('a[href^="/md5/"]').each((_i, el) => {

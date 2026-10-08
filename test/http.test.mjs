@@ -76,6 +76,27 @@ test("fetchFromMirrors falls through a failing mirror to a working one", async (
   }
 });
 
+test("fetchFromMirrors tries a route fallback on the same mirror after HTTP 404", async () => {
+  resetMirrorCache();
+  const server = await serve({
+    "/index.php": (_req, res) => res.writeHead(404).end("route missing"),
+    "/search.php": (_req, res) => res.writeHead(200).end("legacy route works"),
+  });
+
+  try {
+    const result = await fetchFromMirrors("route-fallback", [server.url], (base) => [
+      `${base}/index.php`,
+      `${base}/search.php`,
+    ]);
+    assert.equal(result.html, "legacy route works");
+    assert.equal(result.finalUrl, `${server.url}/search.php`);
+    assert.equal(server.hits("/index.php"), 1);
+    assert.equal(server.hits("/search.php"), 1);
+  } finally {
+    await server.close();
+  }
+});
+
 test("an empty mirror group rejects immediately with its configuration variable", async () => {
   resetMirrorCache();
   const started = Date.now();
@@ -226,6 +247,31 @@ test("a mirror failing the identity check is cooled down like any other failure"
   } finally {
     await impostor.close();
     await real.close();
+  }
+});
+
+test("probeMirror cancels an unread body when no identity marker is requested", async () => {
+  let notifyClosed;
+  const bodyClosed = new Promise((resolve) => (notifyClosed = resolve));
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.write("alive");
+    res.on("close", notifyClosed);
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+
+  try {
+    const result = await probeMirror(base, "/", { timeoutMs: 500 });
+    assert.equal(result.ok, true);
+    assert.equal(
+      await Promise.race([bodyClosed.then(() => true), wait(200).then(() => false)]),
+      true,
+      "the response stream should be released without reading its body"
+    );
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((resolve) => server.close(resolve));
   }
 });
 

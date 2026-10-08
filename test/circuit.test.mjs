@@ -21,17 +21,20 @@ process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 process.env.BIBLIO_TIMEOUT_MS = "1000";
 process.env.BIBLIO_MIRROR_DEAD_TTL_MS = "60000";
 
-const { searchBooks, resolveDownloads } = await import("../dist/providers/index.js");
+const { searchBooks, bookDetails, resolveDownloads } = await import("../dist/providers/index.js");
 
 test.after(() => new Promise((resolve) => server.close(resolve)));
 
 test("Anna's Archive is summarized, skipped while all mirrors are cooling down, and circuit-broken after three failures", async () => {
-  const first = await searchBooks("dune", ["annas"], 5);
+  const first = await searchBooks("dune attempt 1", ["annas"], 5);
   assert.equal(first.errors.length, 1);
   assert.equal(first.errors[0].source, "annas");
   assert.match(first.errors[0].error, /DDoS-Guard challenge/i);
   assert.doesNotMatch(first.errors[0].error, /127\.0\.0\.1|HTTP 403/);
   assert.ok(first.errors[0].error.length < 180, first.errors[0].error);
+  assert.equal(paths.filter((path) => path.startsWith("/search?")).length, 1);
+  const cachedFailure = await searchBooks("dune attempt 1", ["annas"], 5);
+  assert.equal(cachedFailure.errors[0].error, first.errors[0].error);
   assert.equal(paths.filter((path) => path.startsWith("/search?")).length, 1);
 
   // The failed search put the sole Anna's mirror in negative cache. Resolving
@@ -40,14 +43,23 @@ test("Anna's Archive is summarized, skipped while all mirrors are cooling down, 
   await resolveDownloads("a".repeat(32));
   assert.equal(paths.filter((path) => path.startsWith("/md5/")).length, 0);
 
-  const second = await searchBooks("dune", ["annas"], 5);
-  const third = await searchBooks("dune", ["annas"], 5);
+  const annasDetailPagesBefore = paths.filter((path) => path.startsWith("/md5/")).length;
+  const details = await bookDetails("a".repeat(32));
+  assert.equal(
+    paths.filter((path) => path.startsWith("/md5/")).length,
+    annasDetailPagesBefore,
+    "book_details should also skip Anna's HTML while every mirror is cooling down"
+  );
+  assert.match(details.annasUnavailable ?? "", /cooling down/i);
+
+  const second = await searchBooks("dune attempt 2", ["annas"], 5);
+  const third = await searchBooks("dune attempt 3", ["annas"], 5);
   assert.equal(second.errors.length, 1);
   assert.equal(third.errors.length, 1);
   assert.match(third.errors[0].error, /DDoS-Guard challenge/i);
   assert.equal(paths.filter((path) => path.startsWith("/search?")).length, 3);
 
-  const fourth = await searchBooks("dune", ["annas"], 5);
+  const fourth = await searchBooks("dune attempt 4", ["annas"], 5);
   assert.equal(fourth.errors.length, 1);
   assert.match(fourth.errors[0].error, /disabled for this process|circuit/i);
   assert.equal(paths.filter((path) => path.startsWith("/search?")).length, 3);

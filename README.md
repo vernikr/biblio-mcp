@@ -191,9 +191,9 @@ python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
 
 | Tool | What it does |
 |---|---|
-| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. |
-| `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel, returns the first usable result, and reports which one answered (`resolvedVia`). |
-| `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. |
+| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. An exact `(source, query, limit)` result—including a source error—is reused for 45 seconds within this process. |
+| `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused for 45 seconds across details and download-link lookups. |
+| `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. A recent Libgen `ads.php` response is reused. |
 | `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. |
 | `search_papers` | Academic paper / article search via Library Genesis scimag; returns the article title, journal, authors, DOI, and year from the live result layout. |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
@@ -337,6 +337,11 @@ that admits them.
   > page was coming from `annas-archive.li`, a domain that is **no longer Anna's Archive** — see
   > the next item — and the real fix was to stop depending on a source that refuses non-browser
   > clients at all.
+- **Provider results are cached briefly, in process.** Exact `(source, query, limit)` searches
+  (including source-level failures) and Libgen `ads.php` pages keyed by MD5 are reused for 45
+  seconds. This avoids repeat mirror latency across an agent's search→details→links cycle; a newly
+  recovered mirror may not be retried for that exact query until the short TTL expires. Restarting
+  the server clears these caches.
 - **Abandoned domains get re-registered, and this one bit us.** `annas-archive.li` was taken
   down under publisher pressure in March 2026. As of October 2026 it answers HTTP 200 in ~0.15 s
   — faster than every genuine mirror — but serves a 27 kB page of advertising JavaScript with no
@@ -425,6 +430,7 @@ pnpm run preflight       # offline install/dependency check (before or after bui
 pnpm run preflight:strict # ...and fail if dist/ is missing
 pnpm run fixtures:capture # refresh the verified provider-page fixtures (uses the network)
 pnpm run test            # offline tests only
+pnpm run benchmark      # opt-in live provider timing (before/after comparison)
 pnpm run test:live       # optional live mirror/provider checks
 pnpm run test:all        # offline suite, then live suite
 pnpm run selfcheck       # tools + mirror reachability with timings

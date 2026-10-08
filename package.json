@@ -1,6 +1,6 @@
 {
   "name": "biblio-mcp",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "One MCP server for Anna's Archive, Library Genesis, Sci-Hub, and Z-Library. Search books and papers, resolve download links, and fetch files — across all shadow libraries through a single unified interface.",
   "type": "module",
   "bin": {
@@ -36,8 +36,9 @@
     "fixtures:capture": "node scripts/capture-fixtures.mjs",
     "selfcheck": "node dist/index.js --selfcheck",
     "selfcheck:live": "node dist/index.js --selfcheck --live",
+    "benchmark": "pnpm run build && node scripts/benchmark.mjs",
     "smoke": "tsx scripts/smoke.ts",
-    "test": "pnpm run build && node --test test/*.test.mjs",
+    "test": "pnpm run build && node scripts/run-tests.mjs",
     "test:live": "pnpm run build && node --test test/live/*.live.test.mjs",
     "test:all": "pnpm run test && node --test test/live/*.live.test.mjs",
     "verify": "pnpm run typecheck && pnpm run build && pnpm run test && pnpm run selfcheck",
