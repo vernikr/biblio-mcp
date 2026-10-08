@@ -422,6 +422,7 @@ pnpm run typecheck       # strict checks for src/ and scripts/
 pnpm run build           # compile to dist/
 pnpm run preflight       # offline install/dependency check (before or after build)
 pnpm run preflight:strict # ...and fail if dist/ is missing
+pnpm run fixtures:capture # refresh the verified provider-page fixtures (uses the network)
 pnpm run test            # offline tests only
 pnpm run test:live       # optional live mirror/provider checks
 pnpm run test:all        # offline suite, then live suite

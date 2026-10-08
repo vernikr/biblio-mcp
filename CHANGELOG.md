@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ### Added
 - Strict TypeScript guardrails, including unchecked-index checks and typechecking for scripts.
 - Separate opt-in live integration tests; the default test suite stays offline, and CI reports live mirror checks in a non-blocking job.
+- Four provider pages captured from live Libgen/Sci-Hub responses, offline fixture-content and SHA-256 drift checks, and `pnpm run fixtures:capture` to refresh them safely.
 
 ### Fixed
 - Removed the unused Anna's Archive HTML parse, and removed dead imports surfaced by strict compiler checks.
