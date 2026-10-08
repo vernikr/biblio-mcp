@@ -368,16 +368,19 @@ export async function downloadToFile(
   const controller = new AbortController();
   const budget = opts.timeoutMs ?? DOWNLOAD_TIMEOUT_MS;
   const requestTimer = setTimeout(() => controller.abort(), budget);
-  const onExternalAbort = () => controller.abort();
-  opts.signal?.addEventListener("abort", onExternalAbort, { once: true });
+  // One signal for the whole transfer: our timers or the caller can abort it.
+  const linked = linkAbortSignals(controller.signal, opts.signal);
 
   let res: Response;
   try {
     res = await fetch(url, {
       redirect: "follow",
-      signal: controller.signal,
+      signal: linked.signal,
       headers: DEFAULT_HEADERS,
     });
+  } catch (err) {
+    linked.dispose();
+    throw err;
   } finally {
     clearTimeout(requestTimer);
   }
@@ -450,7 +453,7 @@ export async function downloadToFile(
 
     return { path: destPath, bytes, contentType, md5: hash.digest("hex") };
   } finally {
-    opts.signal?.removeEventListener("abort", onExternalAbort);
+    linked.dispose();
   }
 }
 
@@ -471,38 +474,37 @@ export async function probeMirror(
   probePath = "/",
   opts: { timeoutMs?: number; expect?: RegExp } = {}
 ): Promise<MirrorProbe> {
-  const timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
   const started = Date.now();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(`${base}${probePath}`, {
-      method: "GET",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: DEFAULT_HEADERS,
-    });
-    if (!res.ok) {
-      await res.body?.cancel().catch(() => {});
-      return { base, ok: false, status: res.status, ms: Date.now() - started };
-    }
-    if (opts.expect) {
-      const body = await res.text();
-      if (!opts.expect.test(body)) {
-        return {
-          base,
-          ok: false,
-          impostor: true,
-          status: res.status,
-          ms: Date.now() - started,
-          error: "answered, but the page is not the expected site",
-        };
-      }
-    } else {
-      // Health-only probes do not inspect the body; release the connection now.
-      await res.body?.cancel().catch(() => {});
-    }
-    return { base, ok: true, status: res.status, ms: Date.now() - started };
+    return await fetchWithTimeout(
+      `${base}${probePath}`,
+      { method: "GET" },
+      async (res): Promise<MirrorProbe> => {
+        if (!res.ok) {
+          await res.body?.cancel().catch(() => {});
+          return { base, ok: false, status: res.status, ms: Date.now() - started };
+        }
+        if (opts.expect) {
+          const body = await res.text();
+          if (!opts.expect.test(body)) {
+            return {
+              base,
+              ok: false,
+              impostor: true,
+              status: res.status,
+              ms: Date.now() - started,
+              error: "answered, but the page is not the expected site",
+            };
+          }
+        } else {
+          // Health-only probes do not inspect the body; release the connection now.
+          await res.body?.cancel().catch(() => {});
+        }
+        return { base, ok: true, status: res.status, ms: Date.now() - started };
+      },
+      undefined,
+      opts.timeoutMs ?? TIMEOUT_MS
+    );
   } catch (err) {
     return {
       base,
@@ -510,7 +512,5 @@ export async function probeMirror(
       ms: Date.now() - started,
       error: String((err as Error)?.message ?? err),
     };
-  } finally {
-    clearTimeout(timer);
   }
 }
