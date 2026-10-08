@@ -13,12 +13,20 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { delimiter, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runStartupSelftest } from "../dist/selfcheck.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const INSTALLER = join(HERE, "..", "scripts", "install.mjs");
+
+/** The installer refuses to run without pnpm (it never falls back to npm over a
+ *  pnpm lockfile). Tests that exercise that path declare the prerequisite and are
+ *  reported as skipped, with the reason, when it is absent from PATH. */
+const PNPM_ON_PATH = (process.env.PATH ?? "")
+  .split(delimiter)
+  .some((dir) => dir && existsSync(join(dir, "pnpm")));
+const needsPnpm = PNPM_ON_PATH ? {} : { skip: "pnpm is not on PATH; the installer requires it" };
 
 /** Run the installer and return { status, stdout, stderr }. */
 function runInstaller(args, cwd, env) {
@@ -72,7 +80,7 @@ test("the startup check can be bypassed, and says so when it refuses", () => {
 // The installer (item 24)
 // ---------------------------------------------------------------------------
 
-test("the installer runs end to end in dry-run mode and writes nothing", () => {
+test("the installer runs end to end in dry-run mode and writes nothing", needsPnpm, () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const r = runInstaller(["--dry-run", "--dir", join(dir, "repo")]);
   assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
@@ -107,7 +115,7 @@ test("the installer refuses npm fallback when the checkout has a pnpm lockfile",
   assert.doesNotMatch(r.stdout, /\[2\] obtaining/, "the installer should stop at the missing pnpm prerequisite");
 });
 
-test("the installer --live flag runs the live selfcheck", () => {
+test("the installer --live flag runs the live selfcheck", needsPnpm, () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const r = runInstaller(["--dry-run", "--live", "--dir", join(dir, "repo")]);
   assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
@@ -123,7 +131,7 @@ test("the installer rejects contradictory --live and --skip-network flags immedi
   assert.doesNotMatch(r.stdout, /\[1\] checking prerequisites/);
 });
 
-test("the installer refuses to overwrite a config it cannot parse", () => {
+test("the installer refuses to overwrite a config it cannot parse", needsPnpm, () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const cfg = join(dir, "mcp.json");
   writeFileSync(cfg, "{ this is not json\n");
@@ -135,7 +143,7 @@ test("the installer refuses to overwrite a config it cannot parse", () => {
   assert.equal(readFileSync(cfg, "utf8"), "{ this is not json\n", "the file must be unchanged");
 });
 
-test("the installer refuses a config that is not a JSON object", () => {
+test("the installer refuses a config that is not a JSON object", needsPnpm, () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const cfg = join(dir, "mcp.json");
   writeFileSync(cfg, "[1,2,3]\n");
@@ -147,7 +155,7 @@ test("the installer refuses a config that is not a JSON object", () => {
   assert.equal(readFileSync(cfg, "utf8"), "[1,2,3]\n");
 });
 
-test("the installer merges into an existing config and keeps a backup", () => {
+test("the installer merges into an existing config and keeps a backup", needsPnpm, () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const cfg = join(dir, "mcp.json");
   writeFileSync(cfg, JSON.stringify({ mcpServers: { other: { command: "x" } } }));

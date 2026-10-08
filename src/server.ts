@@ -2,8 +2,9 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { mkdir, open, rename, unlink } from "node:fs/promises";
+import { access, mkdir, open, rename, unlink } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import {
@@ -330,14 +331,24 @@ export function createServer(): McpServer {
       const dir = wasRelative ? resolve(homedir(), output_dir) : output_dir;
       await mkdir(dir, { recursive: true });
 
+      // A file the caller named is theirs: refuse rather than overwrite it.
+      if (plainName !== undefined) {
+        const taken = await access(join(dir, plainName)).then(() => true, () => false);
+        if (taken) {
+          return jsonError({
+            saved: false,
+            reason: `${plainName} already exists in ${dir}; choose another filename.`,
+          });
+        }
+      }
+
       const onProgress = makeProgressReporter(extra);
-      // Staging name, so the extension can be sniffed from the bytes we just
-      // wrote rather than guessed from a content-type the mirror may not set.
-      const staging = join(dir, `${hash}.downloading`);
+      // A staging name unique to this call, so concurrent downloads of the same
+      // md5 into the same directory cannot write or delete each other's bytes.
+      const staging = join(dir, `${hash}.${randomUUID()}.downloading`);
       const errors: string[] = [];
 
       for (const link of direct) {
-        await unlink(staging).catch(() => {});
         try {
           const result = await downloadToFile(link.url, staging, {
             onProgress,
