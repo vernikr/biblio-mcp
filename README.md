@@ -18,7 +18,7 @@ that something you can rely on.
 - **Honest results.** A source that is down is reported, not silently dropped. A website that
   has stopped being the real library is refused, and a page that asks you to prove you are a
   human is reported as such, not handed over as the book. Downloaded files are checked, so you know you
-  got the right book.
+  got the right book. Files you name explicitly won't replace an existing file.
 - **Cleaner information.** Titles, authors and formats come from the right fields, and broken
   or useless links are filtered out.
 - **Less time lost.** When something goes wrong, the message says what happened and what to do
@@ -399,6 +399,10 @@ that admits them.
   title. Columns are now resolved from the table's `<th>` row, with a positional fallback for
   mirrors that ship no header, and `series` is its own field. File sizes go through a bounded
   parser, so a digit run from the pages column (`00264mB`) can no longer be reported as a size.
+- **Explicit download filenames are never overwritten**, even if a file appears during the
+  transfer. This needs hard-link support in the output filesystem; without it, the tool fails
+  safely rather than risking an overwrite. Without `filename`, existing MD5-based files may
+  still be replaced.
 - **Download links are filtered before they reach you.** Providers scrape anchors, and some
   anchors are not downloads — Libgen's `ads.php` page links the bare `http://annas-archive.org/`
   homepage, which used to appear as a download option. A link is only reported if it has a path

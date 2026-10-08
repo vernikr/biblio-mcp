@@ -2,7 +2,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { access, mkdir, open, rename, unlink } from "node:fs/promises";
+import { access, link as linkFile, mkdir, open, rename, unlink } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
@@ -288,7 +288,7 @@ export function createServer(): McpServer {
       filename: z
         .string()
         .optional()
-        .describe("Optional filename; defaults to <md5>.<ext>."),
+        .describe("Optional plain filename; defaults to <md5>.<ext>. Existing names are never overwritten."),
     },
     async ({ md5, output_dir, filename }, extra) => {
       const hash = md5.toLowerCase();
@@ -336,7 +336,22 @@ export function createServer(): McpServer {
             plainName ??
             `${hash}.${sniffExt(await readFileHead(staging, 4096), result.contentType)}`;
           const path = join(dir, name);
-          await rename(staging, path);
+          try {
+            // A precheck cannot prevent a concurrent writer. link is atomic and
+            // refuses an existing caller-chosen name; never fall back to rename.
+            if (plainName !== undefined) await linkFile(staging, path);
+            else await rename(staging, path);
+          } catch (e) {
+            await unlink(staging).catch(() => {});
+            // Publication is a local failure, not a reason to try another URL.
+            return jsonError({
+              saved: false,
+              reason: (e as NodeJS.ErrnoException).code === "EEXIST"
+                ? `${name} already exists in ${dir}; choose another filename.`
+                : `Cannot publish ${name} in ${dir}: ${(e as Error).message}`,
+            });
+          }
+          if (plainName !== undefined) await unlink(staging).catch(() => {});
 
           return json({
             saved: true,

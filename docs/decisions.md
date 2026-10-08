@@ -12,7 +12,7 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 ## Timeouts and downloads
 
 - The HTML request budget covers body consumption, not just response headers. Large file downloads have a separate budget and an idle stall watchdog.
-- Downloads stream through a hash transform to a `.part` file and are renamed only after success. Reject HTML interstitials instead of saving them as books; report the actual MD5 because mirror links can serve a different file.
+- Downloads stream through a hash transform to a `.part` file and are published only after a complete transfer. Reject HTML interstitials instead of saving them as books; report the actual MD5 because mirror links can serve a different file.
 - Probe requests without an identity marker cancel unread bodies so health checks do not leave connections open.
 
 ## Provider parsing and data
@@ -56,6 +56,6 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 - **A losing Anna's request is cancelled; a losing Libgen request is not.** Once Libgen answers first, the slower Anna's detail request is cancelled, and that cancellation does not count against the Anna's circuit. Libgen's ads page is cached and reused by the download step, so cancelling it would waste work the next call needs.
 - **Member links race the verified mirrors.** Each verified mirror is asked at once, the first usable answer wins, and the rest are cancelled. Sequential tries cost one full timeout per dead mirror.
 - **Not-found responses are health, not failure.** A 404 or "no such record" answer proves the source responded. It does not open a mirror's cooldown or a source's circuit. Real failures still do.
-- **A caller's filename is never overwritten.** A default name is the catalogue MD5 with the sniffed extension, which means the same book. A name the caller chose is refused if it already exists. Each download stages under a unique temporary name, so parallel calls for the same MD5 cannot delete each other's bytes.
+- **A caller's filename is never overwritten.** Publish a caller-chosen name with an atomic hard link from unique same-directory staging, so a file created during the transfer is refused too. Without hard-link support, fail rather than fall back to `rename`; a publication failure must not re-download from another URL. Default catalogue-MD5 names retain their replacement behavior. Unique staging keeps concurrent calls from writing or deleting each other's temporary bytes.
 - **One settings registry and one tool-description source.** Every `BIBLIO_*` setting is listed once in `src/config.ts`, and the README table is generated from it. Each tool's text and example live together in `src/toolmeta.ts`, and a test checks each example against its schema. Argument text stays in the Zod schemas.
 - **The installer's end-to-end test runs a real build and stays in the default suite.** Cutting it would make the suite faster but would drop coverage of the actual install path, so it stays. The cost is about five seconds of the roughly fifteen-second suite.
