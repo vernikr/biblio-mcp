@@ -271,6 +271,12 @@ test("the published tarball contains the installer the README points at", async 
   }
 });
 
+test("the fork package is private while the upstream owns the npm name", () => {
+  const pkg = JSON.parse(readFileSync(join(HERE, "..", "package.json"), "utf8"));
+  assert.equal(pkg.name, "biblio-mcp");
+  assert.equal(pkg.private, true, "avoid accidentally publishing over the upstream package");
+});
+
 test("every version in the CHANGELOG has a matching compare link", async () => {
   // Five fork releases shipped with no tag and, for four of them, no link at all,
   // so the "keep a changelog" link references pointed nowhere. Guard it.

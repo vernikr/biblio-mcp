@@ -12,21 +12,52 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = await readFile(join(HERE, "fixtures", "libgen-search.html"), "utf8");
 const SCIMAG_FIXTURE = await readFile(join(HERE, "fixtures", "libgen-scimag.html"), "utf8");
-
+const LANDING_SCIMAG_FIXTURE = SCIMAG_FIXTURE.replaceAll(
+  "10.1038/nature12373",
+  "10.1038/nature12373-nopdf"
+);
+const scimagResultRow = SCIMAG_FIXTURE.match(/<tr>\s*<td bgcolor="green"><\/td>[\s\S]*?<\/tr>/)?.[0];
+if (!scimagResultRow) throw new Error("Could not locate the captured scimag result row");
+const MULTI_SCIMAG_FIXTURE = SCIMAG_FIXTURE.replace(
+  /<tbody>[\s\S]*?<\/tbody>/,
+  `<tbody>${Array.from({ length: 5 }, (_, i) =>
+    scimagResultRow
+      .replaceAll("10.1038/nature12373", `10.1038/nature12373-${i + 1}`)
+      .replaceAll("Nanometre-scale thermometry in a living cell", `Paper ${i + 1}`)
+  ).join("\n")}</tbody>`
+);
 let requestCount = 0;
 const requestUrls = [];
 const srv = createServer((req, res) => {
   requestCount += 1;
   requestUrls.push(req.url ?? "");
   res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
-  res.end(req.url?.includes("topics%5B%5D=a") ? SCIMAG_FIXTURE : FIXTURE);
+  const pathname = decodeURIComponent((req.url ?? "").split("?")[0]);
+  if (pathname.startsWith("/10.1038/nature12373")) {
+    const page = pathname.endsWith("-nopdf")
+      ? "<html><head><title>Article landing page</title></head><body>Read article</body></html>"
+      : '<html><head><title>Nanometre-scale thermometry in a living cell</title></head>' +
+        '<body><div id="citation"><i>Nanometre-scale thermometry in a living cell</i></div>' +
+        '<embed id="pdf" src="/pdf/nature.pdf"></body></html>';
+    res.end(page);
+  } else {
+    const isScimag = req.url?.includes("topics%5B%5D=a");
+    const fixture = req.url?.includes("req=multi-doi")
+      ? MULTI_SCIMAG_FIXTURE
+      : req.url?.includes("req=no-pdf")
+        ? LANDING_SCIMAG_FIXTURE
+        : SCIMAG_FIXTURE;
+    res.end(isScimag ? fixture : FIXTURE);
+  }
 });
 await new Promise((r) => srv.listen(0, "127.0.0.1", r));
 const MIRROR = `http://127.0.0.1:${srv.address().port}`;
 process.env.BIBLIO_LIBGEN_MIRRORS = MIRROR;
+process.env.BIBLIO_SCIHUB_MIRRORS = MIRROR;
 process.env.BIBLIO_TIMEOUT_MS = "3000";
 
 const { search, searchPapers } = await import("../dist/providers/libgen.js");
+const { createServer: createMcpServer } = await import("../dist/server.js");
 const {
   BOOK_SOURCES,
   ALL_BOOK_SOURCES,
@@ -97,6 +128,60 @@ test("search_books reports the de-duplicated source list over MCP", async () => 
     assert.equal(requestCount, 1);
     assert.match(requestUrls[0], /[?&]res=30(?:&|$)/);
     assert.deepEqual(result.sourcesSearched, ["libgen"]);
+  } finally {
+    await client.close().catch(() => {});
+    await server.close().catch(() => {});
+  }
+});
+
+test("search_papers resolves direct PDFs only when requested and keeps search best-effort", async () => {
+  requestCount = 0;
+  requestUrls.length = 0;
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createMcpServer();
+  const client = new Client({ name: "search-paper-pdf-test", version: "0.0.0" });
+  try {
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+    const plainResponse = await client.callTool({
+      name: "search_papers",
+      arguments: { query: "10.1038/nature12373", limit: 5 },
+    });
+    const plain = JSON.parse(plainResponse.content[0].text);
+    assert.equal(plain.results[0].pdfUrl, undefined);
+    assert.equal(requestCount, 1, "the default search must not issue a Sci-Hub request");
+
+    requestCount = 0;
+    requestUrls.length = 0;
+    const enrichedResponse = await client.callTool({
+      name: "search_papers",
+      arguments: { query: "10.1038/nature12373", limit: 5, resolvePdfs: true },
+    });
+    const enriched = JSON.parse(enrichedResponse.content[0].text);
+    assert.equal(requestCount, 2, "PDF enrichment adds one bounded Sci-Hub lookup");
+    assert.equal(enriched.results[0].pdfUrl, `${MIRROR}/pdf/nature.pdf`);
+
+    requestCount = 0;
+    requestUrls.length = 0;
+    const cappedResponse = await client.callTool({
+      name: "search_papers",
+      arguments: { query: "multi-doi", limit: 10, resolvePdfs: true },
+    });
+    const capped = JSON.parse(cappedResponse.content[0].text);
+    assert.equal(capped.results.length, 5);
+    assert.equal(requestCount, 4, "five DOI results trigger at most three Sci-Hub lookups");
+    assert.equal(capped.results.filter((paper) => paper.pdfUrl).length, 3);
+
+    requestCount = 0;
+    requestUrls.length = 0;
+    const landingResponse = await client.callTool({
+      name: "search_papers",
+      arguments: { query: "no-pdf", limit: 5, resolvePdfs: true },
+    });
+    const landing = JSON.parse(landingResponse.content[0].text);
+    assert.equal(landing.results.length, 1, "a landing page must not discard the paper result");
+    assert.equal(landing.results[0].pdfUrl, undefined, "a landing page is not a direct PDF URL");
+    assert.equal(requestCount, 2);
   } finally {
     await client.close().catch(() => {});
     await server.close().catch(() => {});

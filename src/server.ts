@@ -26,7 +26,7 @@ import {
   ALL_BOOK_SOURCES,
   DISABLED_BOOK_SOURCES,
 } from "./providers/index.js";
-import type { SourceId } from "./types.js";
+import type { Paper, SourceId } from "./types.js";
 
 const SERVER_NAME = "biblio-mcp";
 
@@ -141,6 +141,31 @@ function useReadableValidationErrors(server: McpServer): void {
       throw new Error(describeArgsError(String(toolName), { issues }, inputSchema));
     }
   };
+}
+
+const MAX_SEARCH_PDF_RESOLUTIONS = 3;
+
+/** Best-effort, bounded Sci-Hub enrichment; search results must survive mirror failures. */
+async function resolvePaperPdfs(papers: Paper[]): Promise<Paper[]> {
+  const pdfUrls = new Map<Paper, string>();
+  let attempts = 0;
+
+  for (const paper of papers) {
+    const doi = paper.doi;
+    if (!doi || attempts >= MAX_SEARCH_PDF_RESOLUTIONS) continue;
+    attempts += 1;
+    try {
+      const resolved = await withSourceCircuit("scihub", () => scihub.resolve(doi));
+      if (resolved.pdfUrl) pdfUrls.set(paper, resolved.pdfUrl);
+    } catch {
+      // Optional PDF resolution never turns a successful Libgen search into an error.
+    }
+  }
+
+  return papers.map((paper) => {
+    const pdfUrl = pdfUrls.get(paper);
+    return pdfUrl ? { ...paper, pdfUrl } : paper;
+  });
 }
 
 export function createServer(): McpServer {
@@ -346,18 +371,26 @@ export function createServer(): McpServer {
     describeTool(
       "search_papers",
       "Search academic papers / journal articles by keyword, author, title, or " +
-        "DOI via Library Genesis scimag. Returns DOIs and mirror links. To fetch a " +
-        "PDF, pass the DOI to get_paper.",
+        "DOI via Library Genesis scimag. Returns DOIs and mirror links. Set " +
+        "`resolvePdfs: true` to best-effort resolve direct PDF URLs via Sci-Hub " +
+        "for up to three results (extra network requests; off by default).",
     ),
     {
       query: z.string().describe("Keywords, title, author, or DOI."),
       limit: z.number().int().min(1).max(100).optional(),
+      resolvePdfs: z
+        .boolean()
+        .optional()
+        .describe(
+          "Best-effort direct PDF lookup via Sci-Hub for up to three DOI results; adds network requests."
+        ),
     },
-    async ({ query, limit }) => {
+    async ({ query, limit, resolvePdfs: shouldResolvePdfs }) => {
       const papers = await withSourceCircuit("libgen", () =>
         libgen.searchPapers(query, limit ?? 20)
       );
-      return json({ query, total: papers.length, results: papers });
+      const results = shouldResolvePdfs ? await resolvePaperPdfs(papers) : papers;
+      return json({ query, total: results.length, results });
     }
   );
 

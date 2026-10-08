@@ -62,6 +62,16 @@ test("every tool advertises an input schema with its required fields", async () 
   });
 });
 
+test("search_papers advertises opt-in PDF resolution without making it required", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const search = tools.find((tool) => tool.name === "search_papers");
+    assert.equal(search.inputSchema.properties.resolvePdfs.type, "boolean");
+    assert.ok(!search.inputSchema.required.includes("resolvePdfs"));
+    assert.match(search.description, /resolve direct PDF URLs via Sci-Hub/);
+  });
+});
+
 test("download_book requires md5 and output_dir", async () => {
   await withClient(async (client) => {
     const { tools } = await client.listTools();

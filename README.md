@@ -1,52 +1,18 @@
 # biblio-mcp
 
-> ## 🔧 About this fork — in plain terms
->
-> This is a maintained fork of [`yashimosh/biblio-mcp`](https://github.com/yashimosh/biblio-mcp).
-> The original idea is unchanged and still good: **one tool that lets an AI assistant search
-> the world's shadow libraries and download a book or a paper**. What this fork changes is
-> everything that happens *around* that idea — how reliably it installs, how honestly it
-> reports problems, and how much of your time it wastes when something is wrong.
->
-> **The problem we found.** The published version could install cleanly, start up, and appear
-> perfectly healthy in your AI client's list of tools — and then fail on *every single request*.
-> Nothing in the setup warned you, and the error message it produced was an internal one
-> (`keyValidator._parse is not a function`) that tells a human nothing. In practice this sent
-> both people and AI agents off on long detours: reading source code, guessing at arguments,
-> rewriting working software by hand. One such attempt burned eight minutes and still did not
-> download the book.
->
-> **What this fork does about it.**
->
-> | | Before (upstream) | In this fork |
-> |---|---|---|
-> | **Broken installs** | Look healthy, then fail on every request | Detected in about one second, with the exact command that fixes it |
-> | **A broken build that starts anyway** | Listed its tools cheerfully, then failed every one of them | Refuses to start, and says which two packages to fix |
-> | **Installing it** | Six commands, and the npm package is the broken one | `node scripts/install.mjs` — and it checks itself before handing you a config |
-> | **Proving it works** | No way short of using it and hoping | `pnpm selfcheck` reports tools, mirror health and timings |
-> | **Search speed** | ~14 seconds, mostly waiting on dead websites | ~1 second on the same query |
-> | **Downloads** | Saved whatever came back, including stray web pages | Streamed to disk and checksum-verified, so you know it is the right file |
-> | **A dead source** | Slowed down every search and reported an error you could not act on | Switched off by default; opt back in when you have a working address |
-> | **A domain that stopped being the real site** | Answered “OK”, got trusted, and quietly returned nothing | Detected and refused — a status code is not proof of identity |
-> | **Wrong book data** | Reported the series name and a list of ISBNs as the author | Read from the column the page actually labels, so `author` is the author |
-> | **Useless download links** | Offered a bare homepage as a way to download the book | Filtered out — a link is only offered if it can reach that file |
-> | **Long downloads** | Could silently outlast your client's timeout | Reports progress while transferring |
-> | **A wrong tool call** | Answered with a validation dump only a programmer could read | Answers with the argument that is missing and a working example |
-> | **“Is anything even reachable?”** | No way to ask; a blocked network looked like an empty search | `healthcheck` says which sources answer, and how fast |
->
-> **The honest caveats.** Catalogue data now comes from the column a page actually labels, and
-> `book_details` reads structured metadata (a BibTeX block) instead of guessing at a web page —
-> but these are third-party sites with no stability guarantees. They change their layout, they
-> go offline, and domains get re-registered by other people. No fork can promise they stay
-> reachable. What this fork promises is narrower and more useful: **when something is broken, it
-> tells you immediately and tells you what to do.**
->
-> **Not sure which to use?** If you just want the tools to work and to be told the truth when
-> they do not, use this fork. If you specifically need the upstream npm package, note that its
-> published dependency set is the combination described above.
-
 [![CI](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml)
 [![license](https://img.shields.io/npm/l/biblio-mcp.svg)](LICENSE)
+
+## Quick start
+
+```bash
+git clone https://github.com/vernikr/biblio-mcp.git
+cd biblio-mcp
+node scripts/install.mjs
+```
+
+Requires Node.js 18+ and pnpm. The installer builds and verifies the server, then prints the MCP
+client configuration. See [Install](#install) for manual setup and configuration options.
 
 **One [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that searches Anna's Archive, Library Genesis (Libgen), Sci-Hub, and Z-Library — all at once.**
 
@@ -75,7 +41,7 @@ It connects to any MCP client (Claude, Cline, Cursor, Windsurf, or custom agents
 |---|---|---|
 | **Anna's Archive** | Book search, metadata, download links (partner servers, IPFS) | Yes |
 | **Library Genesis (Libgen)** | Book search, academic paper search (scimag), direct `get.php` downloads | Yes |
-| **Sci-Hub** | Paper PDF resolution by DOI, URL, or title | On demand, via `get_paper` |
+| **Sci-Hub** | Paper PDF resolution by DOI, URL, or title | On demand via `get_paper` or `search_papers({ resolvePdfs: true })` |
 | **Z-Library** | Best-effort public book search (no login required) | **No** — see [Known limitations](#known-limitations) |
 
 ## Install
@@ -108,7 +74,8 @@ upstream release, and its published dependency set is the combination that break
 That server starts, answers `tools/list`, and then fails every `tools/call`. Publishing a
 same-named package that silently replaced it would be worse than the situation it fixes, and
 publishing under a new name would fragment the search results people already use. So the
-supported install is from source, and the installer above is what makes that one command.
+supported install is from source, and `package.json` is marked private to prevent accidental
+publishing under the upstream name. The installer above makes source installation one command.
 
 ### Manual install
 
@@ -150,8 +117,9 @@ ready to run: node dist/index.js
 
 The upstream repository shipped both `package-lock.json` and (in forks) `pnpm-lock.yaml`, and
 they disagreed: npm resolved `@modelcontextprotocol/sdk@1.12.1` against `zod@4.4.3`, which is
-exactly the broken pairing described in the banner. `npm ci` therefore produced a server that
-started and then failed every tool call. This fork keeps one lockfile so there is one answer.
+exactly the broken pairing described in [About this fork](#about-this-fork). `npm ci` therefore
+produced a server that started and then failed every tool call. This fork keeps one lockfile so
+there is one answer.
 
 ### Add to Claude Code
 
@@ -195,7 +163,7 @@ python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
 | `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused for 45 seconds across details and download-link lookups. |
 | `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. A recent Libgen `ads.php` response is reused. |
 | `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. |
-| `search_papers` | Academic paper / article search via Library Genesis scimag; returns the article title, journal, authors, DOI, and year from the live result layout. |
+| `search_papers` | Search Library Genesis scimag for papers; returns title, journal, authors, DOI and year. Set `resolvePdfs: true` to best-effort add direct `pdfUrl` values for up to three DOI results (extra Sci-Hub requests). |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
 | `healthcheck` | Can this server reach its sources? Per-mirror status and latency, without querying a catalogue. Use it to tell "the network is blocked" apart from "the query matched nothing". |
 
@@ -251,8 +219,10 @@ asked for. When it is `false`, the mirror served a different file and you should
 
 **Papers:**
 
-1. `search_papers({ query: "CRISPR gene editing" })` → results with DOIs
-2. `get_paper({ identifier: "10.1089/crispr.2019.0064" })` → direct PDF URL
+1. `search_papers({ query: "CRISPR gene editing", resolvePdfs: true })` → results with DOIs and
+   best-effort direct PDF URLs
+2. If a result has no `pdfUrl`, call `get_paper({ identifier: "10.1089/crispr.2019.0064" })` →
+   direct PDF URL when available
 
 ### A note on client timeouts (important)
 
@@ -319,6 +289,51 @@ Two of these deserve a note:
 | **Fault tolerance** | Source down? Others still work | Server down? That source is gone |
 | **Papers + Books** | Both in one server | Need separate servers for Sci-Hub vs Libgen |
 
+## About this fork
+
+This is a maintained fork of [`yashimosh/biblio-mcp`](https://github.com/yashimosh/biblio-mcp).
+The original idea is unchanged and still good: **one tool that lets an AI assistant search
+the world's shadow libraries and download a book or a paper**. What this fork changes is
+everything that happens *around* that idea — how reliably it installs, how honestly it
+reports problems, and how much of your time it wastes when something is wrong.
+
+**The problem we found.** The published version could install cleanly, start up, and appear
+perfectly healthy in your AI client's list of tools — and then fail on *every single request*.
+Nothing in the setup warned you, and the error message it produced was an internal one
+(`keyValidator._parse is not a function`) that tells a human nothing. In practice this sent
+both people and AI agents off on long detours: reading source code, guessing at arguments,
+rewriting working software by hand. One such attempt burned eight minutes and still did not
+download the book.
+
+**What this fork does about it.**
+
+| | Before (upstream) | In this fork |
+|---|---|---|
+| **Broken installs** | Look healthy, then fail on every request | Detected in about one second, with the exact command that fixes it |
+| **A broken build that starts anyway** | Listed its tools cheerfully, then failed every one of them | Refuses to start, and says which two packages to fix |
+| **Installing it** | Six commands, and the npm package is the broken one | `node scripts/install.mjs` — and it checks itself before handing you a config |
+| **Proving it works** | No way short of using it and hoping | `pnpm selfcheck` reports tools, mirror health and timings |
+| **Search speed** | ~14 seconds, mostly waiting on dead websites | ~1 second on the same query |
+| **Downloads** | Saved whatever came back, including stray web pages | Streamed to disk and checksum-verified, so you know it is the right file |
+| **A dead source** | Slowed down every search and reported an error you could not act on | Switched off by default; opt back in when you have a working address |
+| **A domain that stopped being the real site** | Answered “OK”, got trusted, and quietly returned nothing | Detected and refused — a status code is not proof of identity |
+| **Wrong book data** | Reported the series name and a list of ISBNs as the author | Read from the column the page actually labels, so `author` is the author |
+| **Useless download links** | Offered a bare homepage as a way to download the book | Filtered out — a link is only offered if it can reach that file |
+| **Long downloads** | Could silently outlast your client's timeout | Reports progress while transferring |
+| **A wrong tool call** | Answered with a validation dump only a programmer could read | Answers with the argument that is missing and a working example |
+| **“Is anything even reachable?”** | No way to ask; a blocked network looked like an empty search | `healthcheck` says which sources answer, and how fast |
+
+**The honest caveats.** Catalogue data now comes from the column a page actually labels, and
+`book_details` reads structured metadata (a BibTeX block) instead of guessing at a web page —
+but these are third-party sites with no stability guarantees. They change their layout, they
+go offline, and domains get re-registered by other people. No fork can promise they stay
+reachable. What this fork promises is narrower and more useful: **when something is broken, it
+tells you immediately and tells you what to do.**
+
+**Not sure which to use?** If you just want the tools to work and to be told the truth when
+they do not, use this fork. If you specifically need the upstream npm package, note that its
+published dependency set is the combination described above.
+
 ## Known limitations
 
 These are stated plainly because a tool that hides its failures costs you more time than one
@@ -346,10 +361,11 @@ that admits them.
   down under publisher pressure in March 2026. As of October 2026 it answers HTTP 200 in ~0.15 s
   — faster than every genuine mirror — but serves a 27 kB page of advertising JavaScript with no
   `<title>`. A liveness check that trusts status codes therefore ranked it *first*, and the
-  parsers quietly turned an ad page into "zero results, no error". Providers now pass a content
-  validator, so such a host is rejected with an explicit reason, and `pnpm selfcheck` reports it
-  as `HTTP 200 — NOT the expected site` instead of as healthy. Every source group now has a
-  positive identity marker; if you add mirrors, keep the corresponding marker accurate.
+  parsers could quietly turn an ad page into "zero results, no error". Anna's scraped pages pass a
+  content validator, and `healthcheck`/`selfcheck` use positive identity markers for every source
+  group. Provider fetch validation is still provider-specific: Sci-Hub can return an ALTCHA page
+  with HTTP 200 (tracked as A16 in the audit worklog). If you add mirrors, keep the corresponding
+  identity marker accurate.
 - **Libgen columns are read by header name, not by position.** Libgen's first column combines
   series, title and ISBNs; the author is the second. A parser that assumed positions reported the
   series name and a list of ISBNs as the author, and glued `Wiley Finance` onto the front of every
@@ -374,22 +390,13 @@ that admits them.
 
 ### Roadmap
 
-Phases 0–2 of the improvement plan are implemented in this fork: a build that cannot
-silently produce a broken server, a health check, faster and more honest mirror handling,
-streaming verified downloads, progress reporting, and parsers that report what a page actually
-says.
+Phases 0–5 of the improvement plan are implemented: strict offline verification, captured parser
+fixtures, resilient mirrors, streaming downloads, source circuits and caches, schema-derived tool
+hints, a maintainer guide, optional paper-PDF enrichment, and an updated quick start.
 
-Phase 2 is implemented as well: Libgen columns are resolved by header name, `series` is a
-separate field, sizes and years go through bounded parsers, `book_details` resolves against
-Libgen's BibTeX block when Anna's Archive refuses the request, and download links that cannot
-lead to the file are filtered out.
-
-Phase 3 is implemented too: every tool description carries a runnable example, argument errors
-are sentences an agent can act on instead of a validation dump, `output_dir` resolves predictably
-and reports where the file went, and `healthcheck` answers "can this server reach anything?"
-without touching a catalogue.
-
-Nothing from the improvement plan is currently open.
+One tracked limitation remains: A16, where Sci-Hub can return an ALTCHA page with HTTP 200. The
+full audit and remaining follow-up notes are in
+[`docs/worklog/biblio-mcp-audit.md`](docs/worklog/biblio-mcp-audit.md).
 
 ## FAQ
 
@@ -416,9 +423,9 @@ Yes. Set the matching `BIBLIO_*_MIRRORS` variable, or edit [`src/mirrors.ts`](sr
 ### The server starts but every tool call fails. What now?
 
 Run `pnpm preflight`. If it reports `zod-sdk-compat: FAIL`, you have the dependency mismatch
-described in the banner and the message includes the exact command to fix it. This fork pins
-compatible versions and CI checks the pairing on every push, so you should only hit it after
-manually changing dependencies.
+described in [About this fork](#about-this-fork), and the message includes the exact command to
+fix it. This fork pins compatible versions and CI checks the pairing on every push, so you should
+only hit it after manually changing dependencies.
 
 ## Development
 
@@ -443,6 +450,7 @@ network-facing parts are tested against local HTTP servers on `127.0.0.1`, so th
 CI without reaching the shadow libraries.
 
 ```
+AGENTS.md          maintainer and coding-agent workflow
 src/
   index.ts          entry point: CLI flags (--selfcheck, --version) + stdio transport
   server.ts         MCP tool definitions
