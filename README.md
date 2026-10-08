@@ -214,6 +214,8 @@ fork are there specifically for that reader:
 - **`healthcheck` answers "can this server reach anything?"** in a few seconds, without querying
   a catalogue. Without it, a blocked network and an unmatched query look identical from the
   caller's side, and the agent investigates the wrong one.
+- **Blank searches stop before the websites are contacted.** `query` and `identifier` are
+  trimmed and must contain text; validation names the field and gives a usable example.
 
 ### Typical flow
 

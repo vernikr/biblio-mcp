@@ -194,6 +194,7 @@ export async function resolvePaperPdfs(papers: Paper[]): Promise<Paper[]> {
 
 /** One rule for every tool that takes a catalogue hash. */
 const md5Schema = z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash");
+const searchTextSchema = z.string().trim().min(1);
 
 export function createServer(): McpServer {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
@@ -206,7 +207,7 @@ export function createServer(): McpServer {
     "search_books",
     toolDescription("search_books"),
     {
-      query: z.string().describe("Title, author, ISBN, or topic to search for."),
+      query: searchTextSchema.describe("Title, author, ISBN, or topic to search for."),
       sources: z
         .array(z.enum(["annas", "libgen", "zlibrary"]))
         .min(1, "select at least one source")
@@ -399,7 +400,7 @@ export function createServer(): McpServer {
     "search_papers",
     toolDescription("search_papers"),
     {
-      query: z.string().describe("Keywords, title, author, or DOI."),
+      query: searchTextSchema.describe("Keywords, title, author, or DOI."),
       limit: z.number().int().min(1).max(100).optional(),
       resolvePdfs: z
         .boolean()
@@ -424,8 +425,7 @@ export function createServer(): McpServer {
     "get_paper",
     toolDescription("get_paper"),
     {
-      identifier: z
-        .string()
+      identifier: searchTextSchema
         .describe("DOI (e.g. 10.1038/nature12373), article URL, or title."),
     },
     async ({ identifier }) =>
