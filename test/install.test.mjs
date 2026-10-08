@@ -396,26 +396,18 @@ test("every command the README tells you to run actually exists", async () => {
   assert.deepEqual(missing, [], `README references pnpm scripts that do not exist: ${missing.join(", ")}`);
 });
 
-test("the published tarball contains the installer the README points at", async () => {
-  const here = dirname(fileURLToPath(import.meta.url));
+test("the consumer package ships runtime checks, not the checkout installer", () => {
   const pkg = readRootPackage();
-  const readme = readFileSync(join(here, "..", "README.md"), "utf8");
-
-  // The README's primary install path is `node scripts/install.mjs`, so the
-  // package must ship it — otherwise the documented command 404s for anyone who
-  // installs rather than clones.
-  if (/scripts\/install\.mjs/.test(readme)) {
-    assert.ok(
-      pkg.files.some((f) => f === "scripts/install.mjs"),
-      `package.json "files" must include scripts/install.mjs, got: ${JSON.stringify(pkg.files)}`
-    );
-  }
+  assert.ok(pkg.files.includes("dist"));
+  assert.ok(pkg.files.includes("scripts/preflight.mjs"));
+  assert.ok(!pkg.files.includes("scripts/install.mjs"));
 });
 
-test("the fork package is private while the upstream owns the npm name", () => {
+test("the package uses the approved fork scope, never the upstream npm name", () => {
   const pkg = readRootPackage();
-  assert.equal(pkg.name, "biblio-mcp");
-  assert.equal(pkg.private, true, "avoid accidentally publishing over the upstream package");
+  assert.equal(pkg.name, "@vernikr/biblio-mcp");
+  assert.equal(pkg.publishConfig.access, "public");
+  assert.notEqual(pkg.private, true);
 });
 
 test("every version in the CHANGELOG has a matching compare link", async () => {

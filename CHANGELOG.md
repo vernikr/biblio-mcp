@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-09
+
+### Prepared distribution (not yet published to npm)
+- Own npm identity `@vernikr/biblio-mcp`, one compiled stdio runtime for npm and MCPB. Source installer remains a developer utility, not a consumer prerequisite.
+
 - Runtime support is now Node 22+ (user-approved); CI targets 22/24 LTS.
 - Updated SDK 1.32.1, Zod 4.6.5, Cheerio 1.2.0, TypeScript 7.0.2, tsx 4.23.15 and Node 22 types. The SDK update fixes GHSA-6qxp-vccf-f47h; production audit is clean.
 - Adapted readable validation to the newer SDK diagnostic format without a second schema parse.
@@ -344,3 +349,5 @@ Initial release.
 - Per-source fault isolation via `Promise.allSettled`
 
 [1.0.0]: https://github.com/yashimosh/biblio-mcp/releases/tag/v1.0.0
+
+[2.0.0]: https://github.com/vernikr/biblio-mcp/compare/e07743a...main

@@ -1,7 +1,6 @@
 {
-  "name": "biblio-mcp",
-  "private": true,
-  "version": "1.8.0",
+  "name": "@vernikr/biblio-mcp",
+  "version": "2.0.0",
   "description": "One MCP server for Anna's Archive, Library Genesis, Sci-Hub, and Z-Library. Search books and papers, resolve download links, and fetch files \u2014 across all shadow libraries through a single unified interface.",
   "type": "module",
   "bin": {
@@ -10,7 +9,6 @@
   "files": [
     "dist",
     "scripts/preflight.mjs",
-    "scripts/install.mjs",
     "README.md",
     "LICENSE"
   ],
@@ -42,10 +40,12 @@
     "test:live": "pnpm run build && node --test test/live/*.live.test.mjs",
     "test:all": "pnpm run test && node --test test/live/*.live.test.mjs",
     "verify": "pnpm run typecheck && pnpm run test && pnpm run selfcheck:offline",
-    "prepublishOnly": "pnpm run verify",
+    "prepublishOnly": "pnpm run package:verify",
     "selfcheck:offline": "node dist/index.js --selfcheck --offline",
     "verify:live": "pnpm run verify && pnpm run selfcheck:live",
-    "docs:env": "pnpm run build && node scripts/sync-env-docs.mjs"
+    "docs:env": "pnpm run build && node scripts/sync-env-docs.mjs",
+    "package:artifacts": "pnpm run build && node scripts/package-artifacts.mjs",
+    "package:verify": "pnpm run verify && node scripts/package-artifacts.mjs && node scripts/check-artifacts.mjs"
   },
   "keywords": [
     "mcp",
@@ -75,8 +75,13 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
     "@types/node": "22.20.5",
+    "cross-spawn": "7.0.6",
     "tsx": "4.23.15",
     "typescript": "7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

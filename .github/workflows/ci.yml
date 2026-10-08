@@ -92,6 +92,28 @@ jobs:
           node --test test/stdio.test.mjs test/selfcheck.test.mjs test/server.test.mjs test/config.test.mjs test/preflight.test.mjs
           node dist/index.js --selfcheck --offline
 
+  artifacts:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run package:artifacts
+      - name: Actual installed consumers (stdio and complete download)
+        run: node scripts/check-artifacts.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: biblio-mcp-${{ matrix.os }}
+          path: artifacts/
+
   live:
     # Mirror availability depends on the runner's network and can change
     # independently of this code. Keep this diagnostic job visible but non-blocking.

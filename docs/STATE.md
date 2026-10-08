@@ -6,15 +6,16 @@ opening sections describe the state after wave 1. The A16 entry (around line 332
 
 ## Version
 
-`1.8.0` (see `package.json`). Private source fork: install from this checkout with
-`node scripts/install.mjs`.
+`2.0.0` (see `package.json`), Node 22+. Scoped identity `@vernikr/biblio-mcp`; npm publication
+is pending. CI creates `.tgz`/`.mcpb` artifacts and exercises actual consumer installs/stdio/downloads.
+The checkout installer is for development, not a consumer prerequisite.
 
 ## Open items
 
 - **P4, cached Anna's detail pages:** deliberately not done. A cached load cannot be cancelled, and
   cancelling the losing Anna's request is the bigger saving.
 - **Slow install tests:** `test/install.test.mjs` uses clean offline installation/build fixtures and a fresh docs build.
-  The full offline suite takes roughly 20–25 s. The "under 5 s" target was dropped rather than losing that coverage.
+  The full offline suite takes roughly 13–20 s. The "under 5 s" target was dropped rather than losing that coverage.
 - **`downloadToFile` is not fully on `fetchWithTimeout`:** the request timer currently covers headers, with a
   separate body idle watchdog. The total-deadline contract remains an open decision.
 - **Live checks:** mirror availability changes often. The last recorded live run was
@@ -38,6 +39,7 @@ node --test test/<file>.test.mjs       # one file
 pnpm run verify                        # deterministic offline gate, one build
 pnpm run verify:live                   # additionally mirrors + a real search
 pnpm run docs:env                      # rebuild after changing src/config.ts
+pnpm run package:verify                # archives + real consumer acceptance
 ```
 
 Some installer tests need `pnpm` on `PATH`; without it they are reported as skipped, with the reason.

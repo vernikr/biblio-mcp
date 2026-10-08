@@ -1,6 +1,6 @@
 # Maintainer and coding-agent guide
 
-This repository is a private source fork of the upstream npm package. Use Node.js 22+ and pnpm;
+This repository uses the approved separate fork identity, `@vernikr/biblio-mcp`. Use Node.js 22+ and pnpm;
 keep changes testable without live access to shadow-library mirrors.
 CI checks Node 22/24 LTS and the exact 22.0 runtime floor.
 
@@ -85,8 +85,18 @@ what a user gets (a new benefit, a removed limitation, a changed default), and k
 
 ## Packaging and credentials
 
-- `package.json` is marked `private` because the `biblio-mcp` npm name belongs to upstream. Supported
-  installation is from this checkout via `node scripts/install.mjs`; do not remove `private` or
-  publish this fork under the upstream name without an explicit release decision.
-- Never commit PATs, API keys, or user-specific config. Keep `BIBLIO_ANNAS_API_KEY` in the runtime
-  environment, and use temporary credential handling for Git pushes.
+- The user approved npm name `@vernikr/biblio-mcp` and Node 22+. Never publish under upstream's
+  `biblio-mcp` name. Registry publication still requires authenticated scope rights; do not
+  describe a prepared archive as already published. Publish only tested tarballs after
+  verifying scope rights; registry authentication/trusted publishing is separate from GitHub PATs.
+- `pnpm run package:verify` runs the offline gate once, then builds `.tgz`/`.mcpb` and checks real
+  consumer launches outside checkout. Packaging/consumer dependency installation may use npm's
+  registry, not live mirrors. Artifacts are generated under ignored `artifacts/`.
+- npm ships `dist` and plain-JS preflight. MCPB uses the same runtime and hoisted locked production
+  dependencies: a symlink-based virtual store loses dependency resolution when flattened into ZIP.
+- The source installer remains a checkout utility, not the default consumer installation path.
+- MCPB artifacts are unsigned. The CLI has a dev-only unpatched node-forge signature-verification
+  advisory (GHSA-86w9-cpqp-85rv); do not use its signing/verification commands as a trust boundary.
+  It is not shipped as a runtime dependency. Patched `tmp` is pinned for its prompt dependency.
+- Never commit PATs, API keys, user config, dependency trees or generated archives. Keep
+  `BIBLIO_ANNAS_API_KEY` in runtime settings; use temporary credentials for Git pushes.

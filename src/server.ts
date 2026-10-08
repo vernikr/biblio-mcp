@@ -39,7 +39,7 @@ const SERVER_VERSION: string = (() => {
       version?: string;
     };
     // Reject another project's manifest; an unknown version is safer than a wrong one.
-    if (pkg.name !== SERVER_NAME) return "0.0.0-unknown";
+    if (pkg.name !== "@vernikr/biblio-mcp") return "0.0.0-unknown";
     return pkg.version ?? "0.0.0-unknown";
   } catch {
     return "0.0.0-unknown";

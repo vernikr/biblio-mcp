@@ -9,8 +9,8 @@ import { fileURLToPath } from "node:url";
 const require_ = createRequire(import.meta.url);
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** True for an installed package rather than a source checkout. */
-const INSTALLED_PACKAGE = /[\\/]node_modules[\\/][^\\/]+[\\/]?$/.test(`${PROJECT_ROOT}/`);
+/** npm/MCPB artifacts contain runtime files, not the source-checkout marker. */
+const INSTALLED_PACKAGE = !existsSync(join(PROJECT_ROOT, "src", "index.ts"));
 
 /** Minimum Node this server supports (mirrors "engines" in package.json). */
 const MIN_NODE = { major: 22, minor: 0 };
@@ -161,10 +161,7 @@ export function runPreflight({ requireBuild = false } = {}) {
   }
 
   // 3. Dependency installation.
-  const hasNodeModules =
-    existsSync(join(PROJECT_ROOT, "node_modules")) ||
-    existsSync(resolve(PROJECT_ROOT, "..", "node_modules")) ||
-    existsSync(resolve(PROJECT_ROOT, "..", "..", "node_modules"));
+  const hasNodeModules = !!readPkgJson("zod") && !!readPkgJson("@modelcontextprotocol/sdk");
   push(
     "dependencies",
     hasNodeModules,

@@ -146,14 +146,14 @@ test("preflight passes for an installed package, not just a source checkout", as
   const { spawnSync } = await import("node:child_process");
 
   const consumer = mkdtempSync(join(tmpdir(), "biblio-installed-"));
-  const pkgDir = join(consumer, "node_modules", "biblio-mcp");
+  const pkgDir = join(consumer, "node_modules", "@vernikr", "biblio-mcp");
   mkdirSync(join(pkgDir, "scripts"), { recursive: true });
   mkdirSync(join(consumer, "node_modules", "zod"), { recursive: true });
   mkdirSync(join(consumer, "node_modules", "@modelcontextprotocol", "sdk"), { recursive: true });
 
   const here = join(dirname(fileURLToPath(import.meta.url)), "..");
   cpSync(join(here, "scripts", "preflight.mjs"), join(pkgDir, "scripts", "preflight.mjs"));
-  writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: "biblio-mcp", version: "1.0.0" }));
+  writeFileSync(join(pkgDir, "package.json"), JSON.stringify({ name: "@vernikr/biblio-mcp", version: "2.0.0" }));
   // Minimal manifests so the compat check has something to read.
   writeFileSync(
     join(consumer, "node_modules", "zod", "package.json"),

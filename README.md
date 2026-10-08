@@ -1,7 +1,7 @@
 # biblio-mcp
 
 [![CI](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml)
-[![license](https://img.shields.io/npm/l/biblio-mcp.svg)](LICENSE)
+[MIT license](LICENSE)
 
 <!-- cover:start -->
 ## Why this fork
@@ -10,9 +10,9 @@ The idea is the same as the original: one tool that lets your AI assistant find 
 research papers across the shadow libraries and get them for you. This fork is about making
 that something you can rely on.
 
-- **It works the first time.** One setup command installs what is missing and checks the
-  server before you use it. A broken setup is caught on the spot, with the fix spelled out,
-  instead of failing every request. Invalid client configuration is left untouched.
+- **No checkout or build for end users.** The prepared npm package and Desktop extension use
+  the same checked runtime. A broken setup is caught before requests are served, with the fix
+  spelled out. The checkout installer preserves invalid client configuration and backups.
 - **Faster answers.** Searches come back many times faster, because the server stops waiting on
   websites that are no longer there.
 - **Honest results.** A source that is down is reported, not silently dropped. A website that
@@ -32,14 +32,15 @@ away when they do not.
 
 ## Quick start
 
-```bash
-git clone https://github.com/vernikr/biblio-mcp.git
-cd biblio-mcp
-node scripts/install.mjs
-```
+**Distribution status:** `@vernikr/biblio-mcp@2.0.0` is prepared, **not yet published to npm**.
+Use the `.mcpb` or `.tgz` from the latest successful [CI artifacts](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml) today. Registry launcher examples below become usable after npm publication.
 
-Requires Node.js 22+ and pnpm. The installer builds and verifies the server, then prints the MCP
-client configuration. See [Install](#install) for manual setup and configuration options.
+- **Claude Desktop:** install `vernikr-biblio-mcp-2.0.0.mcpb` through Settings → Extensions
+  (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
+  The host's Node runtime must meet the extension's Node 22+ requirement.
+- **Other MCP clients:** use the prepared npm tarball now, or the pinned pnpm/npx configuration
+  in [Install](#install) once the scoped release is available.
+- Downloads go to the `output_dir` you pass to the tool, never the install/package-manager cache.
 
 **One [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that searches Anna's Archive, Library Genesis (Libgen), Sci-Hub, and Z-Library — all at once.**
 
@@ -73,113 +74,54 @@ It connects to any MCP client (Claude, Cline, Cursor, Windsurf, or custom agents
 
 ## Install
 
-### One command
+### npm tarball — available now
 
-Use the [Quick start](#quick-start) command above.
-
-The installer checks Node and your package manager, installs locked dependencies, checks the
-SDK/Zod pairing, builds, and verifies a real tool call before printing your MCP config.
-Add `--write-config <path>` to merge the entry into your config and keep a `.bak` copy.
-Invalid JSON or a non-object `mcpServers` value is refused before changing the file or its backup.
-Add `--dry-run` to see every step without writing anything. Live mirror checks are skipped by default; pass `--live` to run
-`dist/index.js --selfcheck --live` after the build, or `--skip-network` to explicitly skip them.
-Dependency installation may still need registry access. A checkout with `pnpm-lock.yaml`
-requires pnpm and installs with `--frozen-lockfile`; npm is not used as a substitute.
+Requires Node 22+. Install the prepared artifact, then configure your client to launch
+`biblio-mcp` on stdio:
 
 ```bash
-node scripts/install.mjs --write-config ~/.config/claude/mcp.json
+npm install --global /path/to/vernikr-biblio-mcp-2.0.0.tgz
+biblio-mcp --selfcheck --offline
 ```
 
-### Why not `npm install biblio-mcp`?
+This installs production dependencies, not TypeScript or this checkout. The `biblio-mcp` npm
+name still belongs to upstream; this fork uses **`@vernikr/biblio-mcp`**.
 
-**This fork is not published to npm, on purpose.** The `biblio-mcp` package on npm is the
-upstream release, and its published dependency set is the combination that breaks: it resolves
-`@modelcontextprotocol/sdk@1.12.1` — whose peer range is `zod: ^3.23.8` — against `zod@4.4.3`.
-That server starts, answers `tools/list`, and then fails every `tools/call`. Publishing a
-same-named package that silently replaced it would be worse than the situation it fixes, and
-publishing under a new name would fragment the search results people already use. So the
-supported install is from source, and `package.json` is marked private to prevent accidental
-publishing under the upstream name. The installer above makes source installation one command.
+### Pinned launcher (pnpm) — after npm publication
 
-### Manual install
+Any client that can launch a stdio process can use the same pinned package:
 
-Requires **Node.js ≥ 22** and **pnpm**. This fork installs with pnpm and ships a
-`pnpm-lock.yaml`; it deliberately does **not** ship an npm lockfile, because the two
-resolved different dependency trees and one of them was broken (see
-[Why pnpm?](#why-pnpm-and-not-npm)).
-
-```bash
-git clone https://github.com/vernikr/biblio-mcp.git
-cd biblio-mcp
-pnpm install
-pnpm build
-```
-
-Then check it before you wire it into anything:
-
-```bash
-pnpm preflight   # dependencies and the zod/SDK pairing — offline, ~1 s
-pnpm selfcheck:offline # install + a real invalid tool call, no mirror requests
-pnpm selfcheck   # ...plus every mirror, with timings
-pnpm selfcheck:live   # ...plus one real search against live mirrors
-```
-
-`pnpm verify` runs typecheck, one build, the offline suite and offline selfcheck.
-Use `pnpm verify:live` to additionally probe mirrors and perform a real search.
-
-A healthy `preflight` looks like this:
-
-```
-  ok   node            v20.20.2
-  ok   lockfiles       pnpm-lock.yaml
-  ok   dependencies    node_modules present
-  ok   zod-sdk-compat  sdk 1.29.0 + zod 4.4.3 (range "^3.25 || ^4.0")
-  ok   build           /path/to/biblio-mcp/dist/index.js
-
-ready to run: node dist/index.js
-```
-
-### Why pnpm and not npm?
-
-The upstream repository shipped both `package-lock.json` and (in forks) `pnpm-lock.yaml`, and
-they disagreed: npm resolved `@modelcontextprotocol/sdk@1.12.1` against `zod@4.4.3`, which is
-exactly the broken pairing described in [About this fork](#about-this-fork). `npm ci` therefore
-produced a server that started and then failed every tool call. This fork keeps one lockfile so
-there is one answer.
-
-### Add to Claude Code
-
-```bash
-claude mcp add -s user biblio -- node /absolute/path/to/biblio-mcp/dist/index.js
-```
-
-`node scripts/install.mjs` prints this line with the absolute path already filled in, so you do
-not have to work out where the checkout landed. The path **must** be absolute: a relative one is
-resolved against wherever your client happens to start the process, which is not predictable.
-
-### Add to Claude Desktop / Cline / Cursor / any MCP client
-
-biblio-mcp uses **stdio transport**, so any MCP client that can launch a subprocess works. Add
-to your MCP configuration (`claude_desktop_config.json`, `cline_mcp_settings.json`,
-`~/.agents/mcp.json`, etc.):
-
-```jsonc
+```json
 {
   "mcpServers": {
     "biblio": {
-      "command": "node",
-      "args": ["/absolute/path/to/biblio-mcp/dist/index.js"]
+      "command": "pnpm",
+      "args": ["--silent", "dlx", "@vernikr/biblio-mcp@2.0.0"]
     }
   }
 }
 ```
 
-Use an **absolute** path. Validate the file afterwards — a typo here fails silently in most
-clients:
+`--silent` keeps package-manager output out of MCP stdout. For **npx**, use `"command": "npx"`
+and `"args": ["--yes", "@vernikr/biblio-mcp@2.0.0"]` instead. Both run the same artifact;
+no saved checkout or build tools are needed. Keep a version pinned; review updates deliberately.
+
+Claude Code can register the same launcher:
 
 ```bash
-python3 -m json.tool ~/.agents/mcp.json   # or: jq . <your config>
+claude mcp add -s user biblio -- pnpm --silent dlx @vernikr/biblio-mcp@2.0.0
 ```
+
+For a globally installed tarball, use `"command": "biblio-mcp", "args": []` instead.
+Keys and mirror overrides go in your client's environment; see [Configuration](#configuration).
+
+### MCPB
+
+The `.mcpb` contains the same compiled runtime plus locked production dependencies. Its settings
+UI offers an optional sensitive Anna's Archive member key and the default excluded sources.
+Installing it does not require pnpm, npm or TypeScript; the Desktop host supplies Node.
+The extension is unsigned: review its source/permissions. No marketplace listing or automatic
+update guarantee is implied; install a newer release file when you choose to update.
 
 ## Tools
 
@@ -459,7 +401,7 @@ Yes. Set the matching `BIBLIO_*_MIRRORS` variable, or edit [`src/mirrors.ts`](sr
 
 ### The server starts but every tool call fails. What now?
 
-Run `pnpm preflight`. If it reports `zod-sdk-compat: FAIL`, you have the dependency mismatch
+From a checkout run `pnpm preflight`; for an installed artifact run `biblio-mcp --selfcheck --offline`. If it reports `zod-sdk-compat: FAIL`, you have the dependency mismatch
 described in [About this fork](#about-this-fork), and the message includes the exact command to
 fix it. This fork pins compatible versions and CI checks the pairing on every push, so you should
 only hit it after manually changing dependencies.
@@ -467,6 +409,20 @@ only hit it after manually changing dependencies.
 ## Development
 
 Use Node 22 or 24 LTS. CI also checks the exact Node 22.0 runtime floor.
+
+Maintainers use pnpm and the committed lockfile; consumers need neither this checkout nor a compiler.
+
+```bash
+git clone https://github.com/vernikr/biblio-mcp.git
+cd biblio-mcp
+pnpm install --frozen-lockfile
+pnpm run verify
+```
+
+The legacy `node scripts/install.mjs` is a **source-checkout utility**: it installs locked
+dependencies, builds and runs offline selfcheck. `--write-config <path>` validates and merges
+client config with a backup; `--dry-run` writes nothing. `--live` adds mirror/search checks,
+while the default is offline after dependency installation. It is not shipped in the consumer tarball.
 
 ```bash
 pnpm run dev             # run from source via tsx
@@ -484,6 +440,8 @@ pnpm run selfcheck:live  # ...plus one real search
 pnpm run verify          # typecheck + one build + offline tests + offline selfcheck
 pnpm run verify:live     # ...then mirrors and a real search
 pnpm run docs:env        # rebuild and synchronize the environment table
+pnpm run package:artifacts # one build, npm tarball + MCPB
+pnpm run package:verify  # offline gate, then archive/consumer acceptance
 ```
 
 `pnpm test` uses Node's built-in test runner — there is no test framework to install. The
