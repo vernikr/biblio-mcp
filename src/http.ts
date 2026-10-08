@@ -319,35 +319,6 @@ export async function fetchFromMirrors(
   }
 }
 
-/** Single-URL GET returning text, with timeout. Throws on non-2xx. */
-export async function getText(url: string, init?: RequestInit): Promise<string> {
-  return fetchWithTimeout(url, init ?? {}, async (res) => {
-    if (!res.ok) {
-      await res.body?.cancel().catch(() => {});
-      throw new Error(`HTTP ${res.status} for ${url}`);
-    }
-    return res.text();
-  });
-}
-
-/** Buffer small payloads; stream user-visible files with `downloadToFile`. */
-export async function getBuffer(
-  url: string,
-  init?: RequestInit
-): Promise<{ buffer: Buffer; contentType: string | null }> {
-  return fetchWithTimeout(url, init ?? {}, async (res) => {
-    if (!res.ok) {
-      await res.body?.cancel().catch(() => {});
-      throw new Error(`HTTP ${res.status} for ${url}`);
-    }
-    const arrayBuf = await res.arrayBuffer();
-    return {
-      buffer: Buffer.from(arrayBuf),
-      contentType: res.headers.get("content-type"),
-    };
-  });
-}
-
 /** Thrown when a "direct" download URL serves an HTML page instead of a file. */
 export class HtmlInsteadOfFileError extends Error {
   readonly status: number;

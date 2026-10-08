@@ -13,7 +13,7 @@ process.env.BIBLIO_DOWNLOAD_TIMEOUT_MS = "200";
 process.env.BIBLIO_DOWNLOAD_STALL_MS = "200";
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 
-const { getText, getBuffer, fetchFromMirrors, downloadToFile } = await import("../dist/http.js");
+const { fetchFromMirrors, downloadToFile } = await import("../dist/http.js");
 const server = createServer((req, res) => {
   const html = req.url?.startsWith("/html");
   res.writeHead(200, {
@@ -38,14 +38,6 @@ async function assertFastRejection(operation, label) {
   const elapsed = Date.now() - started;
   assert.ok(elapsed < 1500, `${label} took ${elapsed}ms despite a 200ms deadline`);
 }
-
-test("getText times out while reading a stalled response body", async () => {
-  await assertFastRejection(() => getText(`${base}/text`), "getText");
-});
-
-test("getBuffer times out while reading a stalled response body", async () => {
-  await assertFastRejection(() => getBuffer(`${base}/buffer`), "getBuffer");
-});
 
 test("fetchFromMirrors times out while reading a stalled response body", async () => {
   await assertFastRejection(

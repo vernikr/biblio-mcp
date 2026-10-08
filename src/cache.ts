@@ -54,10 +54,6 @@ export class AsyncTtlCache<Key, Value> {
     return value;
   }
 
-  clear(): void {
-    this.entries.clear();
-  }
-
   private evictOldest(): void {
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next();

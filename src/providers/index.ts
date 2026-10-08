@@ -265,5 +265,4 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
 export { isUsefulLink } from "../parse.js";
 
 export { annas, libgen, scihub, zlibrary };
-export { DISABLED_BOOK_SOURCES as DEFAULT_DISABLED_SOURCES };
 export type { Book, Paper, DownloadLink, SearchResult, SourceId };

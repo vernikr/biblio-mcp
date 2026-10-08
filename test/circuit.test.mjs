@@ -97,7 +97,8 @@ test("get_paper opens the source circuit after three full failures", async () =>
 });
 
 test("a late in-flight success cannot close a circuit that has already opened", async () => {
-  const { isSourceCircuitOpen, withSourceCircuit } = await import("../dist/providers/circuit.js");
+  const { sourceCircuitMessage, withSourceCircuit } = await import("../dist/providers/circuit.js");
+  const isSourceCircuitOpen = (source) => sourceCircuitMessage(source) !== undefined;
   let release;
   const slowSuccess = withSourceCircuit(
     "zlibrary",

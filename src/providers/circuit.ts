@@ -133,10 +133,6 @@ export async function withSourceCircuit<T>(
   }
 }
 
-export function isSourceCircuitOpen(source: SourceId): boolean {
-  return activeOpen(circuits.get(source), Date.now());
-}
-
 /** Human-readable reason for a source whose circuit is currently open. */
 export function sourceCircuitMessage(source: SourceId): string | undefined {
   const state = circuits.get(source);
