@@ -71,7 +71,10 @@ async function main() {
   step(1, "checking prerequisites");
   const major = Number(process.versions.node.split(".")[0]);
   if (major >= NODE_MIN_MAJOR) ok(`node ${process.versions.node}`);
-  else bad(`node ${process.versions.node} is too old — ${NODE_MIN_MAJOR} or newer is required`);
+  else {
+    bad(`node ${process.versions.node} is too old — ${NODE_MIN_MAJOR} or newer is required`);
+    return finish();
+  }
 
   const pm = findPackageManager();
   if (!pm) {
@@ -103,26 +106,28 @@ async function main() {
     }
   }
 
-  // ----------------------------------------------------------- 3. preflight
-  step(3, "preflight — the dependency guard");
   const preflight = join(projectDir, "scripts", "preflight.mjs");
   if (!existsSync(preflight)) {
     bad(`scripts/preflight.mjs not found in ${projectDir}`);
     return finish();
   }
-  // Preflight reports the zod/SDK pairing, which is the failure this whole
-  // installer exists to prevent. It must not gate on dist/ yet — we have not
-  // built.
-  if (run(process.execPath, [preflight], { cwd: projectDir }) !== 0) {
-    bad("preflight failed — the messages above include the exact fix command");
+
+  // ------------------------------------------------------------- 3. install
+  step(3, "installing dependencies");
+  const installArgs = pm.name === "pnpm" && existsSync(join(projectDir, "pnpm-lock.yaml"))
+    ? ["install", "--frozen-lockfile"]
+    : ["install"];
+  if (run(pm.name, installArgs, { cwd: projectDir }) !== 0) {
+    bad(`${pm.name} install failed`);
     return finish();
   }
 
-  // ------------------------------------------------------------- 4. install
-  step(4, "installing dependencies");
-  const installArgs = ["install"];
-  if (run(pm.name, installArgs, { cwd: projectDir }) !== 0) {
-    bad(`${pm.name} install failed`);
+  // ----------------------------------------------------------- 4. preflight
+  step(4, "preflight — the dependency guard");
+  // Validate the installed SDK/Zod pair before building; a clean checkout has
+  // neither dependencies nor dist yet.
+  if (run(process.execPath, [preflight], { cwd: projectDir }) !== 0) {
+    bad("preflight failed — the messages above include the exact fix command");
     return finish();
   }
 

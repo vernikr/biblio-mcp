@@ -41,7 +41,7 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 
 ## Installation and project size
 
-- A checkout with `pnpm-lock.yaml` must stop when pnpm is missing; silently falling back to npm can produce a different dependency tree. MCP config writes use a backup and atomic rename.
+- A checkout with `pnpm-lock.yaml` must stop when pnpm is missing; silently falling back to npm can produce a different dependency tree. After prerequisite checks, install with `--frozen-lockfile` before running the dependency preflight; an incompatible SDK/Zod pair must still stop the build. MCP config writes use a backup and atomic rename.
 - Preflight checks the SDK's Zod range and runtime internals because an incompatible pair can answer `tools/list` but fail every `tools/call`. It locates package manifests by filesystem path before resolving an entry point, since `exports` can hide `package.json`; installed-package checks use the consumer's lockfile and dependencies.
 - `package.json` is `private: true`: the upstream owns the `biblio-mcp` npm name, and this fork's supported install is from source. Keep `npm pack` tests working, but do not enable publishing without an explicit release/name decision.
 - The original Phase 4 ceiling of 4,700 lines was set before Phase 0–3 and the subsequent completed Phase 4 work. The comparable baseline at `f6c4e42` is already 5,487 `.ts`/`.mjs` lines under `src/`, `scripts/`, and `test/`; the post-Phase-3/pre-D1 working tree had 7,127. Meeting 4,700 at that point would have required deleting 2,427 lines, including useful implementation and regression coverage, and is lower than the historical baseline itself.

@@ -5,16 +5,18 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { delimiter, join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, delimiter, join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { runStartupSelftest } from "../dist/selfcheck.js";
 import { readRootPackage } from "../scripts/lib/pkg.mjs";
 
@@ -37,6 +39,17 @@ function runInstaller(args, cwd, env) {
     env: env ?? process.env,
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+function freshCheckout(t) {
+  const dir = mkdtempSync(join(tmpdir(), "biblio-install-clean-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const projectDir = join(dir, "repo");
+  cpSync(join(HERE, ".."), projectDir, {
+    recursive: true,
+    filter: (path) => !["node_modules", "dist", ".git"].includes(basename(path)),
+  });
+  return { dir, projectDir };
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +107,17 @@ test("the installer runs end to end in dry-run mode and writes nothing", needsPn
   assert.ok(json, "must print a config snippet");
   const parsed = JSON.parse(json[1]);
   assert.ok(parsed.mcpServers.biblio.args[0].endsWith("dist/index.js"));
+});
+
+test("the installer stops at an unsupported Node prerequisite", () => {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
+    Object.defineProperty(process.versions, "node", { value: "17.0.0" });
+    process.argv = [process.execPath, ${JSON.stringify(INSTALLER)}, "--dry-run"];
+    await import(${JSON.stringify(pathToFileURL(INSTALLER).href)});
+  `], { encoding: "utf8" });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /node 17\.0\.0 is too old/);
+  assert.doesNotMatch(r.stdout, /\[2\] obtaining|ok\s+pnpm|no package manager found/);
 });
 
 test("the installer refuses npm fallback when the checkout has a pnpm lockfile", () => {
@@ -156,20 +180,75 @@ test("the installer refuses a config that is not a JSON object", needsPnpm, () =
   assert.equal(readFileSync(cfg, "utf8"), "[1,2,3]\n");
 });
 
-test("the installer merges into an existing config and keeps a backup", needsPnpm, () => {
-  const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
+test("the installer builds a clean checkout, merges an existing config and keeps a backup", needsPnpm, (t) => {
+  const { dir, projectDir } = freshCheckout(t);
   const cfg = join(dir, "mcp.json");
-  writeFileSync(cfg, JSON.stringify({ mcpServers: { other: { command: "x" } } }));
+  const original = JSON.stringify({ mcpServers: { other: { command: "x" } }, theme: "dark" });
+  writeFileSync(cfg, original);
+  const lockfile = readFileSync(join(projectDir, "pnpm-lock.yaml"), "utf8");
+  assert.equal(existsSync(join(projectDir, "node_modules")), false);
+  assert.equal(existsSync(join(projectDir, "dist")), false);
 
-  const r = runInstaller(["--dir", join(dir, "repo"), "--write-config", cfg]);
+  // The outer install primes pnpm's store; dependency installation in this test
+  // must not need the registry or live mirrors.
+  const r = runInstaller(["--skip-network", "--dir", projectDir, "--write-config", cfg], projectDir, {
+    ...process.env,
+    npm_config_offline: "true",
+  });
   assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /\$ pnpm install --frozen-lockfile/);
+  assert.match(r.stdout, /the tool surface answers a real tool call/);
+  assert.equal(existsSync(join(projectDir, "node_modules", "zod", "package.json")), true);
+  assert.equal(existsSync(join(projectDir, "dist", "index.js")), true);
+  assert.equal(readFileSync(join(projectDir, "pnpm-lock.yaml"), "utf8"), lockfile);
+  assert.equal(existsSync(join(projectDir, "package-lock.json")), false);
 
   const after = JSON.parse(readFileSync(cfg, "utf8"));
-  // The pre-existing server must survive — this is the user's config, not ours.
   assert.deepEqual(after.mcpServers.other, { command: "x" });
-  assert.ok(after.mcpServers.biblio, "biblio entry must be added");
-  assert.ok(after.mcpServers.biblio.args[0].endsWith("dist/index.js"));
-  assert.ok(existsSync(`${cfg}.bak`), "a backup must be written before overwriting");
+  assert.equal(after.theme, "dark");
+  assert.equal(after.mcpServers.biblio.args[0], join(projectDir, "dist", "index.js"));
+  assert.equal(readFileSync(`${cfg}.bak`, "utf8"), original);
+});
+
+test("the installer rejects an incompatible pair after installation and before building", (t) => {
+  const { dir, projectDir } = freshCheckout(t);
+  const bin = join(dir, "bin");
+  const calls = join(dir, "pm-calls.jsonl");
+  mkdirSync(bin);
+  const fakePnpm = join(bin, "pnpm");
+  const packages = [
+    ["zod", { name: "zod", version: "4.4.3" }],
+    ["@modelcontextprotocol/sdk", { name: "@modelcontextprotocol/sdk", version: "1.12.1", peerDependencies: { zod: "^3.23.8" } }],
+  ];
+  // Model an unhealthy installation; the installer must still run the real
+  // preflight against what the package manager installed, not bypass its guard.
+  writeFileSync(fakePnpm, `#!${process.execPath}
+const { appendFileSync, mkdirSync, writeFileSync } = require("node:fs");
+const { join } = require("node:path");
+const args = process.argv.slice(2);
+if (args[0] === "--version") { console.log("12.10.1"); process.exit(0); }
+appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + "\\n");
+if (args[0] !== "install") process.exit(2);
+for (const [name, pkg] of ${JSON.stringify(packages)}) {
+  const target = join(process.cwd(), "node_modules", name);
+  mkdirSync(target, { recursive: true });
+  writeFileSync(join(target, "package.json"), JSON.stringify(pkg));
+}
+`);
+  chmodSync(fakePnpm, 0o755);
+  const r = runInstaller(["--skip-network", "--dir", projectDir], projectDir, {
+    ...process.env,
+    PATH: bin,
+  });
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /preflight failed/);
+  assert.match(r.stdout, /keyValidator\._parse is not a function/);
+  assert.match(r.stdout, /pnpm add @modelcontextprotocol\/sdk/);
+  assert.deepEqual(readFileSync(calls, "utf8").trim().split("\n").map((line) => JSON.parse(line)), [
+    ["install", "--frozen-lockfile"],
+  ]);
+  assert.equal(existsSync(join(projectDir, "dist")), false);
+  assert.doesNotMatch(r.stdout, /\[5\] building|install complete/);
 });
 
 test("the installer validates the path it is about to put in a config", () => {
