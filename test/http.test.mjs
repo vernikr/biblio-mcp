@@ -42,7 +42,7 @@ async function serve(routes) {
   return {
     url: `http://127.0.0.1:${port}`,
     hits: (p) => hits.get(p) ?? 0,
-    close: () => new Promise((r) => server.close(r)),
+    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
   };
 }
 
@@ -267,7 +267,7 @@ test("probeMirror cancels an unread body when no identity marker is requested", 
     );
   } finally {
     server.closeAllConnections?.();
-    await new Promise((resolve) => server.close(resolve));
+    await new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); });
   }
 });
 

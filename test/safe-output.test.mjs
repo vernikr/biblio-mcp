@@ -39,7 +39,7 @@ const { absoluteUrl } = await import("../dist/parse.js");
 const annas = await import("../dist/providers/annas.js");
 const { createServer: createMcpServer } = await import("../dist/server.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 async function call(name, args) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

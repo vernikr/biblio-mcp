@@ -8,9 +8,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-process.env.BIBLIO_TIMEOUT_MS = "500";
-process.env.BIBLIO_DOWNLOAD_TIMEOUT_MS = "500";
-process.env.BIBLIO_DOWNLOAD_STALL_MS = "500";
+process.env.BIBLIO_TIMEOUT_MS = "200";
+process.env.BIBLIO_DOWNLOAD_TIMEOUT_MS = "200";
+process.env.BIBLIO_DOWNLOAD_STALL_MS = "200";
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 
 const { getText, getBuffer, fetchFromMirrors, downloadToFile } = await import("../dist/http.js");
@@ -26,14 +26,17 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const base = `http://127.0.0.1:${server.address().port}`;
 
 test.after(async () => {
-  await new Promise((resolve) => server.close(resolve));
+  // The stalled bodies are abandoned by the client, but keep-alive sockets can
+  // linger; closing them here stops the suite waiting for the idle timeout.
+  server.closeAllConnections();
+  await new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); });
 });
 
 async function assertFastRejection(operation, label) {
   const started = Date.now();
   await assert.rejects(operation);
   const elapsed = Date.now() - started;
-  assert.ok(elapsed < 1500, `${label} took ${elapsed}ms despite a 500ms deadline`);
+  assert.ok(elapsed < 1500, `${label} took ${elapsed}ms despite a 200ms deadline`);
 }
 
 test("getText times out while reading a stalled response body", async () => {
@@ -55,7 +58,7 @@ test("downloadToFile times out while reading an HTML interstitial body", async (
   const dir = await mkdtemp(join(tmpdir(), "biblio-timeout-"));
   try {
     await assertFastRejection(
-      () => downloadToFile(`${base}/html`, join(dir, "book.pdf"), { timeoutMs: 500 }),
+      () => downloadToFile(`${base}/html`, join(dir, "book.pdf"), { timeoutMs: 200 }),
       "downloadToFile"
     );
   } finally {

@@ -38,7 +38,7 @@ process.env.BIBLIO_TIMEOUT_MS = "1000";
 
 const { resolveDownloads } = await import("../dist/providers/index.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 test("resolveDownloads keeps a verified member URL without an MD5 in its signed URL", async () => {
   const links = await resolveDownloads(md5);

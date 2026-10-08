@@ -40,7 +40,7 @@ delete process.env.BIBLIO_ANNAS_API_KEY;
 
 const { createServer: createMcpServer } = await import("../dist/server.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 async function download(args) {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();

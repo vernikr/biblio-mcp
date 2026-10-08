@@ -26,14 +26,14 @@ process.env.BIBLIO_LIBGEN_MIRRORS = base;
 process.env.BIBLIO_ANNAS_MIRRORS = base;
 process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 process.env.BIBLIO_TIMEOUT_MS = "2000";
-process.env.BIBLIO_MIRROR_DEAD_TTL_MS = "2000";
+process.env.BIBLIO_MIRROR_DEAD_TTL_MS = "400";
 delete process.env.BIBLIO_ANNAS_API_KEY;
 
 const http = await import("../dist/http.js");
 const providers = await import("../dist/providers/index.js");
 const circuit = await import("../dist/providers/circuit.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 test("a single 404 for one record does not put the mirror into cooldown", async () => {
   http.resetMirrorCache();
@@ -76,7 +76,7 @@ test("an opened circuit closes again once its cooldown has passed", async () => 
   }
   assert.match(circuit.sourceCircuitMessage(zl) ?? "", /circuit open/);
 
-  await new Promise((resolve) => setTimeout(resolve, 2100));
+  await new Promise((resolve) => setTimeout(resolve, 450));
   assert.equal(circuit.sourceCircuitMessage(zl), undefined, "the cooldown has elapsed");
   assert.equal(await circuit.withSourceCircuit(zl, async () => "back"), "back");
 });

@@ -23,7 +23,7 @@ process.env.BIBLIO_MIRROR_DEAD_TTL_MS = "60000";
 
 const { searchBooks, bookDetails, resolveDownloads } = await import("../dist/providers/index.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 test("Anna's Archive is summarized, skipped while all mirrors are cooling down, and circuit-broken after three failures", async () => {
   const first = await searchBooks("dune attempt 1", ["annas"], 5);

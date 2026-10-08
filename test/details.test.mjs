@@ -60,7 +60,7 @@ function startStub(handler) {
     server.listen(0, "127.0.0.1", () => {
       resolvePromise({
         origin: `http://127.0.0.1:${server.address().port}`,
-        close: () => new Promise((r) => server.close(r)),
+        close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
       });
     });
   });

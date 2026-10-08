@@ -89,7 +89,10 @@ const circuit = await import("../dist/providers/circuit.js");
 const { resolvePaperPdfs } = await import("../dist/server.js");
 
 test.after(() => {
-  for (const s of [s1, s2, s3]) s.close();
+  for (const s of [s1, s2, s3]) {
+    s.closeAllConnections();
+    s.close();
+  }
 });
 
 const waitFor = async (check, ms = 1500) => {

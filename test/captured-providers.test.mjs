@@ -42,7 +42,7 @@ process.env.BIBLIO_MIRROR_STAGGER_MS = "0";
 const libgen = await import("../dist/providers/libgen.js");
 const scihub = await import("../dist/providers/scihub.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 test("Libgen book search parses the captured live table", async () => {
   const books = await libgen.search("Vidyamurthy Pairs Trading", 10);

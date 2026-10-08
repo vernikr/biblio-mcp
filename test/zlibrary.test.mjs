@@ -25,7 +25,7 @@ process.env.BIBLIO_TIMEOUT_MS = "1000";
 
 const { search } = await import("../dist/providers/zlibrary.js");
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 test("zlibrary.search validates its parsed year, format, and size", async () => {
   const books = await search("example", 5);

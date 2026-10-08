@@ -34,7 +34,7 @@ const [annas, libgen, scihub, zlibrary] = await Promise.all([
   import("../dist/providers/zlibrary.js"),
 ]);
 
-test.after(() => new Promise((resolve) => server.close(resolve)));
+test.after(() => new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); }));
 
 test("Anna's Archive resolves protocol-relative image and download URLs", async () => {
   const [book] = await annas.search("relative", 1);
