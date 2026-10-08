@@ -45,8 +45,8 @@ function parseMeta(metaText: string): Partial<Book> {
   const out: Partial<Book> = {};
   const year = parseYear(metaText);
   if (year) out.year = year;
-  const fmt = metaText.match(/\b(pdf|epub|mobi|djvu|azw3|cbr|cbz|fb2)\b/i);
-  if (fmt) out.format = fmt[1].toUpperCase();
+  const fmt = metaText.match(/\b(pdf|epub|mobi|djvu|azw3|cbr|cbz|fb2)\b/i)?.[1];
+  if (fmt) out.format = fmt.toUpperCase();
   const size = parseSize(metaText);
   if (size) out.size = size;
   const lang = parseLanguage(metaText);
@@ -62,7 +62,6 @@ export async function search(query: string, limit: number): Promise<Book[]> {
     undefined,
     isAnnasArchive
   );
-  const $ = cheerio.load(html);
   const books: Book[] = [];
   const seen = new Set<string>();
 

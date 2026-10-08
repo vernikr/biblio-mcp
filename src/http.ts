@@ -104,7 +104,8 @@ export function mirrorCacheSnapshot(): { dead: string[]; preferred: Record<strin
   const now = Date.now();
   const dead: string[] = [];
   for (const [k, until] of deadUntil) {
-    if (until > now) dead.push(k.split("\u0000")[1]);
+    const base = k.split("\u0000")[1];
+    if (until > now && base) dead.push(base);
   }
   return { dead: [...new Set(dead)], preferred: Object.fromEntries(preferredMirror) };
 }

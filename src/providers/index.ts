@@ -88,7 +88,7 @@ export async function searchBooks(
 ): Promise<SearchResult<Book>> {
   const active = sources.filter((s) => s in bookSearchers);
   const settled = await Promise.allSettled(
-    active.map((s) => bookSearchers[s](query, limit))
+    active.map((s) => bookSearchers[s]!(query, limit))
   );
 
   const errors: SourceError[] = [];
@@ -96,7 +96,7 @@ export async function searchBooks(
   const noMd5: Book[] = [];
 
   settled.forEach((r, i) => {
-    const source = active[i];
+    const source = active[i]!;
     if (r.status === "rejected") {
       errors.push({ source, error: String(r.reason?.message ?? r.reason) });
       return;

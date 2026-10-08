@@ -47,10 +47,12 @@ export function parseSize(text: string | undefined | null): string | undefined {
   const re = /(?:^|[\s(,])(\d{1,4}(?:[.,]\d{1,2})?)\s?(KB|MB|GB|TB)(?=[\s),.;]|$)/gi;
   for (const m of text.matchAll(re)) {
     const raw = m[1];
+    const rawUnit = m[2];
+    if (!raw || !rawUnit) continue;
     if (/^0\d/.test(raw)) continue; // leading zero: part of an ID, not a size
     const value = Number(raw.replace(",", "."));
     if (!Number.isFinite(value) || value <= 0) continue;
-    const unit = m[2].toUpperCase();
+    const unit = rawUnit.toUpperCase();
     const asTb =
       value * (unit === "KB" ? 1 / 1048576 : unit === "MB" ? 1 / 1024 : unit === "GB" ? 1 : 1024);
     if (asTb >= 100) continue; // implausible for a book; almost certainly an ID
@@ -208,7 +210,8 @@ export function parseBibtex(text: string): Record<string, string> {
   const re = /(\w+)\s*=\s*\{/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(fields)) !== null) {
-    const key = m[1].toLowerCase();
+    const key = m[1]?.toLowerCase();
+    if (!key) continue;
     let j = re.lastIndex;
     let d = 1;
     let valueStart = j;

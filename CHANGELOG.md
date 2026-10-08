@@ -3,6 +3,15 @@
 All notable changes to this project are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning follows [SemVer](https://semver.org/).
 
+## [1.5.2] - 2026-10-08
+
+### Added
+- Strict TypeScript guardrails, including unchecked-index checks and typechecking for scripts.
+- Separate opt-in live integration tests; the default test suite stays offline, and CI reports live mirror checks in a non-blocking job.
+
+### Fixed
+- Removed the unused Anna's Archive HTML parse, and removed dead imports surfaced by strict compiler checks.
+
 ## [1.5.1] - 2026-10-08
 
 Found by auditing the release rather than by a bug report: three things were inconsistent with
@@ -252,6 +261,7 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
+[1.5.2]: https://github.com/vernikr/biblio-mcp/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/vernikr/biblio-mcp/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/vernikr/biblio-mcp/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/vernikr/biblio-mcp/compare/v1.3.0...v1.4.0

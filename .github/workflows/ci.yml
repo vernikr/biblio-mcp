@@ -39,6 +39,9 @@ jobs:
       - name: Preflight (dependencies)
         run: pnpm run preflight
 
+      - name: Typecheck source and scripts
+        run: pnpm run typecheck
+
       - run: pnpm run build
 
       # Now dist/ must exist. This is the ordering that matters: preflight
@@ -112,3 +115,19 @@ jobs:
           grep -q "refusing to start" err.txt || { echo "no clear refusal on stderr"; cat err.txt; exit 1; }
           grep -q "@modelcontextprotocol/sdk" err.txt || { echo "the fix is not named"; cat err.txt; exit 1; }
           echo "startup guard correctly refused the broken pairing (exit $code)"
+
+  live:
+    # Mirror availability depends on the runner's network and can change
+    # independently of this code. Keep this diagnostic job visible but non-blocking.
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Optional live mirror tests
+        run: pnpm run test:live

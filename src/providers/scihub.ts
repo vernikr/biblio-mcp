@@ -45,11 +45,11 @@ export async function resolve(identifier: string): Promise<Paper> {
   if (!pdfSrc) {
     const onclick = $("a:contains('save'), button:contains('save')").attr("onclick") || "";
     const m = onclick.match(/location\.href=['"]([^'"]+)['"]/);
-    if (m) pdfSrc = m[1];
+    if (m?.[1]) pdfSrc = m[1];
   }
   if (!pdfSrc) {
     const m = html.match(/(?:src|href)=["']([^"']+\.pdf[^"']*)["']/i);
-    if (m) pdfSrc = m[1];
+    if (m?.[1]) pdfSrc = m[1];
   }
 
   // Strip viewer fragment (e.g. #view=FitH) from PDF URL.

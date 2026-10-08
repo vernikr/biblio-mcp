@@ -10,7 +10,6 @@ import { open } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { probeMirror, resetMirrorCache } from "./http.js";
 import { MIRROR_GROUPS } from "./mirrors.js";
 import { describeArgsError, describeTool } from "./toolmeta.js";
@@ -24,7 +23,6 @@ import {
   searchBooks,
   resolveDownloads,
   bookDetails,
-  annas,
   libgen,
   scihub,
   BOOK_SOURCES,

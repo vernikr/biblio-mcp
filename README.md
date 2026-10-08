@@ -417,15 +417,18 @@ manually changing dependencies.
 ## Development
 
 ```bash
-pnpm run dev          # run from source via tsx
-pnpm run build        # compile to dist/
-pnpm run preflight    # offline install/dependency check (before or after build)
-pnpm run preflight:strict  # ...and fail if dist/ is missing
-pnpm run test         # build + unit and integration tests (no external network)
-pnpm run selfcheck    # tools + mirror reachability with timings
+pnpm run dev             # run from source via tsx
+pnpm run typecheck       # strict checks for src/ and scripts/
+pnpm run build           # compile to dist/
+pnpm run preflight       # offline install/dependency check (before or after build)
+pnpm run preflight:strict # ...and fail if dist/ is missing
+pnpm run test            # offline tests only
+pnpm run test:live       # optional live mirror/provider checks
+pnpm run test:all        # offline suite, then live suite
+pnpm run selfcheck       # tools + mirror reachability with timings
 pnpm run selfcheck:live  # ...plus one real search
-pnpm run smoke        # legacy: live end-to-end exercise of each provider
-pnpm run verify       # build + test + selfcheck
+pnpm run smoke           # legacy: live end-to-end exercise of each provider
+pnpm run verify          # strict typecheck + build + offline tests + selfcheck
 ```
 
 `pnpm test` uses Node's built-in test runner — there is no test framework to install. The

@@ -179,45 +179,15 @@ test("an empty output_dir is rejected with a readable message", async () => {
 // Item 21 — healthcheck
 // ---------------------------------------------------------------------------
 
-test("healthcheck is registered, takes no required arguments, and answers", async () => {
+test("healthcheck is registered and advertises only optional arguments", async () => {
   await withClient(async (client) => {
     const { tools } = await client.listTools();
     const hc = tools.find((t) => t.name === "healthcheck");
     assert.ok(hc, "healthcheck must be registered");
     assert.deepEqual(hc.inputSchema.required ?? [], []);
     assert.ok(hc.inputSchema.properties.timeoutMs, "timeoutMs must be optional but advertised");
-
-    const { isError, json } = await callTool(client, "healthcheck", { timeoutMs: 2500 });
-    assert.equal(isError, false);
-    assert.equal(typeof json.ready, "boolean");
-    assert.ok(Array.isArray(json.reachable));
-    assert.ok(Array.isArray(json.unreachable));
-    assert.ok(Array.isArray(json.groups) && json.groups.length > 0);
-    assert.equal(json.version, (await client.getServerVersion()).version);
-    // Every group must account for all of its mirrors, and be self-consistent.
-    for (const g of json.groups) {
-      assert.equal(g.mirrors.length, g.total);
-      assert.equal(g.ok, g.reachable > 0);
-      assert.equal(
-        g.fastestMs,
-        g.reachable > 0 ? Math.min(...g.mirrors.filter((m) => m.ok).map((m) => m.ms)) : null
-      );
-    }
-    // ready must agree with the reachable list, or a caller cannot trust it.
-    assert.equal(json.ready, json.reachable.length > 0);
   });
 });
 
-test("healthcheck flags a host that answers but is not the expected site", async () => {
-  // This is the failure mode that cost real time: a parked domain answered 200
-  // faster than every genuine mirror and was reported as the healthiest one.
-  const { probeMirror } = await import("../dist/http.js");
-  const probe = await probeMirror("https://example.com", "/", {
-    timeoutMs: 5000,
-    expect: /This Domain Is Definitely Not Anna's Archive/,
-  });
-  // Whatever the network does, the probe must classify it honestly: either it
-  // failed to match the marker (impostor) or it was unreachable.
-  assert.ok(!probe.ok || probe.impostor === undefined);
-  if (probe.status && probe.impostor) assert.equal(probe.impostor, true);
-});
+// The identity-classification path is tested against local HTTP servers in
+// test/http.test.mjs; keep live network traffic out of this agent test suite.
