@@ -143,6 +143,24 @@ function useReadableValidationErrors(server: McpServer): void {
   };
 }
 
+/** A caller-supplied filename is one plain name: no separators, drive
+ *  prefixes, NUL bytes, or the `.`/`..` entries that climb out of the directory. */
+function plainFileName(name: string): string {
+  const trimmed = name.trim();
+  if (
+    trimmed === "" ||
+    trimmed === "." ||
+    trimmed === ".." ||
+    /[\\/:\0]/.test(trimmed)
+  ) {
+    throw new Error(
+      `filename must be a plain file name, not a path (got "${name}"). ` +
+        "Use output_dir for the directory."
+    );
+  }
+  return trimmed;
+}
+
 const MAX_SEARCH_PDF_RESOLUTIONS = 3;
 
 /** Best-effort, bounded Sci-Hub enrichment; search results must survive mirror failures. */
@@ -289,6 +307,8 @@ export function createServer(): McpServer {
     },
     async ({ md5, output_dir, filename }, extra) => {
       const hash = md5.toLowerCase();
+      // Validate before any network work: a bad name must never reach the disk.
+      const plainName = filename === undefined ? undefined : plainFileName(filename);
       const links = await resolveDownloads(hash);
       const direct = links.filter((l) => l.direct);
       if (direct.length === 0)
@@ -317,10 +337,9 @@ export function createServer(): McpServer {
             signal: extra?.signal,
           });
 
-          const ext =
-            filename?.split(".").pop() ||
-            sniffExt(await readFileHead(staging, 4096), result.contentType);
-          const name = filename ?? `${hash}.${ext}`;
+          const name =
+            plainName ??
+            `${hash}.${sniffExt(await readFileHead(staging, 4096), result.contentType)}`;
           const path = join(dir, name);
           await rename(staging, path);
 
