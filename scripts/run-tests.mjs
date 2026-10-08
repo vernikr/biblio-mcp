@@ -1,4 +1,4 @@
-// Probe the flag: the Node 18.17 runtime floor predates --test-concurrency.
+// Every supported Node (22+) has the bounded test runner.
 
 import { readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -6,15 +6,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const [major, minor] = process.versions.node.split(".").map(Number);
-if (major === 18 && minor < 19) {
-  console.error("Full suite requires Node 18.19+; the server runtime floor is 18.17 (checked separately in CI).");
-  process.exit(1);
-}
-const args = ["--test"];
-if (spawnSync(process.execPath, ["--test-concurrency=4", "--eval", ""], { stdio: "ignore" }).status === 0) {
-  args.push("--test-concurrency=4");
-}
+const args = ["--test", "--test-concurrency=4"];
 args.push(
   ...readdirSync(join(root, "test"))
     .filter((file) => file.endsWith(".test.mjs"))

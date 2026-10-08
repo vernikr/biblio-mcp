@@ -13,7 +13,7 @@ const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const INSTALLED_PACKAGE = /[\\/]node_modules[\\/][^\\/]+[\\/]?$/.test(`${PROJECT_ROOT}/`);
 
 /** Minimum Node this server supports (mirrors "engines" in package.json). */
-const MIN_NODE = { major: 18, minor: 17 };
+const MIN_NODE = { major: 22, minor: 0 };
 
 /** Read a dependency manifest without importing the dependency. */
 function readPkgJson(name) {
@@ -102,7 +102,7 @@ export function checkZodSdkCompat() {
         `start and then fail every tool call with ` +
         `"keyValidator._parse is not a function". ` +
         `Fix: raise the SDK to a zod-4-aware release ` +
-        `(pnpm add @modelcontextprotocol/sdk@^1.29.0 --save-exact), ` +
+        `(pnpm add @modelcontextprotocol/sdk@1.32.1 --save-exact), ` +
         `or pin zod back to 3 (pnpm add zod@3.23.8 --save-exact).`,
     };
   }

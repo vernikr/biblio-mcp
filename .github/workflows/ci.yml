@@ -11,8 +11,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Full-suite floor: earlier Node 18 root after-hooks can leave HTTP fixtures alive.
-        node-version: ["18.19.0", 20, 22]
+        # Supported LTS majors.
+        node-version: [22, 24]
 
     steps:
       - uses: actions/checkout@v4
@@ -83,7 +83,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "18.17.0"
+          node-version: "22.0.0"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
@@ -102,7 +102,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Optional live mirror tests

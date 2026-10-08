@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+- Runtime support is now Node 22+ (user-approved); CI targets 22/24 LTS.
+- Updated SDK 1.32.1, Zod 4.6.5, Cheerio 1.2.0, TypeScript 7.0.2, tsx 4.23.15 and Node 22 types. The SDK update fixes GHSA-6qxp-vccf-f47h; production audit is clean.
+- Adapted readable validation to the newer SDK diagnostic format without a second schema parse.
+
 ## [1.8.0] - 2026-10-08
 
 ### Performance

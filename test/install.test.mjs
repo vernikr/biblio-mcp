@@ -449,14 +449,14 @@ test("every version in the CHANGELOG has a matching compare link", async () => {
 });
 
 
-test("the installer rejects Node 18.16 before fetching or installing", () => {
+test("the installer rejects Node 21 before fetching or installing", () => {
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
-    Object.defineProperty(process.versions, "node", { value: "18.16.0" });
+    Object.defineProperty(process.versions, "node", { value: "21.99.0" });
     process.argv = [process.execPath, ${JSON.stringify(INSTALLER)}, "--dry-run"];
     await import(${JSON.stringify(pathToFileURL(INSTALLER).href)});
   `], { encoding: "utf8" });
   assert.equal(r.status, 1);
-  assert.match(r.stdout, /18\.17.*required/);
+  assert.match(r.stdout, /22\.0.*required/);
   assert.doesNotMatch(r.stdout, /\[2\] obtaining/);
 });
 

@@ -38,7 +38,7 @@ cd biblio-mcp
 node scripts/install.mjs
 ```
 
-Requires Node.js 18.17+ and pnpm. The installer builds and verifies the server, then prints the MCP
+Requires Node.js 22+ and pnpm. The installer builds and verifies the server, then prints the MCP
 client configuration. See [Install](#install) for manual setup and configuration options.
 
 **One [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that searches Anna's Archive, Library Genesis (Libgen), Sci-Hub, and Z-Library — all at once.**
@@ -103,7 +103,7 @@ publishing under the upstream name. The installer above makes source installatio
 
 ### Manual install
 
-Requires **Node.js ≥ 18.17** and **pnpm**. This fork installs with pnpm and ships a
+Requires **Node.js ≥ 22** and **pnpm**. This fork installs with pnpm and ships a
 `pnpm-lock.yaml`; it deliberately does **not** ship an npm lockfile, because the two
 resolved different dependency trees and one of them was broken (see
 [Why pnpm?](#why-pnpm-and-not-npm)).
@@ -466,8 +466,7 @@ only hit it after manually changing dependencies.
 
 ## Development
 
-Use Node 18.19+ for the full test suite; the server runtime supports 18.17+. CI also
-checks the exact runtime floor with offline/stdio tests.
+Use Node 22 or 24 LTS. CI also checks the exact Node 22.0 runtime floor.
 
 ```bash
 pnpm run dev             # run from source via tsx

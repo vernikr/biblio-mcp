@@ -184,15 +184,15 @@ test("preflight passes for an installed package, not just a source checkout", as
 });
 
 
-test("preflight enforces the actual Node 18.17 floor", async () => {
+test("preflight enforces the Node 22 floor", async () => {
   const { runPreflight } = await import("../scripts/preflight.mjs");
   const original = Object.getOwnPropertyDescriptor(process.versions, "node");
   try {
-    for (const [version, expected] of [["18.16.9", false], ["18.17.0", true], ["20.0.0", true]]) {
+    for (const [version, expected] of [["21.99.0", false], ["22.0.0", true], ["24.0.0", true]]) {
       Object.defineProperty(process.versions, "node", { value: version, configurable: true });
       const check = runPreflight().checks.find((c) => c.name === "node");
       assert.equal(check.ok, expected, version);
-      if (!expected) assert.match(check.problem, /18\.17/);
+      if (!expected) assert.match(check.problem, /22\.0/);
     }
   } finally {
     Object.defineProperty(process.versions, "node", original);

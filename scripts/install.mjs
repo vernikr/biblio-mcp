@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO = "https://github.com/vernikr/biblio-mcp.git";
-const NODE_MIN = { major: 18, minor: 17 };
+const NODE_MIN = { major: 22, minor: 0 };
 
 const argv = process.argv.slice(2);
 const has = (flag) => argv.includes(flag);

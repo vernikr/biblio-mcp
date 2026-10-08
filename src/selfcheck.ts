@@ -98,7 +98,7 @@ async function runPreflightStage(): Promise<StageResult> {
 }
 
 const TOOL_FIX =
-  'pnpm add @modelcontextprotocol/sdk@^1.29.0 zod@^4.4.3 && pnpm run build  ' +
+  'pnpm add @modelcontextprotocol/sdk@1.32.1 zod@4.6.5 && pnpm run build  ' +
   "(then re-run: pnpm preflight)";
 
 async function runToolsStage(): Promise<StageResult> {

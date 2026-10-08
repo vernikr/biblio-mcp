@@ -1,9 +1,8 @@
 # Maintainer and coding-agent guide
 
-This repository is a private source fork of the upstream npm package. Use Node.js 18.17+ and pnpm;
+This repository is a private source fork of the upstream npm package. Use Node.js 22+ and pnpm;
 keep changes testable without live access to shadow-library mirrors.
-For the full suite use Node 18.19+ (or a newer major): older Node 18 root after-hooks can keep
-HTTP fixtures alive. CI checks the exact 18.17 runtime separately with offline/stdio smoke tests.
+CI checks Node 22/24 LTS and the exact 22.0 runtime floor.
 
 ## Verification
 

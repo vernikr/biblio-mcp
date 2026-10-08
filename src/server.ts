@@ -108,10 +108,21 @@ function validationIssuesFrom(error: unknown): unknown[] | undefined {
   const direct = (error as { issues?: unknown }).issues;
   if (Array.isArray(direct)) return direct;
 
-  // The SDK currently includes Zod's serialized issue array in its message.
-  // Parse that diagnostic instead of validating the same arguments a second time.
+  // Pinned SDK versions flatten Zod issues into diagnostic text. Translate it
+  // without a second schema parse; legacy serialized issues remain supported.
   const message = (error as { message?: unknown }).message;
   if (typeof message !== "string") return undefined;
+  const diagnostic = /Input validation error: Invalid arguments for tool [^:]+: ([\s\S]*)/.exec(message)?.[1];
+  if (diagnostic && !diagnostic.startsWith("[")) {
+    return diagnostic.split("\n").map((line) => {
+      const match = /^(.*) at (.+)$/.exec(line);
+      return {
+        path: match ? [match[2]] : [],
+        message: match?.[1] ?? line,
+        code: /expected .*received undefined/.test(line) ? "invalid_type" : "custom",
+      };
+    });
+  }
   const start = message.indexOf("[");
   if (start < 0) return undefined;
   try {

@@ -43,7 +43,7 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 
 ## Installation and project size
 
-- The runtime floor is Node 18.17, matching Cheerio; engines, installer and preflight agree, and CI smoke-checks that exact runtime. The full test suite uses Node 18.19+ because earlier Node 18 root after-hooks can leave HTTP fixtures alive. `docs:env` rebuilds before reading compiled settings so its output reflects changed source.
+- The user approved a Node 22+ runtime floor for the scoped distribution. Engines, installer and preflight agree; CI covers 22/24 LTS and smoke-checks 22.0. This allows current Cheerio and removes old test-runner compatibility branches. `docs:env` rebuilds before reading compiled settings so its output reflects changed source.
 - A checkout with `pnpm-lock.yaml` must stop when pnpm is missing; silently falling back to npm can produce a different dependency tree. After prerequisite checks, install with `--frozen-lockfile` before running the dependency preflight; an incompatible SDK/Zod pair must still stop the build.
 - MCP config writes validate the root object and any existing `mcpServers` object before touching the file or its backup. Create a missing `mcpServers`, never silently replace an invalid value; preserve other entries. Successful writes use a backup and atomic rename.
 - Preflight checks the SDK's Zod range and runtime internals because an incompatible pair can answer `tools/list` but fail every `tools/call`. It locates package manifests by filesystem path before resolving an entry point, since `exports` can hide `package.json`; installed-package checks use the consumer's lockfile and dependencies.
