@@ -10,14 +10,6 @@ import type { Paper } from "../types.js";
 
 const GROUP = "scihub";
 
-/** Normalize an embedded PDF src into an absolute URL. */
-function absolutize(src: string, base: string): string {
-  if (src.startsWith("//")) return `https:${src}`;
-  if (src.startsWith("http")) return src;
-  if (src.startsWith("/")) return `${base}${src}`;
-  return `${base}/${src}`;
-}
-
 /**
  * Resolve a paper via Sci-Hub. `identifier` may be a DOI, an article URL, or a
  * title. Returns the paper with a `pdfUrl` when one is found.
@@ -67,7 +59,7 @@ export async function resolve(identifier: string): Promise<Paper> {
     title,
     doi,
     url: finalUrl,
-    pdfUrl: pdfSrc ? absolutize(pdfSrc, base) : undefined,
+    pdfUrl: pdfSrc ? new URL(pdfSrc, base).href : undefined,
     mirrors: SCIHUB_MIRRORS.map((m) => `${m}/${encodeURIComponent(id)}`),
   };
 }

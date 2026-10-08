@@ -86,7 +86,8 @@ export async function search(query: string, limit: number): Promise<Book[]> {
       text.slice(0, 120);
     if (!title) return;
 
-    const coverUrl = block.find("img").first().attr("src") || undefined;
+    const coverSrc = block.find("img").first().attr("src");
+    const coverUrl = coverSrc ? new URL(coverSrc, base).href : undefined;
     // Metadata typically lives in sibling divs after the cover anchor.
     const metaText = block.parent().text().replace(/\s+/g, " ").trim();
 
@@ -194,7 +195,7 @@ function extractDownloadLinks(
       /^download/i.test(text) ||
       /download now|option #/i.test(text.toLowerCase());
     if (!isDownload) return;
-    const url = href.startsWith("http") ? href : `${base}${href}`;
+    const url = new URL(href, base).href;
     links.push({
       source: "annas",
       label: text.slice(0, 80) || "download",

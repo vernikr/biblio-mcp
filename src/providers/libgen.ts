@@ -335,7 +335,7 @@ export async function downloadLinks(
   const $ = cheerio.load(html);
   const links: DownloadLink[] = [];
   const push = (url: string, label: string, direct: boolean) => {
-    const full = url.startsWith("http") ? url : `${base}/${url.replace(/^\//, "")}`;
+    const full = new URL(url, base).href;
     if (!links.some((l) => l.url === full)) links.push({ source: "libgen", label, url: full, direct });
   };
 

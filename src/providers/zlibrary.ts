@@ -69,7 +69,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
       year,
       format,
       size,
-      url: href ? (href.startsWith("http") ? href : `${base}${href}`) : undefined,
+      url: href ? new URL(href, base).href : undefined,
     });
   });
 
