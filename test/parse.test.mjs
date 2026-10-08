@@ -80,6 +80,14 @@ test("parseFormat normalises the Ext. column and rejects junk", () => {
 test("parseLanguage accepts known languages and rejects free text", () => {
   assert.equal(parseLanguage("English"), "English");
   assert.equal(parseLanguage("  russian "), "Russian");
+  // Languages outside the short list are kept, not dropped.
+  assert.equal(parseLanguage("Bulgarian"), "Bulgarian");
+  assert.equal(parseLanguage("ESTONIAN"), "Estonian");
+  assert.equal(parseLanguage("Kazakh"), "Kazakh");
+  // Format names and multi-word cell text are still not languages.
+  assert.equal(parseLanguage("pdf"), undefined);
+  assert.equal(parseLanguage("Wiley Finance Series"), undefined);
+  assert.equal(parseLanguage("12345"), undefined);
   // Cell text that is not a language must not be reported as one.
   assert.equal(parseLanguage("Wiley Finance"), undefined);
   assert.equal(parseLanguage(""), undefined);

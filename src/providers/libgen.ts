@@ -5,6 +5,7 @@ import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
 import { fetchFromMirrors } from "../http.js";
 import { LIBGEN_MIRRORS } from "../mirrors.js";
 import {
+  absoluteUrl,
   columnMap,
   isIsbnLike,
   isUsefulLink,
@@ -295,8 +296,10 @@ export async function downloadLinks(
   const $ = cheerio.load(html);
   const links: DownloadLink[] = [];
   const push = (url: string, label: string, direct: boolean) => {
-    const full = new URL(url, base).href;
-    if (!links.some((l) => l.url === full)) links.push({ source: "libgen", label, url: full, direct });
+    const full = absoluteUrl(url, base);
+    if (full && !links.some((l) => l.url === full)) {
+      links.push({ source: "libgen", label, url: full, direct });
+    }
   };
 
   $("a").each((_i, el) => {

@@ -7,7 +7,8 @@ interface Entry<Value> {
   value: Promise<Value>;
 }
 
-/** Small bounded TTL cache that shares in-flight work and never stores failures. */
+/** Small bounded TTL cache that shares in-flight work. A thrown load is never
+ *  stored; a load that resolves to a failure value is stored like any value. */
 export class AsyncTtlCache<Key, Value> {
   private readonly entries = new Map<Key, Entry<Value>>();
 

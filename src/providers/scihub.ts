@@ -12,6 +12,7 @@ const isArticlePage = (html: string): boolean | string =>
   CHALLENGE_PAGE.test(html)
     ? "answered with a human-verification challenge (ALTCHA), not the article"
     : true;
+import { absoluteUrl } from "../parse.js";
 import type { Paper } from "../types.js";
 
 const GROUP = "scihub";
@@ -75,7 +76,7 @@ export async function resolve(identifier: string): Promise<Paper> {
     title,
     doi,
     url: finalUrl,
-    pdfUrl: pdfSrc ? new URL(pdfSrc, base).href : undefined,
+    pdfUrl: absoluteUrl(pdfSrc, base),
     mirrors: SCIHUB_MIRRORS.map((m) => `${m}/${encodeURIComponent(id)}`),
   };
 }

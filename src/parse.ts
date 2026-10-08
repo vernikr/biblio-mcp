@@ -55,12 +55,32 @@ export function parseFormat(text: string | undefined | null): string | undefined
   return KNOWN_FORMATS.has(token) ? token.toUpperCase() : undefined;
 }
 
-/** Normalise the Language column, rejecting free text that is not a language. */
+/** One word of letters: any language name, in any script. Libgen's column is
+ *  a single word per language; multi-word cell text is not a language. */
+const LANGUAGE_WORD = /^\p{L}{3,20}$/u;
+
+/** Normalise the Language column, rejecting free text that is not a language.
+ *  Known names are accepted as-is; any other single word of letters is too, so
+ *  Bulgarian, Serbian, Estonian and the rest are not silently dropped. */
 export function parseLanguage(text: string | undefined | null): string | undefined {
   if (!text) return undefined;
   const token = text.trim().toLowerCase();
-  if (!token || !KNOWN_LANGUAGES.has(token)) return undefined;
+  if (!token) return undefined;
+  if (!KNOWN_LANGUAGES.has(token)) {
+    if (!LANGUAGE_WORD.test(token) || KNOWN_FORMATS.has(token)) return undefined;
+  }
   return token.charAt(0).toUpperCase() + token.slice(1);
+}
+
+/** Resolve an href against its page; undefined for a value that is not a URL.
+ *  One malformed link on a page must not discard every other link on it. */
+export function absoluteUrl(href: string | undefined | null, base: string): string | undefined {
+  if (!href) return undefined;
+  try {
+    return new URL(href, base).href;
+  } catch {
+    return undefined;
+  }
 }
 
 /** "223 / 223" -> "223"; "" or "0" -> undefined. */

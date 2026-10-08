@@ -3,7 +3,7 @@
 import * as cheerio from "cheerio";
 import { fetchFromMirrors, probeMirror } from "../http.js";
 import { ANNAS_IDENTITY, ANNAS_MIRRORS } from "../mirrors.js";
-import { parseLanguage, parseSize, parseYear } from "../parse.js";
+import { absoluteUrl, parseLanguage, parseSize, parseYear } from "../parse.js";
 import type { Book, DownloadLink } from "../types.js";
 
 const GROUP = "annas";
@@ -61,7 +61,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
     if (!title) return;
 
     const coverSrc = block.find("img").first().attr("src");
-    const coverUrl = coverSrc ? new URL(coverSrc, base).href : undefined;
+    const coverUrl = absoluteUrl(coverSrc, base);
     // Metadata typically lives in sibling divs after the cover anchor.
     const metaText = block.parent().text().replace(/\s+/g, " ").trim();
 
@@ -175,7 +175,8 @@ function extractDownloadLinks(
       /^download/i.test(text) ||
       /download now|option #/i.test(text.toLowerCase());
     if (!isDownload) return;
-    const url = new URL(href, base).href;
+    const url = absoluteUrl(href, base);
+    if (!url) return;
     links.push({
       source: "annas",
       label: text.slice(0, 80) || "download",

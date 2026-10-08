@@ -3,7 +3,7 @@
 import * as cheerio from "cheerio";
 import { fetchFromMirrors } from "../http.js";
 import { ZLIBRARY_MIRRORS } from "../mirrors.js";
-import { parseFormat, parseSize, parseYear } from "../parse.js";
+import { absoluteUrl, parseFormat, parseSize, parseYear } from "../parse.js";
 import type { Book } from "../types.js";
 
 const GROUP = "zlibrary";
@@ -52,7 +52,7 @@ export async function search(query: string, limit: number): Promise<Book[]> {
       year,
       format,
       size,
-      url: href ? new URL(href, base).href : undefined,
+      url: absoluteUrl(href, base),
     });
   });
 

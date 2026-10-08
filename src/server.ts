@@ -49,6 +49,9 @@ const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
 
+/** Same body as `json`, flagged so clients see a failed outcome as a failure. */
+const jsonError = (data: unknown) => ({ ...json(data), isError: true });
+
 /** Read the first `bytes` of a file. Used to sniff a container format after a
  *  streamed download, when we never held the whole file in memory. */
 async function readFileHead(path: string, bytes: number): Promise<Buffer> {
@@ -252,7 +255,11 @@ export function createServer(): McpServer {
     {
       md5: z.string().regex(/^[a-fA-F0-9]{32}$/, "must be a 32-char MD5 hash"),
     },
-    async ({ md5 }) => json(await bookDetails(md5.toLowerCase()))
+    async ({ md5 }) => {
+      const details = await bookDetails(md5.toLowerCase());
+      // No usable metadata from any source is a failed lookup, not a book.
+      return details.title ? json(details) : jsonError(details);
+    }
   );
 
   // -------------------------------------------------------------------------
@@ -312,7 +319,7 @@ export function createServer(): McpServer {
       const links = await resolveDownloads(hash);
       const direct = links.filter((l) => l.direct);
       if (direct.length === 0)
-        return json({
+        return jsonError({
           saved: false,
           reason: "No direct download link resolved. Use these links manually.",
           links,
@@ -378,7 +385,7 @@ export function createServer(): McpServer {
           errors.push(`${link.label}: ${(e as Error).message}`);
         }
       }
-      return json({ saved: false, errors, links });
+      return jsonError({ saved: false, errors, links });
     }
   );
 
