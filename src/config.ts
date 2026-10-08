@@ -7,22 +7,23 @@
 export interface NumberSetting {
   name: string;
   fallback: number;
+  allowZero?: boolean;
 }
 
-/** Numeric budgets, in milliseconds. Non-numeric or non-positive input falls back. */
+/** Numeric budgets, in milliseconds. Invalid input falls back; only mirror staggering permits zero. */
 export const NUMBER_SETTINGS = {
   timeoutMs: { name: "BIBLIO_TIMEOUT_MS", fallback: 8000 },
   downloadTimeoutMs: { name: "BIBLIO_DOWNLOAD_TIMEOUT_MS", fallback: 600_000 },
   downloadStallMs: { name: "BIBLIO_DOWNLOAD_STALL_MS", fallback: 30_000 },
   mirrorDeadTtlMs: { name: "BIBLIO_MIRROR_DEAD_TTL_MS", fallback: 300_000 },
-  mirrorStaggerMs: { name: "BIBLIO_MIRROR_STAGGER_MS", fallback: 120 },
+  mirrorStaggerMs: { name: "BIBLIO_MIRROR_STAGGER_MS", fallback: 120, allowZero: true },
 } as const satisfies Record<string, NumberSetting>;
 
 export function readNumber(setting: NumberSetting): number {
-  const raw = process.env[setting.name];
+  const raw = process.env[setting.name]?.trim();
   if (!raw) return setting.fallback;
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : setting.fallback;
+  return Number.isFinite(n) && (n > 0 || (setting.allowZero && n === 0)) ? n : setting.fallback;
 }
 
 export interface EnvSetting {
@@ -59,7 +60,7 @@ export const ENV_SETTINGS: readonly EnvSetting[] = [
   },
   {
     name: NUMBER_SETTINGS.mirrorStaggerMs.name,
-    help: "Head start between concurrent mirror attempts",
+    help: "Head start between concurrent mirror attempts; 0 starts all at once",
     defaultText: `${NUMBER_SETTINGS.mirrorStaggerMs.fallback}`,
   },
   {

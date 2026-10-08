@@ -220,7 +220,7 @@ export async function fetchFromMirrors(
 ): Promise<MirrorFetchResult> {
   const ordered = orderMirrors(groupKey, mirrors);
   if (ordered.length === 0) {
-    const envName = `BIBLIO_${groupKey.toUpperCase()}_MIRRORS`;
+    const envName = groupKey === "zlibrary" ? "BIBLIO_ZLIB_MIRRORS" : `BIBLIO_${groupKey.toUpperCase()}_MIRRORS`;
     throw new Error(
       `No ${groupKey} mirrors configured; set ${envName} to one or more base URLs.`
     );

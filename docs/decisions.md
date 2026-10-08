@@ -4,6 +4,7 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 
 ## Mirror requests
 
+- Timeout and cooldown budgets stay positive; only mirror staggering accepts zero to start all attempts together. Empty Z-Library mirror errors name the actual `BIBLIO_ZLIB_MIRRORS` override.
 - Mirror order is a preference, not a fail-fast sequence. Start candidates with a small stagger, accept the first response whose body and identity check pass, and cancel losers. Within one mirror, try a route fallback only after HTTP 404/405.
 - Remember failed mirrors for a short cooldown, but retry the full group when all candidates are cooling down. Preserve the last successful mirror as preferred; `healthcheck` clears cooldowns without discarding that preference, while `selfcheck` resets both.
 - A successful status code is not proof of site identity. `healthcheck`/`selfcheck` use per-group content markers; Anna's scraped requests also pass an identity validator. Provider fetch validators remain provider-specific, and Sci-Hub human-check pages are rejected by its validator (audit item A16); they are never solved.

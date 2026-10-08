@@ -50,3 +50,31 @@ test("the README environment table is generated from the registry", () => {
     "README table is stale; run `node scripts/sync-env-docs.mjs`"
   );
 });
+
+test("zero disables only mirror staggering, not timeout or TTL budgets", () => {
+  for (const [key, setting] of Object.entries(NUMBER_SETTINGS)) {
+    const saved = process.env[setting.name];
+    try {
+      process.env[setting.name] = "0";
+      assert.equal(readNumber(setting), key === "mirrorStaggerMs" ? 0 : setting.fallback, key);
+      for (const bad of ["-1", "NaN", "Infinity", " ", ""]) {
+        process.env[setting.name] = bad;
+        assert.equal(readNumber(setting), setting.fallback, `${key}: ${JSON.stringify(bad)}`);
+      }
+    } finally {
+      if (saved === undefined) delete process.env[setting.name];
+      else process.env[setting.name] = saved;
+    }
+  }
+});
+
+test("empty mirror groups name their real documented configuration variables", async () => {
+  const { fetchFromMirrors } = await import("../dist/http.js");
+  for (const [group, envName] of [
+    ["annas", "BIBLIO_ANNAS_MIRRORS"], ["libgen", "BIBLIO_LIBGEN_MIRRORS"],
+    ["scihub", "BIBLIO_SCIHUB_MIRRORS"], ["zlibrary", "BIBLIO_ZLIB_MIRRORS"],
+  ]) {
+    assert.ok(ENV_SETTINGS.some((s) => s.name === envName));
+    await assert.rejects(fetchFromMirrors(group, [], () => "/"), new RegExp(`set ${envName} to`));
+  }
+});

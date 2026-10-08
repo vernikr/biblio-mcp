@@ -280,7 +280,7 @@ All optional — sensible defaults ship built-in. Override via environment varia
 | `BIBLIO_DOWNLOAD_TIMEOUT_MS` | Timeout for fetching a file | 600000 |
 | `BIBLIO_DOWNLOAD_STALL_MS` | Abort a download idle for this long | 30000 |
 | `BIBLIO_MIRROR_DEAD_TTL_MS` | How long a failed mirror is skipped | 300000 |
-| `BIBLIO_MIRROR_STAGGER_MS` | Head start between concurrent mirror attempts | 120 |
+| `BIBLIO_MIRROR_STAGGER_MS` | Head start between concurrent mirror attempts; 0 starts all at once | 120 |
 | `BIBLIO_ANNAS_API_KEY` | Anna's Archive member key; enables the fast-download JSON API, which is not behind the DDoS-Guard challenge | unset |
 | `BIBLIO_DISABLE_SOURCES` | Sources excluded from the default search set | zlibrary |
 | `BIBLIO_ANNAS_MIRRORS` | Comma-separated Anna's Archive base URLs | built-in list (src/mirrors.ts) |
