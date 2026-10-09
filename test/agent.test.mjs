@@ -46,26 +46,6 @@ test("every tool description ends with a runnable Example line", async () => {
   });
 });
 
-test("each tool's example only uses arguments that tool accepts", async () => {
-  await withClient(async (client) => {
-    const { tools } = await client.listTools();
-    for (const tool of tools) {
-      const example = JSON.parse(/Example: (.+)$/m.exec(tool.description)[1]);
-      const allowed = Object.keys(tool.inputSchema.properties ?? {});
-      for (const key of Object.keys(example)) {
-        assert.ok(
-          allowed.includes(key),
-          `${tool.name} example uses "${key}", which is not one of ${allowed.join(", ")}`
-        );
-      }
-      // And it must satisfy the required list, or the example itself is invalid.
-      for (const req of tool.inputSchema.required ?? []) {
-        assert.ok(req in example, `${tool.name} example is missing required "${req}"`);
-      }
-    }
-  });
-});
-
 test("TOOL_META covers every registered tool", async () => {
   await withClient(async (client) => {
     const { tools } = await client.listTools();

@@ -48,7 +48,7 @@ node scripts/check-artifacts.mjs --registry
 использовать **npm registry**, но не живые shadow-library mirrors. Live: `pnpm run verify:live`
 отдельно. Generated `artifacts/`, `dist/`, `node_modules` не коммитить.
 
-Проверки до передачи: **215/215** offline tests на Node 22/24 (PR3: 203 прежних + 12 новых), **28/28** на 22.0.0; acceptance
+Проверки до передачи: **216/216** offline tests на Node 22/24 (PR3: 203 прежних + 12 новых; R2/X3: +1), **28/28** на 22.0.0; acceptance
 npm/npx/pnpm/MCPB с настоящими сохранёнными байтами. Последний зелёный distribution CI:
 [7/7 jobs](https://github.com/vernikr/biblio-mcp/actions/runs/37856503504), включая Linux/macOS/Windows.
 Release checkpoint: **[7/7 jobs зелёные](https://github.com/vernikr/biblio-mcp/actions/runs/37863870454)**;
@@ -68,7 +68,7 @@ R4 — HTML-интерстициал отклоняется без чтения 
 **PR4 сделан:** общий MCP-клиент для тестов (`test/helpers/mcp.mjs`), общие HTTP-хелперы, мелкие
 остатки в libgen/parse, устаревшие утверждения README/AGENTS/dependabot исправлены, аудит-worklog
 помечен как снимок. Уникальные сценарии и provider captures сохранены (215/215 тестов).
-Оставшееся — P3 из плана: MCP annotations, `registerTool`, Windows-проверка, R2 (AJV-валидатор SDK).
+Позже доделаны R2 (AJV-валидатор SDK в тестах) и MCP annotations. Оставшееся — решения и среда, не код: R7 (сокращение source-installer), повышение Node floor, Windows-проверка, `registerTool` (не обязателен).
 
 ## Инварианты и ограничения
 

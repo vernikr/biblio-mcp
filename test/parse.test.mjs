@@ -13,6 +13,7 @@ import {
   columnMap,
   parseBibtex,
   LIBGEN_DEFAULT_COLUMNS,
+  isUsefulLink,
 } from "../dist/parse.js";
 
 // ---------------------------------------------------------------------------
@@ -205,4 +206,43 @@ test("parseBibtex returns an empty object rather than throwing on junk", () => {
   assert.deepEqual(parseBibtex("no bibtex here"), {});
   assert.deepEqual(parseBibtex("@book{unterminated"), {});
   assert.deepEqual(parseBibtex(""), {});
+});
+
+// ---------------------------------------------------------------------------
+// isUsefulLink — junk download links (pure; moved from details.test)
+// ---------------------------------------------------------------------------
+
+test("isUsefulLink rejects links that are not about this book", () => {
+  const md5 = "524037f395462d37b31f2b28fede24fb";
+  assert.deepEqual(
+    [
+      // Real junk emitted by get_download_links: Libgen's ads.php page links the
+      // Anna's Archive domain root, which downloads nothing.
+      isUsefulLink("http://annas-archive.org/", md5),
+      isUsefulLink("https://annas-archive.gs/", md5),
+      isUsefulLink("https://libgen.li/", md5),
+      // Anything not naming the hash is not a link to this book.
+      isUsefulLink("https://libgen.li/ads.php?md5=deadbeef", md5),
+      isUsefulLink("https://example.com/book/12345", md5),
+      // Malformed input must not throw.
+      isUsefulLink("not a url", md5),
+    ],
+    [false, false, false, false, false, false]
+  );
+});
+
+test("isUsefulLink accepts the mirrors that actually serve this book", () => {
+  const md5 = "524037f395462d37b31f2b28fede24fb";
+  assert.deepEqual(
+    [
+      isUsefulLink(`https://libgen.li/get.php?md5=${md5}&key=ABC`, md5),
+      isUsefulLink(`https://library.sk/download/${md5}`, md5),
+      isUsefulLink(`https://z-lib.to/md5/${md5}`, md5),
+      // Case-insensitive, because mirrors differ.
+      isUsefulLink(`https://x.test/${md5.toUpperCase()}`, md5),
+      // IPFS gateway links carry a CID, not the md5.
+      isUsefulLink("https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", md5),
+    ],
+    [true, true, true, true, true]
+  );
 });

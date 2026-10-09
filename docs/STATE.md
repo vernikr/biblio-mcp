@@ -26,7 +26,7 @@ pnpm run docs:env                     # fresh compiled environment table
 pnpm run verify:live                  # optional live diagnostics, separate from offline gate
 ```
 
-215/215 offline tests pass without skips; pnpm must be on PATH and its store primed for the clean
+216/216 offline tests pass without skips; pnpm must be on PATH and its store primed for the clean
 installer fixtures. Exact Node 22.0 smoke: 28/28. The cost of genuine install/build tests is kept
 rather than dropping coverage to hit an obsolete under-five-second target.
 
@@ -40,7 +40,8 @@ covers response headers, and the idle watchdog covers the body (see `docs/decisi
 PR4 is done: shared in-memory MCP test client (`test/helpers/mcp.mjs`), shared HTTP mirror helpers,
 libgen/parse leftovers, and the README/AGENTS/dependabot statements the audit marked stale. The
 audit worklog is marked as an end-of-wave snapshot. Remaining work is optional P3 (MCP annotations,
-`registerTool`, Windows check, R2 SDK AJV validator); see plan.md section 5.
+`registerTool`, Windows check, R7 source-installer reduction, higher Node floor); see plan.md section 5.
+R2 (SDK AJV validation in tests) and MCP annotations are done.
 Cached Anna detail pages remain intentionally deferred because loser cancellation is more useful.
 
 ## Preserved limits and safety

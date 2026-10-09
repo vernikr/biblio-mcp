@@ -238,6 +238,7 @@ export function createServer(): McpServer {
         .optional()
         .describe("Max results per source (default 20)."),
     },
+    { readOnlyHint: true, openWorldHint: true },
     async ({ query, sources, limit }) => {
       const selectedSources = [...new Set((sources as SourceId[]) ?? BOOK_SOURCES)];
       const result = await searchBooks(query, selectedSources, limit ?? 20);
@@ -258,6 +259,7 @@ export function createServer(): McpServer {
     {
       md5: md5Schema,
     },
+    { readOnlyHint: true, openWorldHint: true },
     async ({ md5 }) => {
       const details = await bookDetails(md5.toLowerCase());
       // No usable metadata from any source is a failed lookup, not a book.
@@ -274,6 +276,7 @@ export function createServer(): McpServer {
     {
       md5: md5Schema,
     },
+    { openWorldHint: true },
     async ({ md5 }) => {
       const hash = md5.toLowerCase();
       const { links, errors, notFound } = await resolveDownloadReport(hash);
@@ -321,6 +324,7 @@ export function createServer(): McpServer {
         .optional()
         .describe("Optional plain filename; defaults to <md5>.<ext>. Existing names are never overwritten."),
     },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     async ({ md5, output_dir, filename }, extra) => {
       const hash = md5.toLowerCase();
       // Validate before any network work: a bad name must never reach the disk.
@@ -450,6 +454,7 @@ export function createServer(): McpServer {
           "Best-effort direct PDF lookup via Sci-Hub for up to three DOI results; adds network requests."
         ),
     },
+    { readOnlyHint: true, openWorldHint: true },
     async ({ query, limit, resolvePdfs: shouldResolvePdfs }) => {
       const papers = await withSourceCircuit("libgen", () =>
         libgen.searchPapers(query, limit ?? 20)
@@ -469,6 +474,7 @@ export function createServer(): McpServer {
       identifier: searchTextSchema
         .describe("DOI (e.g. 10.1038/nature12373), article URL, or title."),
     },
+    { readOnlyHint: true, openWorldHint: true },
     async ({ identifier }) =>
       json(await withSourceCircuit("scihub", () => scihub.resolve(identifier)))
   );
@@ -488,6 +494,7 @@ export function createServer(): McpServer {
         .optional()
         .describe("Per-mirror probe timeout in ms (default 8000)."),
     },
+    { readOnlyHint: true, openWorldHint: true },
     async ({ timeoutMs }) => {
       // Bypass the negative cache: the point of a healthcheck is to show what is
       // reachable right now, not what was unreachable a minute ago.

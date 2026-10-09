@@ -11,6 +11,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - `BIBLIO_DOWNLOAD_TIMEOUT_MS` is documented as the response-header budget; a steady transfer longer than it completes, guarded by `BIBLIO_DOWNLOAD_STALL_MS`.
 - `book_details` no longer marks a total failure with `resolvedVia`.
 
+### Changed
+- Tools carry MCP annotations: lookups are read-only, `download_book` is marked as writing a new file (not idempotent), and every tool is open-world. `get_download_links` is deliberately not read-only, because resolving member links can spend quota.
+- Test suite: examples in tool descriptions are checked with the SDK's AJV validator; `isUsefulLink` tests are pure and live in `parse.test.mjs`.
+
 ## [2.0.0] - 2026-10-09
 
 ### Published distribution

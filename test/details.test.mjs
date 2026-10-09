@@ -65,47 +65,6 @@ async function startStub(handler) {
 // "this source is not available" without touching the network.
 const UNREACHABLE = "http://127.0.0.1:1";
 
-// ---------------------------------------------------------------------------
-// isUsefulLink — the junk download links
-// ---------------------------------------------------------------------------
-
-test("isUsefulLink rejects links that are not about this book", async () => {
-  const md5 = "524037f395462d37b31f2b28fede24fb";
-  const got = await runInProcess({}, { md5 }, async (c) => {
-    const { isUsefulLink } = await import("./dist/parse.js");
-    return [
-      // Real junk emitted by get_download_links: Libgen's ads.php page links the
-      // Anna's Archive domain root, which downloads nothing.
-      isUsefulLink("http://annas-archive.org/", c.md5),
-      isUsefulLink("https://annas-archive.gs/", c.md5),
-      isUsefulLink("https://libgen.li/", c.md5),
-      // Anything not naming the hash is not a link to this book.
-      isUsefulLink("https://libgen.li/ads.php?md5=deadbeef", c.md5),
-      isUsefulLink("https://example.com/book/12345", c.md5),
-      // Malformed input must not throw.
-      isUsefulLink("not a url", c.md5),
-    ];
-  });
-  assert.deepEqual(got, [false, false, false, false, false, false]);
-});
-
-test("isUsefulLink accepts the mirrors that actually serve this book", async () => {
-  const md5 = "524037f395462d37b31f2b28fede24fb";
-  const got = await runInProcess({}, { md5 }, async (c) => {
-    const { isUsefulLink } = await import("./dist/parse.js");
-    return [
-      isUsefulLink(`https://libgen.li/get.php?md5=${c.md5}&key=ABC`, c.md5),
-      isUsefulLink(`https://library.sk/download/${c.md5}`, c.md5),
-      isUsefulLink(`https://z-lib.to/md5/${c.md5}`, c.md5),
-      // Case-insensitive, because mirrors differ.
-      isUsefulLink(`https://x.test/${c.md5.toUpperCase()}`, c.md5),
-      // IPFS gateway links carry a CID, not the md5.
-      isUsefulLink("https://ipfs.io/ipfs/bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", c.md5),
-    ];
-  });
-  assert.deepEqual(got, [true, true, true, true, true]);
-});
-
 test("resolveDownloads drops the bare-domain link Libgen's ads page advertises", async () => {
   const md5 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
   // A realistic ads.php page: one genuine get.php link plus the domain-root
