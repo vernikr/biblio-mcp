@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Added
+- `--print-config` prints a ready MCP client entry that launches the pinned release through pnpm, with a PATH that GUI-started clients can use. It writes nothing and never starts the server.
+- `docs/agent-install.md`: a runbook for agents asked to connect the package through pnpm.
+
 ### Fixed
 - `get_download_links` and `download_book` report unavailable sources as an error instead of an empty success. Sources that have no record are listed as `notFound`; partial results keep their `errors`.
 - A Sci-Hub mirror that answers without a PDF no longer blocks a mirror that has the PDF, and is not put into cooldown.

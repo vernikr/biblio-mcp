@@ -116,6 +116,21 @@ claude mcp add -s user biblio -- pnpm --silent dlx @vernikr/biblio-mcp@2.0.0
 For a globally installed tarball, use `"command": "biblio-mcp", "args": []` instead.
 Keys and mirror overrides go in your client's environment; see [Configuration](#configuration).
 
+#### Let an agent do it
+
+Give an AI agent the package link and the words "connect through pnpm". The step-by-step
+runbook it should follow, including backup, verification and manual enablement, is in
+[`docs/agent-install.md`](docs/agent-install.md).
+
+To print the client entry from a release that has it, without writing anything:
+
+```bash
+pnpm --silent dlx @vernikr/biblio-mcp@<version> --print-config
+```
+
+The output includes a `PATH` that lets GUI-started clients find pnpm and node. It contains no
+keys; add those yourself in the client's `env` block.
+
 ### MCPB
 
 The `.mcpb` contains the same compiled runtime plus locked production dependencies. Its settings

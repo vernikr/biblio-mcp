@@ -5,6 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
 import { runSelfcheck, printSelfcheck, runStartupSelftest } from "./selfcheck.js";
 import { environmentHelp } from "./config.js";
+import { buildLauncherConfig, findOnPath, PACKAGE_NAME } from "./printConfig.js";
 
 const USAGE = `${SERVER_NAME} v${SERVER_VERSION}
 
@@ -13,6 +14,7 @@ Usage:
   node dist/index.js --selfcheck --offline  verify install and a real tool call, no mirrors
   node dist/index.js --selfcheck         verify install, tool surface, mirrors
   node dist/index.js --selfcheck --live  ...and perform one real search
+  node dist/index.js --print-config      print an MCP client entry that runs this release via pnpm
   node dist/index.js --version           print the version
   node dist/index.js --help              show this help
 
@@ -33,6 +35,28 @@ async function main(argv: string[]): Promise<number> {
 
   if (argv.includes("--version") || argv.includes("-v")) {
     process.stdout.write(`${SERVER_NAME} v${SERVER_VERSION}\n`);
+    return 0;
+  }
+
+  if (argv.includes("--print-config")) {
+    // Pure output: no server, no startup check, no network. stdout is JSON only.
+    const pnpmPath = findOnPath("pnpm", process.env.PATH);
+    if (!pnpmPath) {
+      process.stderr.write(
+        "pnpm not found on PATH: install pnpm, or replace \"command\" with its absolute path\n"
+      );
+    }
+    const config = buildLauncherConfig({
+      execPath: process.execPath,
+      pnpmPath: pnpmPath ?? "pnpm",
+      version: SERVER_VERSION,
+      platform: process.platform,
+    });
+    process.stdout.write(JSON.stringify(config, null, 2) + "\n");
+    process.stderr.write(
+      `Paste under your client's MCP config (key "mcpServers"). ${PACKAGE_NAME}@${SERVER_VERSION} is pinned.\n` +
+        "Put API keys in the client's env block, not in this output. Enable the server in the client UI.\n"
+    );
     return 0;
   }
 
