@@ -1,7 +1,7 @@
 // `--print-config`: a ready-to-paste MCP client entry that launches the published
 // package through pnpm. Pure builder + PATH lookup; the CLI wiring lives in index.ts.
 
-import { accessSync, constants, statSync } from "node:fs";
+import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { delimiter as posixDelimiter, dirname as posixDirname, isAbsolute as posixIsAbsolute, join as posixJoin } from "node:path";
 import { win32 } from "node:path";
 
@@ -53,6 +53,41 @@ export function buildLauncherConfig(input: LauncherConfigInput): LauncherConfig 
       },
     },
   };
+}
+
+/**
+ * Directory of the node binary to put on PATH. Version managers such as fnm run
+ * node through a per-shell symlink under `fnm_multishells`; that directory is
+ * deleted when the shell exits, so the real install directory is used instead.
+ */
+export function stableExecPath(
+  execPath: string,
+  realpath: (p: string) => string = realpathSync
+): string {
+  try {
+    return realpath(execPath);
+  } catch {
+    return execPath;
+  }
+}
+
+export function stableExecDir(
+  execPath: string,
+  platform: NodeJS.Platform = process.platform,
+  realpath: (p: string) => string = realpathSync
+): string {
+  return pathOps(platform).dirname(stableExecPath(execPath, realpath));
+}
+
+/** A warning when a path is expected to disappear, or undefined when it looks stable. */
+export function ephemeralPathWarning(file: string): string | undefined {
+  if (/[\\/]fnm_multishells[\\/]/.test(file)) {
+    return `${file} is a per-shell location that is removed when its terminal closes; use the stable install path instead`;
+  }
+  if (/^(\/tmp\/|\/var\/folders\/|[A-Za-z]:\\\\.*\\\\Temp\\\\)/.test(file)) {
+    return `${file} is in a temporary directory and may not exist later`;
+  }
+  return undefined;
 }
 
 function isExecutableFile(file: string, platform: NodeJS.Platform): boolean {

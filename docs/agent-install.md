@@ -40,6 +40,12 @@ pnpm --silent dlx @vernikr/biblio-mcp@<version> --selfcheck --offline
 Expected last line: `selfcheck passed.` The first run downloads the package and can take
 a minute. If it fails, do not continue to the client config; report the printed error.
 
+If it fails with `ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR` or a DNS error, the problem
+is the network, not PATH. Keep the proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`
+and their lowercase forms) and check `pnpm config get registry`. Do not strip the whole
+environment with `env -i` to test this; that removes the proxy settings and gives a false
+failure. Report the error to the user instead of guessing.
+
 ## 3. Build the client entry
 
 Preferred, if the version supports it:
@@ -65,6 +71,11 @@ absolute paths from `which pnpm` and `which node`:
 
 The `PATH` in `env` matters. A GUI-started client does not inherit the shell PATH, and
 `pnpm dlx` needs `node` on it. Omit `env` only if you have checked the client inherits PATH.
+
+Never copy a path containing `fnm_multishells` (or any `/tmp` path) into a config. fnm creates
+that per-shell directory and deletes it when the terminal closes. `which node` can return such
+a path, so resolve the real install with `realpath "$(which node)"` and take its directory, or
+use `--print-config`, which resolves it and warns when it finds a temporary path.
 
 ## 4. Find the client's MCP config file
 

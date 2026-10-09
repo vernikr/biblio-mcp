@@ -5,7 +5,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createServer, SERVER_NAME, SERVER_VERSION } from "./server.js";
 import { runSelfcheck, printSelfcheck, runStartupSelftest } from "./selfcheck.js";
 import { environmentHelp } from "./config.js";
-import { buildLauncherConfig, findOnPath, PACKAGE_NAME } from "./printConfig.js";
+import {
+  buildLauncherConfig,
+  ephemeralPathWarning,
+  findOnPath,
+  PACKAGE_NAME,
+  stableExecPath,
+} from "./printConfig.js";
 
 const USAGE = `${SERVER_NAME} v${SERVER_VERSION}
 
@@ -46,8 +52,13 @@ async function main(argv: string[]): Promise<number> {
         "pnpm not found on PATH: install pnpm, or replace \"command\" with its absolute path\n"
       );
     }
+    const execPath = stableExecPath(process.execPath);
+    for (const p of [execPath, pnpmPath]) {
+      const warning = p ? ephemeralPathWarning(p) : undefined;
+      if (warning) process.stderr.write(`warning: ${warning}\n`);
+    }
     const config = buildLauncherConfig({
-      execPath: process.execPath,
+      execPath,
       pnpmPath: pnpmPath ?? "pnpm",
       version: SERVER_VERSION,
       platform: process.platform,
