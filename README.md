@@ -30,6 +30,47 @@ time. This fork cannot promise they stay reachable, but it promises that you wil
 away when they do not.
 <!-- cover:end -->
 
+## For AI agents: install this package
+
+If you were asked to connect `@vernikr/biblio-mcp` as an MCP server, follow these steps.
+Everything you need is on this page. Ask the user only where a step says so.
+
+1. **Check prerequisites.** `node --version` must be v22 or newer. `pnpm --version` must be 10
+   or newer. If pnpm is missing, ask the user how they want it installed. Do not run
+   `npm install -g`.
+2. **Find the latest version.** Run `npm view @vernikr/biblio-mcp version`. Use the printed
+   number as `<v>` below and pin it everywhere.
+3. **Verify the package runs.** Run
+   `pnpm --silent dlx @vernikr/biblio-mcp@<v> --selfcheck --offline`.
+   The last line must be `selfcheck passed.` The first run downloads the package and can take a
+   minute. If you see `ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR` or a DNS error, the problem
+   is the network. Keep the proxy variables and report the error. Do not strip the environment.
+4. **Build the client entry.** Run `pnpm --silent dlx @vernikr/biblio-mcp@<v> --print-config`.
+   It prints JSON with `mcpServers.biblio`. Its `PATH` already includes the real node directory.
+   Never put a path containing `fnm_multishells` or `/tmp` into a config. If `--print-config` is
+   not recognised, stop and tell the user.
+5. **Find the client's config file.**
+   - Freebuff Desktop: `~/.freebuff/mcp.json`, with the top-level key `mcpServers`.
+   - Claude Code: `claude mcp add -s user biblio -- pnpm --silent dlx @vernikr/biblio-mcp@<v>`.
+   - Any other client: ask the user. Do not guess a path, and never write MCP entries into app
+     state files such as `state.json`.
+6. **Merge the entry safely.**
+   - Back up the file first: `cp <file> <file>.bak-$(date +%s)`.
+   - Parse it as JSON. If it does not parse, stop and tell the user. Do not repair it.
+   - Set only `mcpServers.biblio` to the entry from step 4. Keep every other key.
+   - Do not add `allowedTools`, `autoApprove` or `disabled` unless the user asks. A wrong
+     allow-list silently blocks the real tools.
+   - Write to `<file>.tmp`, check that it is valid JSON, then rename it over `<file>`.
+7. **Enable it by hand.** Ask the user to restart the client, turn the `biblio` server on in its
+   MCP settings, and approve tool use if asked. You cannot click these for them.
+8. **Verify through the client, not the file.** The client must list seven tools for `biblio`:
+   `search_books`, `book_details`, `get_download_links`, `download_book`, `search_papers`,
+   `get_paper`, `healthcheck`. Call `healthcheck`. If no tools appear, report what the client's
+   MCP log says. A valid JSON file alone is not success.
+
+Rules: no `sudo`, no global installs, no `env -i`. Put API keys only into the client's `env`
+block, and only if the user gives them to you. Never print a key back.
+
 ## Quick start
 
 Use the pinned npm package **`@vernikr/biblio-mcp@2.1.0`** or the ready Desktop extension
@@ -118,9 +159,8 @@ Keys and mirror overrides go in your client's environment; see [Configuration](#
 
 #### Let an agent do it
 
-Give an AI agent the package link and the words "connect through pnpm". The step-by-step
-runbook it should follow, including backup, verification and manual enablement, is in
-[`docs/agent-install.md`](docs/agent-install.md).
+Give an AI agent the package link and ask it to connect the package through pnpm. The steps it
+should follow are in [For AI agents](#for-ai-agents-install-this-package) above.
 
 To print the client entry from a release that has it, without writing anything:
 

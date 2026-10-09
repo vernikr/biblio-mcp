@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.1.1] - 2026-10-10
+
+### Changed
+- The README opens with a self-contained "For AI agents" section, so the npm page alone is enough for an agent asked to connect the package through pnpm. `docs/agent-install.md` now points there.
+
 ## [2.1.0] - 2026-10-10
 
 ### Added
@@ -326,7 +331,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.1.1...HEAD
+[2.1.1]: https://github.com/vernikr/biblio-mcp/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/vernikr/biblio-mcp/compare/v2.0.0...v2.1.0
 [1.8.0]: https://github.com/vernikr/biblio-mcp/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/vernikr/biblio-mcp/compare/v1.6.0...v1.7.0
