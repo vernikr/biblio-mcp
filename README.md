@@ -47,13 +47,13 @@ Everything you need is on this page. Ask the user only where a step says so.
    is the network. Keep the proxy variables and report the error. Do not strip the environment.
 4. **Build the client entry.** Run `pnpm --silent dlx @vernikr/biblio-mcp@<v> --print-config`.
    It prints JSON with `mcpServers.biblio`. Its `PATH` already includes the real node directory,
-   and its `args` launch the newest release: `["--silent", "--config.dlx-cache-max-age=0", "dlx", "@vernikr/biblio-mcp@latest"]`.
+   and its `args` launch the newest release (see the launcher flags under [Launcher](#launcher-pnpm)).
    Use that output as is. Do not pin a version unless the user asks.
    Never put a path containing `fnm_multishells` or `/tmp` into a config. If `--print-config` is
    not recognised, stop and tell the user.
 5. **Find the client's config file.**
    - Freebuff Desktop: `~/.freebuff/mcp.json`, with the top-level key `mcpServers`.
-   - Claude Code: `claude mcp add -s user biblio -- pnpm --silent --config.dlx-cache-max-age=0 dlx @vernikr/biblio-mcp@latest`.
+   - Claude Code: `claude mcp add -s user biblio -- pnpm --silent --config.minimum-release-age-exclude=@vernikr/biblio-mcp --config.dlx-cache-max-age=0 dlx @vernikr/biblio-mcp@latest`.
    - Any other client: ask the user. Do not guess a path, and never write MCP entries into app
      state files such as `state.json`.
 6. **Merge the entry safely.**
@@ -76,10 +76,10 @@ block, and only if the user gives them to you. Never print a key back.
 ## Quick start
 
 Use the npm package **`@vernikr/biblio-mcp`** or the ready Desktop extension
-from [release v2.2.1](https://github.com/vernikr/biblio-mcp/releases/tag/v2.2.1).
+from [release v2.2.2](https://github.com/vernikr/biblio-mcp/releases/tag/v2.2.2).
 Both contain the same checked Node 22+ stdio runtime.
 
-- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.1.mcpb` through Settings → Extensions
+- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.2.mcpb` through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
 - **Other MCP clients:** use the prepared npm tarball now, or the pnpm/npx configuration
@@ -124,7 +124,7 @@ Requires Node 22+. Install the prepared artifact, then configure your client to 
 `biblio-mcp` on stdio:
 
 ```bash
-npm install --global /path/to/vernikr-biblio-mcp-2.2.1.tgz
+npm install --global /path/to/vernikr-biblio-mcp-2.2.2.tgz
 biblio-mcp --selfcheck --offline
 ```
 
@@ -141,22 +141,25 @@ published release each time the client starts:
   "mcpServers": {
     "biblio": {
       "command": "pnpm",
-      "args": ["--silent", "--config.dlx-cache-max-age=0", "dlx", "@vernikr/biblio-mcp@latest"]
+      "args": ["--silent", "--config.minimum-release-age-exclude=@vernikr/biblio-mcp", "--config.dlx-cache-max-age=0", "dlx", "@vernikr/biblio-mcp@latest"]
     }
   }
 }
 ```
 
-`--silent` keeps package-manager output out of MCP stdout. `--config.dlx-cache-max-age=0` stops
-the launcher from reusing a copy cached for up to a day. For **npx**, use
+`--silent` keeps package-manager output out of MCP stdout. pnpm 12 skips package versions younger
+than its minimum release age, so a release is invisible to `latest` for about a day after it is
+published. `--config.minimum-release-age-exclude=@vernikr/biblio-mcp` exempts only this package from
+that check; every other package keeps it. `--config.dlx-cache-max-age=0` stops the launcher from
+reusing a copy cached for up to a day. For **npx**, use
 `"command": "npx"` and `"args": ["--yes", "@vernikr/biblio-mcp@latest"]` instead. Both run the same
 artifact; no saved checkout or build tools are needed. To reproduce an exact release, replace
-`latest` with its version, for example `@vernikr/biblio-mcp@2.2.1`.
+`latest` with its version, for example `@vernikr/biblio-mcp@2.2.2`.
 
 Claude Code can register the same launcher:
 
 ```bash
-claude mcp add -s user biblio -- pnpm --silent --config.dlx-cache-max-age=0 dlx @vernikr/biblio-mcp@latest
+claude mcp add -s user biblio -- pnpm --silent --config.minimum-release-age-exclude=@vernikr/biblio-mcp --config.dlx-cache-max-age=0 dlx @vernikr/biblio-mcp@latest
 ```
 
 For a globally installed tarball, use `"command": "biblio-mcp", "args": []` instead.
