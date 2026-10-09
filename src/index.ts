@@ -60,12 +60,11 @@ async function main(argv: string[]): Promise<number> {
     const config = buildLauncherConfig({
       execPath,
       pnpmPath: pnpmPath ?? "pnpm",
-      version: SERVER_VERSION,
       platform: process.platform,
     });
     process.stdout.write(JSON.stringify(config, null, 2) + "\n");
     process.stderr.write(
-      `Paste under your client's MCP config (key "mcpServers"). ${PACKAGE_NAME}@${SERVER_VERSION} is pinned.\n` +
+      `Paste under your client's MCP config (key "mcpServers"). It launches the newest ${PACKAGE_NAME} release on each start.\n` +
         "Put API keys in the client's env block, not in this output. Enable the server in the client UI.\n"
     );
     return 0;

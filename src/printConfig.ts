@@ -12,8 +12,6 @@ export interface LauncherConfigInput {
   execPath: string;
   /** Command to start pnpm: an absolute path when it was found, otherwise "pnpm". */
   pnpmPath: string;
-  /** Package version to pin, without the leading "v". */
-  version: string;
   platform: NodeJS.Platform;
 }
 
@@ -48,7 +46,9 @@ export function buildLauncherConfig(input: LauncherConfigInput): LauncherConfig 
     mcpServers: {
       biblio: {
         command: input.pnpmPath,
-        args: ["--silent", "dlx", `${PACKAGE_NAME}@${input.version}`],
+        // Always the newest published release. The cache flag stops pnpm from
+        // reusing a copy of `latest` fetched earlier (its default is one day).
+        args: ["--silent", "--config.dlx-cache-max-age=0", "dlx", `${PACKAGE_NAME}@latest`],
         env: { PATH: unique.join(ops.delimiter) },
       },
     },

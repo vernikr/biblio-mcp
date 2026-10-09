@@ -11,8 +11,8 @@ import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
 
 const entry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
-const rootPkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-const PKG_SPEC = `@vernikr/biblio-mcp@${rootPkg.version}`;
+const PKG_SPEC = "@vernikr/biblio-mcp@latest";
+const LAUNCH_ARGS = ["--silent", "--config.dlx-cache-max-age=0", "dlx", PKG_SPEC];
 
 function fakeExecutable(dir, name) {
   const file = join(dir, name);
@@ -30,19 +30,18 @@ function runPrintConfig(pathValue) {
   });
 }
 
-test("buildLauncherConfig pins the version, uses pnpm dlx and carries node's dir on PATH", async () => {
+test("buildLauncherConfig launches the latest release with a cache-free dlx and carries node's dir on PATH", async () => {
   const { buildLauncherConfig } = await import("../dist/printConfig.js");
   const cfg = buildLauncherConfig({
     execPath: "/opt/node/bin/node",
     pnpmPath: "/opt/local/bin/pnpm",
-    version: "2.0.0",
     platform: "darwin",
   });
   assert.deepEqual(cfg, {
     mcpServers: {
       biblio: {
         command: "/opt/local/bin/pnpm",
-        args: ["--silent", "dlx", "@vernikr/biblio-mcp@2.0.0"],
+        args: LAUNCH_ARGS,
         env: { PATH: `/opt/node/bin:/opt/local/bin:/usr/bin:/bin` },
       },
     },
@@ -52,7 +51,7 @@ test("buildLauncherConfig pins the version, uses pnpm dlx and carries node's dir
 test("buildLauncherConfig never embeds secrets or a server-start flag", async () => {
   const { buildLauncherConfig } = await import("../dist/printConfig.js");
   const text = JSON.stringify(buildLauncherConfig({
-    execPath: "/opt/node/bin/node", pnpmPath: "pnpm", version: "2.0.0", platform: "linux",
+    execPath: "/opt/node/bin/node", pnpmPath: "pnpm", platform: "linux",
   }));
   assert.doesNotMatch(text, /BIBLIO_|API_KEY|--selfcheck|--print-config/);
 });
@@ -62,7 +61,6 @@ test("buildLauncherConfig keeps the Windows shim name and joins PATH with ';'", 
   const cfg = buildLauncherConfig({
     execPath: "C:\\Program Files\\nodejs\\node.exe",
     pnpmPath: "C:\\pnpm\\pnpm.cmd",
-    version: "2.0.0",
     platform: "win32",
   });
   const server = cfg.mcpServers.biblio;
@@ -70,7 +68,7 @@ test("buildLauncherConfig keeps the Windows shim name and joins PATH with ';'", 
   assert.equal(server.env.PATH, "C:\\Program Files\\nodejs;C:\\pnpm");
 });
 
-test("--print-config prints one JSON object on stdout, pinned and absolute, and exits 0", () => {
+test("--print-config prints one JSON object on stdout, latest and absolute, and exits 0", () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-pc-"));
   const pnpm = fakeExecutable(dir, "pnpm");
   const r = runPrintConfig(`${dir}${delimiter}/usr/bin${delimiter}/bin`);
@@ -79,7 +77,7 @@ test("--print-config prints one JSON object on stdout, pinned and absolute, and 
   const parsed = JSON.parse(r.stdout);
   const server = parsed.mcpServers.biblio;
   assert.equal(server.command, pnpm);
-  assert.deepEqual(server.args, ["--silent", "dlx", PKG_SPEC]);
+  assert.deepEqual(server.args, LAUNCH_ARGS);
   assert.equal(server.env.PATH.split(delimiter)[0], dirname(process.execPath));
   assert.ok(server.env.PATH.split(delimiter).includes(dir));
 });
