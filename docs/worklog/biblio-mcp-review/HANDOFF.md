@@ -8,8 +8,9 @@
 - Репозиторий: [`vernikr/biblio-mcp`](https://github.com/vernikr/biblio-mcp), рабочая ветка **main**.
 - npm **опубликован**: [`@vernikr/biblio-mcp@2.0.0`](https://www.npmjs.com/package/@vernikr/biblio-mcp), public/latest.
   Registry tarball скачан и совпадает с проверенным файлом; см. [`npm-publication.json`](npm-publication.json).
-- GitHub release `v2.0.0`: draft с тремя загруженными файлами; финальная публикация после проверки этого checkpoint.
-  Статус будет обновлён в этом файле; draft receipt — [`github-release-draft.json`](github-release-draft.json).
+- GitHub release **[v2.0.0 опубликован](https://github.com/vernikr/biblio-mcp/releases/tag/v2.0.0)**:
+  `.tgz`, `.mcpb`, `SHA256SUMS`. Публичные downloads совпадают по SHA-256; см. [`github-release.json`](github-release.json).
+  Tag указывает на проверенный release checkpoint `f407884`; последующие main commits — только закрытие handoff receipts.
 - Runtime: **Node 22+**, CI проверяет LTS 22/24 и точный минимум 22.0.0.
 - Артефакты, совпадающие с npm: [`published-artifacts/`](published-artifacts/). `release-artifacts/` —
   более ранний, подготовленный вариант до публикации; не публикуйте его повторно под 2.0.0.
@@ -50,7 +51,9 @@ node scripts/check-artifacts.mjs --registry
 Проверки до передачи: **203/203** offline tests на Node 22/24, **28/28** на 22.0.0; acceptance
 npm/npx/pnpm/MCPB с настоящими сохранёнными байтами. Последний зелёный distribution CI:
 [7/7 jobs](https://github.com/vernikr/biblio-mcp/actions/runs/37856503504), включая Linux/macOS/Windows.
-Финальный checkpoint CI сохраняется отдельным receipt рядом с этим файлом.
+Release checkpoint: **[7/7 jobs зелёные](https://github.com/vernikr/biblio-mcp/actions/runs/37863870454)**;
+[`handoff-ci-checkpoint.json`](handoff-ci-checkpoint.json). Последний main CI виден в badge/workflows;
+этот receipt закрепляет проверку commit, на который указывает release tag.
 
 ## Следующая работа — PR3, не release/bootstrap заново
 

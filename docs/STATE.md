@@ -8,7 +8,8 @@ patches, snapshots, audit logs and release receipts are archived under
 
 - Public npm: [`@vernikr/biblio-mcp@2.0.0`](https://www.npmjs.com/package/@vernikr/biblio-mcp).
   Registry tarball integrity matches the tested archive; cold npx and pnpm registry launchers pass.
-- GitHub `v2.0.0`: release draft and assets uploaded; publish after this checkpoint's CI.
+- [GitHub release v2.0.0](https://github.com/vernikr/biblio-mcp/releases/tag/v2.0.0) is published;
+  `.tgz`, `.mcpb`, checksums and npm tarball are independently verified. Release checkpoint CI is 7/7 green.
 - Node **22+**, pnpm **12.10.1** for maintainers; CI covers 22/24 and exact 22.0.0.
 - npm/MCPB use the same compiled stdio runtime. MCPB carries locked production dependencies;
   consumer checkout/TypeScript/build tools are not required. Source installer remains a developer utility.

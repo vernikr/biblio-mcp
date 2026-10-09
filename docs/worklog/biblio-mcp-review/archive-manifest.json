@@ -1,5 +1,5 @@
 {
-  "purpose": "checkpoint inventory before final GitHub release; receipts added later remain separately versioned",
+  "purpose": "final ordinary review/release/handoff archive inventory (manifest excludes itself)",
   "files": [
     {
       "path": ".gitignore",
@@ -8,8 +8,8 @@
     },
     {
       "path": "HANDOFF.md",
-      "bytes": 8794,
-      "sha256": "bc4a2a4717ca557d46e731165ba1da72c0177cfc3b87447e71ea53f0eb29671d"
+      "bytes": 9131,
+      "sha256": "5dc0c49601a0ee10391932d26a7bd58a9bbce0e928f55265254153e9218efdc4"
     },
     {
       "path": "README.md",
@@ -147,6 +147,26 @@
       "sha256": "159d8dc29434658127d73c3cbc471abdfbcf8019a9596c7995dbaa997596f367"
     },
     {
+      "path": "github-release.json",
+      "bytes": 1227,
+      "sha256": "451d38745006ac4c9bdab83ca33d7bd0205aa12328c7b2dff0358cfe7be110b4"
+    },
+    {
+      "path": "handoff-checkpoint-push.json",
+      "bytes": 216,
+      "sha256": "61db99bade70cdc0cbb6214922ce1d935981a33b1d04f8895bc9da9a34eb0017"
+    },
+    {
+      "path": "handoff-ci-checkpoint.json",
+      "bytes": 1821,
+      "sha256": "ee0af78f2390b1ab2c37b90f9a2c97683a1309511882309d86f377850cbec21f"
+    },
+    {
+      "path": "handoff-offline-verify.log",
+      "bytes": 16880,
+      "sha256": "8e2ea2793d6dbcde8ba31496b8b9b0df22a8c70f4298583e2d14f9f44a1c7b9e"
+    },
+    {
       "path": "mcpb-cli-help.log",
       "bytes": 938,
       "sha256": "072358c76fd36967cdf74d2bef7fed5f8b64bd31317316d4967cd88d960323e2"
@@ -228,8 +248,8 @@
     },
     {
       "path": "plan.md",
-      "bytes": 54074,
-      "sha256": "3130a83cbaa4cde323d2712ef68640ce5f632c1181d7283b509801dfcb19ce9c"
+      "bytes": 54102,
+      "sha256": "98c9b08120227c103a3e46733a66e5e698cc287994ceac7f43d9df6b1150fc70"
     },
     {
       "path": "pr1-build.log",

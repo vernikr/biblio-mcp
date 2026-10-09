@@ -256,7 +256,7 @@ Challenge проверяется до выбора победителя, а на
 
 **PR 2b выполнен и запушен в `main`:** пользователь подтвердил Node 22+ и npm identity `@vernikr/biblio-mcp`. Подготовлены `.tgz`/`.mcpb` версии 2.0.0, один compiled runtime; deps обновлены и закреплены. **203/203** на Node 22/24; точный Node 22.0 — **28/28**; пять consumer launcher recipes проверены с настоящим скачиванием вне checkout. [CI](https://github.com/vernikr/biblio-mcp/actions/runs/37856503504) — **7/7 jobs успешны**, включая Linux/macOS/Windows. HEAD [`4625ba4`](https://github.com/vernikr/biblio-mcp/commit/4625ba452b5272393d22a1b60012fedc87936a25). [Результат, dependency table, артефакты и dev-only advisory](pr2b-result.md).
 
-npm publication **закрыта**: `@vernikr/biblio-mcp@2.0.0` public/latest, registry tarball integrity и холодные registry launchers проверены. Текущие артефакты — `published-artifacts/`, прежние `release-artifacts/` сохранены как исторические. GitHub release draft загружен, финализация после checkpoint CI; активная передача — [HANDOFF.md](HANDOFF.md). Desktop GUI installation не выдаётся за проверенную.
+npm publication **закрыта**: `@vernikr/biblio-mcp@2.0.0` public/latest, registry tarball integrity и холодные registry launchers проверены. Текущие артефакты — `published-artifacts/`, прежние `release-artifacts/` сохранены как исторические. GitHub Release `v2.0.0` опубликован с проверенными public downloads; checkpoint CI — 7/7. Активная передача — [HANDOFF.md](HANDOFF.md). Desktop GUI installation не выдаётся за проверенную.
 
 **Следующий незавершённый кодовый этап — PR 3:** provider/download outcomes и parsing/HTTP reductions; F4 timeout contract требует отдельного выбора.
 
