@@ -32,7 +32,7 @@ away when they do not.
 
 ## Quick start
 
-Use the pinned npm package **`@vernikr/biblio-mcp@2.0.0`** or the ready Desktop extension
+Use the pinned npm package **`@vernikr/biblio-mcp@2.1.0`** or the ready Desktop extension
 from [release v2.0.0](https://github.com/vernikr/biblio-mcp/releases/tag/v2.0.0).
 Both contain the same checked Node 22+ stdio runtime.
 
@@ -81,7 +81,7 @@ Requires Node 22+. Install the prepared artifact, then configure your client to 
 `biblio-mcp` on stdio:
 
 ```bash
-npm install --global /path/to/vernikr-biblio-mcp-2.0.0.tgz
+npm install --global /path/to/vernikr-biblio-mcp-2.1.0.tgz
 biblio-mcp --selfcheck --offline
 ```
 
@@ -97,20 +97,20 @@ Any client that can launch a stdio process can use the same pinned package:
   "mcpServers": {
     "biblio": {
       "command": "pnpm",
-      "args": ["--silent", "dlx", "@vernikr/biblio-mcp@2.0.0"]
+      "args": ["--silent", "dlx", "@vernikr/biblio-mcp@2.1.0"]
     }
   }
 }
 ```
 
 `--silent` keeps package-manager output out of MCP stdout. For **npx**, use `"command": "npx"`
-and `"args": ["--yes", "@vernikr/biblio-mcp@2.0.0"]` instead. Both run the same artifact;
+and `"args": ["--yes", "@vernikr/biblio-mcp@2.1.0"]` instead. Both run the same artifact;
 no saved checkout or build tools are needed. Keep a version pinned; review updates deliberately.
 
 Claude Code can register the same launcher:
 
 ```bash
-claude mcp add -s user biblio -- pnpm --silent dlx @vernikr/biblio-mcp@2.0.0
+claude mcp add -s user biblio -- pnpm --silent dlx @vernikr/biblio-mcp@2.1.0
 ```
 
 For a globally installed tarball, use `"command": "biblio-mcp", "args": []` instead.

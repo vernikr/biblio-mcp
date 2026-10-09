@@ -1,6 +1,6 @@
 {
   "name": "@vernikr/biblio-mcp",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "One MCP server for Anna's Archive, Library Genesis, Sci-Hub, and Z-Library. Search books and papers, resolve download links, and fetch files \u2014 across all shadow libraries through a single unified interface.",
   "type": "module",
   "bin": {
