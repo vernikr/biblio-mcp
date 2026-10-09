@@ -23,7 +23,7 @@ test("stdio initializes, lists all tools and returns the expected invalid-call r
     assert.equal(client.getServerVersion().name, "biblio-mcp");
     const { tools } = await client.listTools({}, { timeout: 5000 });
     assert.deepEqual(tools.map((t) => t.name).sort(), [
-      "book_details", "download_book", "get_download_links", "get_paper",
+      "book_details", "download_book", "fetch_book", "get_download_links", "get_paper",
       "healthcheck", "search_books", "search_papers",
     ]);
     const result = await client.callTool({

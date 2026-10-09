@@ -10,6 +10,7 @@ const REQUIRED_TOOLS = [
   "book_details",
   "get_download_links",
   "download_book",
+  "fetch_book",
   "search_papers",
   "get_paper",
   "healthcheck",
@@ -64,11 +65,11 @@ test("search_papers advertises opt-in PDF resolution without making it required"
   });
 });
 
-test("download_book requires md5 and output_dir", async () => {
+test("download_book requires only md5; output_dir has a default", async () => {
   await withClient(async (client) => {
     const { tools } = await client.listTools();
     const dl = tools.find((t) => t.name === "download_book");
-    assert.deepEqual([...dl.inputSchema.required].sort(), ["md5", "output_dir"]);
+    assert.deepEqual([...dl.inputSchema.required].sort(), ["md5"]);
   });
 });
 
@@ -77,11 +78,11 @@ test("argument validation names the field an agent got wrong", async () => {
   await withClient(async (client) => {
     const result = await client.callTool({
       name: "download_book",
-      arguments: { md5: "524037f395462d37b31f2b28fede24fb", dest: "/tmp" },
+      arguments: { md5: "not-a-hash" },
     });
     assert.equal(result.isError, true);
     const text = String(result.content?.[0]?.text ?? "");
-    assert.match(text, /output_dir/);
+    assert.match(text, /md5/);
   });
 });
 
@@ -116,5 +117,15 @@ test("the reported version matches package.json", async () => {
     const info = await client.getServerVersion();
     assert.equal(info.name, "biblio-mcp");
     assert.equal(info.version, pkg.version);
+  });
+});
+
+test("download_book and fetch_book take their output directory optionally, so a bare title is enough", async () => {
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    const byName = Object.fromEntries(tools.map((t) => [t.name, t]));
+    assert.deepEqual(byName.download_book.inputSchema.required, ["md5"]);
+    assert.deepEqual(byName.fetch_book.inputSchema.required, ["query"]);
+    assert.ok(byName.fetch_book.inputSchema.properties.output_dir, "fetch_book keeps output_dir as an option");
   });
 });

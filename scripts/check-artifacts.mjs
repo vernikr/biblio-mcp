@@ -57,7 +57,7 @@ async function exercise(label, command, args, cwd, extraEnv = {}) {
     await client.connect(transport, { timeout: 120000 });
     assert.equal(client.getServerVersion().version, pkg.version);
     const { tools } = await client.listTools({}, { timeout: 5000 });
-    assert.equal(tools.length, 7);
+    assert.equal(tools.length, 8);
     const invalid = await client.callTool({ name: "book_details", arguments: { md5: "invalid" } }, undefined, { timeout: 5000 });
     assert.equal(invalid.isError, true);
     assert.match(invalid.content[0].text, /"md5" must be a 32-char MD5 hash/);
@@ -69,7 +69,7 @@ async function exercise(label, command, args, cwd, extraEnv = {}) {
     assert.equal(dirname(saved.path), outputDir, "never write under an install/cache directory");
     assert.deepEqual(readFileSync(saved.path), bytes);
     assert.deepEqual(errors, [], "package-manager stdout must not pollute MCP");
-    console.log(`${label}: initialize + 7 tools + invalid call + complete download passed`);
+    console.log(`${label}: initialize + 8 tools + invalid call + complete download passed`);
   } catch (error) {
     throw new Error(`${label}: ${stderr}`, { cause: error });
   } finally {

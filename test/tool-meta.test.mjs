@@ -80,6 +80,9 @@ test("tool annotations state what each tool does to the outside world", () => {
   // download_book writes a new file: not read-only, and never idempotent.
   assert.equal(annotations.download_book.readOnlyHint, false);
   assert.equal(annotations.download_book.idempotentHint, false);
+  // fetch_book also writes a file, so the same contract holds.
+  assert.equal(annotations.fetch_book.readOnlyHint, false);
+  assert.equal(annotations.fetch_book.idempotentHint, false);
   // Every tool talks to third-party sites, so each one is open-world.
   for (const tool of tools) assert.equal(annotations[tool.name].openWorldHint, true, `${tool.name} openWorldHint`);
 });

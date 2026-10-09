@@ -4,7 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { createRequire } from "node:module";
 import { resetDeadCache, type DownloadProgress } from "./http.js";
-import { saveBook } from "./acquire.js";
+import { defaultOutputDir, fetchBook, saveBook } from "./acquire.js";
 import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
 import { describeArgsError, toolDescription } from "./toolmeta.js";
 import { withSourceCircuit } from "./providers/circuit.js";
@@ -291,11 +291,12 @@ export function createServer(): McpServer {
       output_dir: z
         .string()
         .min(1)
+        .optional()
         .describe(
-          "Directory to save into; created if missing. Use an absolute path. " +
-            "A relative path is resolved against $HOME (not the server's working " +
-            "directory, which you cannot see), and the resolved directory is " +
-            "reported back as `outputDir`."
+          "Directory to save into; created if missing. Default: ~/Downloads/biblio-mcp. " +
+            "Use an absolute path. A relative path is resolved against $HOME (not the " +
+            "server's working directory, which you cannot see), and the resolved directory " +
+            "is reported back as `outputDir`."
         ),
       filename: z
         .string()
@@ -308,12 +309,58 @@ export function createServer(): McpServer {
       // Validate before any network work: a bad name must never reach the disk.
       const plainName = filename === undefined ? undefined : plainFileName(filename);
       const outcome = await saveBook(hash, {
-        outputDir: output_dir,
+        outputDir: output_dir ?? defaultOutputDir(),
         plainName,
         onProgress: makeProgressReporter(extra),
         signal: extra?.signal,
       });
       return outcome.saved ? json(outcome.body) : jsonError(outcome.body);
+    }
+  );
+
+  // -------------------------------------------------------------------------
+  // fetch_book — one call from a title to a verified file
+  // -------------------------------------------------------------------------
+  server.tool(
+    "fetch_book",
+    toolDescription("fetch_book"),
+    {
+      query: searchTextSchema.describe("Title, optionally with the author or edition, e.g. \"Algorithmic Trading Chan\"."),
+      format: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Preferred format, e.g. PDF or EPUB. Default: PDF first, then EPUB."),
+      output_dir: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Directory to save into. Default: ~/Downloads/biblio-mcp. Use an absolute path."),
+      max_attempts: z
+        .number()
+        .int()
+        .min(1)
+        .max(5)
+        .optional()
+        .describe("How many copies to try, in order, before giving up (default 3)."),
+      sources: z
+        .array(z.enum(["annas", "libgen", "zlibrary"]))
+        .min(1, "select at least one source")
+        .optional()
+        .describe("Which sources to search. Default: the same as search_books."),
+    },
+    { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    async ({ query, format, output_dir, max_attempts, sources }, extra) => {
+      const body = await fetchBook({
+        query,
+        outputDir: output_dir ?? defaultOutputDir(),
+        format,
+        sources: sources as SourceId[] | undefined,
+        maxAttempts: max_attempts,
+        onProgress: makeProgressReporter(extra),
+        signal: extra?.signal,
+      });
+      return body.saved ? json(body) : jsonError(body);
     }
   );
 

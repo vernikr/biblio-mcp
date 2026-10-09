@@ -22,8 +22,12 @@ export const TOOL_META: Record<string, ToolMeta> = {
     example: "{\"md5\":\"524037f395462d37b31f2b28fede24fb\"}",
   },
   download_book: {
-    description: "Download a book file to a local directory by MD5. Streams direct links (Libgen/IPFS) to disk in order and keeps the first that yields a real file, so peak memory does not scale with book size. Returns the saved path, byte count, and the MD5 of what was written. Check `md5MatchesRequest`; a mismatch includes an explicit warning. Emits progress notifications while transferring.",
-    example: "{\"md5\":\"524037f395462d37b31f2b28fede24fb\",\"output_dir\":\"/home/me/books\"}",
+    description: "Download a book file to a local directory by MD5. Streams direct links (Libgen/IPFS) to disk in order and keeps the first that yields a real file, so peak memory does not scale with book size. Returns the saved path, byte count, and the MD5 of what was written. Check `md5MatchesRequest`; a mismatch includes an explicit warning. If nothing saves, `alternatives` lists other copies of the same title: call download_book again with one of their md5 values, do not use curl. To pick copies automatically, use fetch_book.",
+    example: JSON.stringify({ md5: "524037f395462d37b31f2b28fede24fb" }),
+  },
+  fetch_book: {
+    description: "Get a book by title in one call: search, rank the copies (requested format, then PDF, then the largest), try up to `max_attempts` of them in order, and save the first that yields a verified file. Returns `path`, `picked` (the title, author and md5 that was saved) and `attempts`. Start here when you have a title, not an MD5. If it fails, `attempts` says why each copy failed and `nextStep` says what to do.",
+    example: JSON.stringify({ query: "Algorithmic Trading Ernest Chan", format: "PDF" }),
   },
   search_papers: {
     description: "Search academic papers / journal articles by keyword, author, title, or DOI via Library Genesis scimag. Returns DOIs and mirror links. Set `resolvePdfs: true` to best-effort resolve direct PDF URLs via Sci-Hub for up to three results (extra network requests; off by default).",

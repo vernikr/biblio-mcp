@@ -116,13 +116,13 @@ test("an out-of-range value reports the range and the correct call", async () =>
   });
 });
 
-test("download_book names both required arguments at once", async () => {
+test("download_book names the required md5 when it is missing", async () => {
   await withClient(async (client) => {
-    const { isError, text } = await callTool(client, "download_book", { md5: "abc" });
+    const { isError, text } = await callTool(client, "download_book", {});
     assert.equal(isError, true);
     assert.match(text, /"md5"/);
-    assert.match(text, /"output_dir" is missing/);
-    assert.match(text, /absolute path/);
+    // output_dir is optional now: a bare hash must not be rejected for it.
+    assert.doesNotMatch(text, /"output_dir" is missing/);
   });
 });
 
