@@ -301,9 +301,5 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   return (await resolveDownloadReport(md5)).links;
 }
 
-// isUsefulLink lives in ../parse.js, not here: libgen.ts needs it too, and
-// libgen.ts cannot import from this module (this module imports libgen).
-export { isUsefulLink } from "../parse.js";
-
 export { annas, libgen, scihub, zlibrary };
 export type { Book, Paper, DownloadLink, SearchResult, SourceId };

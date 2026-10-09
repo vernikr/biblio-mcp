@@ -1,9 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
+import { withMcpClient } from "./helpers/mcp.mjs";
 
 let requests = [];
 const mirrorServer = createServer((req, res) => {
@@ -23,16 +22,9 @@ const { createServer: createMcpServer } = await import("../dist/server.js");
 test.after(() => closeServer(mirrorServer));
 
 async function call(name, args) {
-  const [ct, st] = InMemoryTransport.createLinkedPair();
-  const server = createMcpServer();
-  const client = new Client({ name: "input-test", version: "0.0.0" });
-  try {
-    await Promise.all([server.connect(st), client.connect(ct)]);
+  return withMcpClient(createMcpServer, async (client) => {
     return await client.callTool({ name, arguments: args });
-  } finally {
-    await client.close();
-    await server.close();
-  }
+  }, "input-test");
 }
 
 const searches = [

@@ -8,9 +8,8 @@ import { createServer } from "node:http";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, dirname, relative, isAbsolute } from "node:path";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
+import { withMcpClient } from "./helpers/mcp.mjs";
 
 const md5 = "7".repeat(32);
 const server = createServer((req, res) => {
@@ -41,16 +40,9 @@ const { createServer: createMcpServer } = await import("../dist/server.js");
 test.after(() => closeServer(server));
 
 async function callDownload(args) {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const mcp = createMcpServer();
-  const client = new Client({ name: "test", version: "0.0.0" });
-  try {
-    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+  return withMcpClient(createMcpServer, async (client) => {
     return await client.callTool({ name: "download_book", arguments: { md5, ...args } });
-  } finally {
-    await client.close().catch(() => {});
-    await mcp.close().catch(() => {});
-  }
+  }, "test");
 }
 
 function sandbox() {

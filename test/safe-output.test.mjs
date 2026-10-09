@@ -4,9 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
+import { withMcpClient } from "./helpers/mcp.mjs";
 
 const md5 = "b".repeat(32);
 const missing = "c".repeat(32);
@@ -42,16 +41,9 @@ const { createServer: createMcpServer } = await import("../dist/server.js");
 test.after(() => closeServer(server));
 
 async function call(name, args) {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const mcp = createMcpServer();
-  const client = new Client({ name: "test", version: "0.0.0" });
-  try {
-    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+  return withMcpClient(createMcpServer, async (client) => {
     return await client.callTool({ name, arguments: args });
-  } finally {
-    await client.close().catch(() => {});
-    await mcp.close().catch(() => {});
-  }
+  }, "test");
 }
 
 test("absoluteUrl returns undefined for a malformed href instead of throwing", () => {

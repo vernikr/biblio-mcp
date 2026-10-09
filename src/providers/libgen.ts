@@ -138,7 +138,6 @@ function splitTitleCell(
   return { title, series, isbn, venue };
 }
 
-/** Search Library Genesis scimag (academic articles) by keyword or DOI. */
 /** Visit every table row with its serialised HTML, once. Return false to stop. */
 function forEachRow(
   $: cheerio.CheerioAPI,
@@ -150,6 +149,7 @@ function forEachRow(
   });
 }
 
+/** Search Library Genesis scimag (academic articles) by keyword or DOI. */
 export async function searchPapers(query: string, limit: number): Promise<Paper[]> {
   // topics[]=a scopes the search to scimag (articles). The alternate route is
   // tried on the same mirror only when the first path is missing.

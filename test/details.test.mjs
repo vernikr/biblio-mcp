@@ -9,6 +9,7 @@ import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PROJECT = resolvePath(HERE, "..");
@@ -54,16 +55,10 @@ function runInProcess(env, ctx, body) {
 }
 
 /** Start a stub mirror and return its origin plus a shutdown handle. */
-function startStub(handler) {
-  return new Promise((resolvePromise) => {
-    const server = createServer(handler);
-    server.listen(0, "127.0.0.1", () => {
-      resolvePromise({
-        origin: `http://127.0.0.1:${server.address().port}`,
-        close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
-      });
-    });
-  });
+async function startStub(handler) {
+  const server = createServer(handler);
+  const origin = await listenLocal(server);
+  return { origin, close: () => closeServer(server) };
 }
 
 // Port 1 is reserved and always refuses connections, so it stands in for
@@ -77,7 +72,7 @@ const UNREACHABLE = "http://127.0.0.1:1";
 test("isUsefulLink rejects links that are not about this book", async () => {
   const md5 = "524037f395462d37b31f2b28fede24fb";
   const got = await runInProcess({}, { md5 }, async (c) => {
-    const { isUsefulLink } = await import("./dist/providers/index.js");
+    const { isUsefulLink } = await import("./dist/parse.js");
     return [
       // Real junk emitted by get_download_links: Libgen's ads.php page links the
       // Anna's Archive domain root, which downloads nothing.
@@ -97,7 +92,7 @@ test("isUsefulLink rejects links that are not about this book", async () => {
 test("isUsefulLink accepts the mirrors that actually serve this book", async () => {
   const md5 = "524037f395462d37b31f2b28fede24fb";
   const got = await runInProcess({}, { md5 }, async (c) => {
-    const { isUsefulLink } = await import("./dist/providers/index.js");
+    const { isUsefulLink } = await import("./dist/parse.js");
     return [
       isUsefulLink(`https://libgen.li/get.php?md5=${c.md5}&key=ABC`, c.md5),
       isUsefulLink(`https://library.sk/download/${c.md5}`, c.md5),

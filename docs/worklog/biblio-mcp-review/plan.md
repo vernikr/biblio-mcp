@@ -260,7 +260,7 @@ npm publication **закрыта**: `@vernikr/biblio-mcp@2.0.0` public/latest, r
 
 **PR 3 выполнен и запушен в `main`:** F4 (контракт: заголовки + idle watchdog, решение в `docs/decisions.md`), F5 (`errors`/`notFound` в `get_download_links` и `download_book`), F6 (no-PDF — промах записи, не отказ зеркала), R3 (один DOM Libgen), R4 (HTML-интерстициал без чтения тела). **215/215** offline tests; 12 новых тестов падали на прежнем коде (F5, F6); F4-тесты фиксируют выбранный контракт.
 
-**Следующий незавершённый кодовый этап — PR 4:** тестовый boilerplate и сокращение активной документации.
+**PR 4 выполнен:** общий MCP-клиент в тестах, HTTP-хелперы, R5-остатки, устаревшие утверждения README/AGENTS/dependabot исправлены; аудит-worklog помечен как снимок. **215/215** offline tests без skips. Не сделано, оставлено как P3: R2 (SDK AJV-валидатор вместо ручного валидатора; текущий ручной валидатор в тестах не трогался), сокращение README до 300–350 строк (ориентир, не цель).
 
 Каждый поведенческий фикс лучше отдельным коммитом с тестом, который падает на `e9b30ca`. Группы ниже — порядок небольших PR, а не предложение собрать всё в один большой diff.
 
@@ -270,7 +270,7 @@ npm publication **закрыта**: `@vernikr/biblio-mcp@2.0.0` public/latest, r
 | **PR 2 — дешёвые DX-фиксы и настоящий gate, P2 · запушен в main** | F7, F8, F9; X1; свежий `docs:env`; уточнение Node floor | Ноль реально отключает stagger; правильная env-подсказка; пустой ввод без сети; реальный stdio call checked; verify offline, build один раз |
 | **PR 2b — готовые релизные артефакты, P2 · готово в main, npm 2.0.0 public** | Один runtime: npm package с pnpm/npx launcher + MCPB; scope/name/preflight/selfcheck layout; consumer Quick start отдельно от Development | Реальные установленные артефакты проходят stdio initialize/list/call вне checkout, без TS/build/dev tools и интерактивных подтверждений; версия закреплена; публикация только под подтверждённым собственным именем |
 | **PR 3 — честность provider/download outcomes, P2 · запушен в main** | F5, F6; выбранный контракт F4; R3/R4 | Outage отличается от not-found; mixed Sci-Hub mirrors работают; таймауты однозначны; повторный DOM parse и ненужное чтение HTML исчезли |
-| **PR 4 — тестовый boilerplate и документация, P2** | R1/R2/R5/R6; сокращение README/AGENTS/STATE/decisions/CI comments | Уникальные сценарии сохранены; helper не ломает env isolation; полноценная schema validation; архив не выглядит текущим планом |
+| **PR 4 — тестовый boilerplate и документация, P2 · выполнен** | R1/R2/R5/R6; сокращение README/AGENTS/STATE/decisions/CI comments | Уникальные сценарии сохранены; helper не ломает env isolation; полноценная schema validation; архив не выглядит текущим планом |
 | **Позже, только при подтверждённой пользе, P3** | R7; MCP annotations/`registerTool`; Windows check; более высокий Node floor | Поддерживаемые install/platform/client contracts явно согласованы; нет новой архитектуры/зависимостей ради косметики |
 
 Документацию нового поведения обновлять в том же PR; PR 4 — массовое сокращение повторов, а не отсрочка исправления ложных обещаний.

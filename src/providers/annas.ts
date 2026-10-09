@@ -222,7 +222,7 @@ function extractDownloadLinks(
       /\/(slow_download|fast_download|download)\//.test(href) ||
       /ipfs/i.test(href) ||
       /^download/i.test(text) ||
-      /download now|option #/i.test(text.toLowerCase());
+      /download now|option #/i.test(text);
     if (!isDownload) return;
     const url = absoluteUrl(href, base);
     if (!url) return;

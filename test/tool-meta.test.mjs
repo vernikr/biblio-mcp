@@ -4,22 +4,14 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../dist/server.js";
 import { TOOL_META, toolDescription } from "../dist/toolmeta.js";
+import { withMcpClient } from "./helpers/mcp.mjs";
 
 async function listTools() {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createServer();
-  const client = new Client({ name: "test", version: "0.0.0" });
-  try {
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  return withMcpClient(createServer, async (client) => {
     return (await client.listTools()).tools;
-  } finally {
-    await client.close().catch(() => {});
-    await server.close().catch(() => {});
-  }
+  }, "test");
 }
 
 const tools = await listTools();

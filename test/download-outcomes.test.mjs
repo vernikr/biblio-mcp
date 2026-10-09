@@ -9,9 +9,8 @@ import { createServer } from "node:http";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
+import { withMcpClient } from "./helpers/mcp.mjs";
 
 // One md5 per scenario: provider caches are keyed by md5.
 const SCENARIOS = {
@@ -59,17 +58,10 @@ test.beforeEach(() => {
 test.after(() => closeServer(server));
 
 async function callTool(name, args) {
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const mcp = createMcpServer();
-  const client = new Client({ name: "test", version: "0.0.0" });
-  try {
-    await Promise.all([mcp.connect(serverTransport), client.connect(clientTransport)]);
+  return withMcpClient(createMcpServer, async (client) => {
     const result = await client.callTool({ name, arguments: args });
     return { isError: result.isError === true, payload: JSON.parse(result.content[0].text) };
-  } finally {
-    await client.close().catch(() => {});
-    await mcp.close().catch(() => {});
-  }
+  }, "test");
 }
 
 const sourcesOf = (list = []) => list.map((e) => e.source).sort();

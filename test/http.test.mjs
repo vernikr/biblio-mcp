@@ -23,6 +23,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 /** Start a local HTTP server from a route table. Returns url + hit counters. */
 async function serve(routes) {
@@ -37,12 +38,11 @@ async function serve(routes) {
     }
     handler(req, res);
   });
-  await new Promise((r) => server.listen(0, "127.0.0.1", r));
-  const { port } = server.address();
+  const url = await listenLocal(server);
   return {
-    url: `http://127.0.0.1:${port}`,
+    url,
     hits: (p) => hits.get(p) ?? 0,
-    close: () => new Promise((r) => { server.closeAllConnections(); server.close(r); }),
+    close: () => closeServer(server),
   };
 }
 
@@ -266,8 +266,7 @@ test("probeMirror cancels an unread body when no identity marker is requested", 
       "the response stream should be released without reading its body"
     );
   } finally {
-    server.closeAllConnections?.();
-    await new Promise((resolve) => { server.closeAllConnections(); server.close(resolve); });
+    await closeServer(server);
   }
 });
 

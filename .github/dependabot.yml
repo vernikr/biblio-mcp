@@ -25,13 +25,10 @@ updates:
           - zod
           - "@modelcontextprotocol/sdk"
     ignore:
-      # A zod major is what broke the build last time. Let it arrive only inside
-      # the grouped PR above, together with an SDK that supports it.
+      # Major upgrades are done by hand, together with the matching SDK/zod pair.
       - dependency-name: zod
         update-types:
           - version-update:semver-major
-      # Likewise for the SDK: it changes which zod versions are acceptable, so it
-      # should not be bumped in isolation from zod.
       - dependency-name: "@modelcontextprotocol/sdk"
         update-types:
           - version-update:semver-major

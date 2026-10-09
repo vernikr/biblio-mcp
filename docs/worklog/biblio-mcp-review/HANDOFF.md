@@ -55,7 +55,7 @@ Release checkpoint: **[7/7 jobs зелёные](https://github.com/vernikr/bibli
 [`handoff-ci-checkpoint.json`](handoff-ci-checkpoint.json). Последний main CI виден в badge/workflows;
 этот receipt закрепляет проверку commit, на который указывает release tag.
 
-## Следующая работа — PR4, PR3 выполнен
+## Следующая работа — P3 (опционально), PR3 и PR4 выполнены
 
 См. [план исполнения](plan.md#5-план-исполнения) и исторический baseline в `snapshot.json`.
 
@@ -65,8 +65,10 @@ Release checkpoint: **[7/7 jobs зелёные](https://github.com/vernikr/bibli
 F6 — no-PDF на одном зеркале не блокирует зеркало с PDF; R3 — DOM Libgen парсится один раз;
 R4 — HTML-интерстициал отклоняется без чтения тела. Решения — `docs/decisions.md`.
 
-- Далее PR4: test lifecycle/metadata/HTTP boilerplate, активные docs. Не удалять уникальные сценарии
-  или genuine provider captures ради количества строк/тестов.
+**PR4 сделан:** общий MCP-клиент для тестов (`test/helpers/mcp.mjs`), общие HTTP-хелперы, мелкие
+остатки в libgen/parse, устаревшие утверждения README/AGENTS/dependabot исправлены, аудит-worklog
+помечен как снимок. Уникальные сценарии и provider captures сохранены (215/215 тестов).
+Оставшееся — P3 из плана: MCP annotations, `registerTool`, Windows-проверка, R2 (AJV-валидатор SDK).
 
 ## Инварианты и ограничения
 

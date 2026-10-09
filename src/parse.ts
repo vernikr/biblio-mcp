@@ -97,7 +97,6 @@ export function parsePages(text: string | undefined | null): string | undefined 
 export function isIsbnLike(text: string | undefined | null): boolean {
   if (!text) return false;
   const parts = text.split(/[;,]/).map((s) => s.replace(/[\s-]/g, ""));
-  if (parts.length === 0) return false;
   return parts.every((p) => /^(?:\d[\dXx]{8,16})$/.test(p));
 }
 
@@ -127,8 +126,8 @@ export function columnMap(headers: string[]): Partial<Record<LibgenColumn, numbe
     // Strip the sort arrows and collapse whitespace.
     const h = raw.replace(/[↕↑↓]/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
     if (!h) return;
-    // Order matters: "Title" is checked before the wide first column matches
-    // anything else, and "Ext." must not be caught by a broader rule.
+    // Order matters: the specific labels come first so that, for example,
+    // "Publisher" is not read as a title, and "Ext." is not caught by a broader rule.
     if (map.author === undefined && /author/.test(h)) map.author = index;
     else if (map.publisher === undefined && /publisher/.test(h)) map.publisher = index;
     else if (map.year === undefined && /\byear\b/.test(h)) map.year = index;

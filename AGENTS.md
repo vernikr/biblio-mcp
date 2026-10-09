@@ -51,7 +51,7 @@ Running tests:
    field guesses when the page exposes headers.
 3. Register the provider in `src/providers/index.ts`. If it is a new source, also update `SourceId`,
    default/disabled source handling, the relevant Zod schema and description in `src/server.ts`,
-   and the tool examples/tests.
+   and the tool examples/tests. The Zod argument schema lives in `src/server.ts`; the description and example live in `src/toolmeta.ts`.
 4. Add regression tests against a local HTTP server or captured markup. Environment variables that
    define mirror lists are read at module import time; set them before importing built modules (use
    a child process when the test needs an isolated provider graph).

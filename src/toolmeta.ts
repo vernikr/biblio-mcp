@@ -10,7 +10,7 @@ export interface ToolMeta {
 
 export const TOOL_META: Record<string, ToolMeta> = {
   search_books: {
-    description: "Search for books/documents across Anna's Archive, Library Genesis, and Z-Library at once. Results are merged and de-duplicated by MD5 hash. Each result includes an `md5` you can pass to get_download_links or download_book. Per-source failures are reported in `errors` without failing the call.",
+    description: "Search for books/documents across Anna's Archive, Library Genesis, and Z-Library at once. Results are merged and de-duplicated by MD5 hash. Results include an `md5` when the source provides one; pass it to get_download_links or download_book. Per-source failures are reported in `errors` without failing the call.",
     example: "{\"query\":\"dune frank herbert\",\"limit\":5}",
   },
   book_details: {

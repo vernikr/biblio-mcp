@@ -128,7 +128,7 @@ update guarantee is implied; install a newer release file when you choose to upd
 
 | Tool | What it does |
 |---|---|
-| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. An exact `(source, query, limit)` result—including a source error—is reused for 45 seconds within this process. |
+| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 (when the source provides one; Z-Library does not) for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. An exact `(source, query, limit)` result—including a source error—is reused for 45 seconds within this process. |
 | `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused for 45 seconds across details and download-link lookups. |
 | `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. A recent Libgen `ads.php` response is reused. The result says why a link is missing: `notFound` lists sources that have no record, and `errors` lists sources that were unavailable. An empty list with an unavailable source is returned as an error, not as "no links". |
 | `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. Failures list `sourceErrors` when a source was unavailable. |
@@ -149,10 +149,10 @@ fork are there specifically for that reader:
   `[{"expected":"string","code":"invalid_type","path":["output_dir"]}]` you get:
 
   ```
-  download_book: "md5" is missing; "output_dir" is missing. It needs an "md5"
-  (32-character hex hash) and an "output_dir" (absolute path to a directory).
-  Optional: "filename". Example: {"md5":"524037f3...","output_dir":"/home/me/books"}
+  download_book: "md5" is missing; "output_dir" is missing. Schema: required: "md5", "output_dir" — …
   ```
+
+  An invalid value is named the same way, e.g. `"md5" must be a 32-char MD5 hash`.
 
 - **`output_dir` resolves predictably.** A relative path resolves against `$HOME`, not the
   server's working directory — which the agent has no way of knowing — and the response reports
@@ -354,15 +354,16 @@ that admits them.
 - **Download links are filtered before they reach you.** Providers scrape anchors, and some
   anchors are not downloads — Libgen's `ads.php` page links the bare `http://annas-archive.org/`
   homepage, which used to appear as a download option. A link is only reported if it has a path
-  beyond the domain root and actually references the requested MD5 (IPFS gateway links are the
-  documented exception, since they carry a CID instead).
+  beyond the domain root and actually references the requested MD5. Two exceptions: IPFS gateway
+  links carry a CID instead, and member-API links are trusted for the requested MD5 even when
+  their signed URL is opaque.
 - **Z-Library is off by default.** Every public domain in the built-in list was unreachable at
   the last mirror audit, so querying it by default only added latency and an error you could not
-  act on. Pass `sources: ["zlibrary"]` explicitly, or set `BIBLIO_ZLIB_MIRRORS` to a working
-  personal domain, to bring it back. Anna's Archive indexes the Z-Library collection anyway.
+  act on. Pass `sources: ["zlibrary"]` explicitly, or remove it from `BIBLIO_DISABLE_SOURCES`.
+  `BIBLIO_ZLIB_MIRRORS` only sets which domains are tried. Anna's Archive indexes the Z-Library collection anyway.
 - **Sci-Hub** mirrors sometimes gate behind captcha, but the PDF embed URL is still present in
   the HTML for most mirrors. `get_paper` extracts it successfully in the vast majority of cases.
-  If all mirrors fail, it returns fallback URLs so you can open the article in a browser.
+  If every mirror fails, the call returns an error that says whether the paper is absent or the mirrors were unavailable; a successful result lists the `mirrors` it tried so you can open the article in a browser.
 - **These sites change their HTML often.** Parsers live in
   [`src/providers/`](src/providers/) and mirrors in
   [`src/mirrors.ts`](src/mirrors.ts) — both are small and easy to patch.

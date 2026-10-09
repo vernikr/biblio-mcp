@@ -37,7 +37,10 @@ mixed Sci-Hub no-PDF/PDF races reach the PDF, Libgen's DOM is parsed once, and H
 are rejected without reading their body. The F4 contract is decided: `BIBLIO_DOWNLOAD_TIMEOUT_MS`
 covers response headers, and the idle watchdog covers the body (see `docs/decisions.md`).
 
-Next: PR4, test lifecycle/metadata/HTTP boilerplate and active-documentation reductions.
+PR4 is done: shared in-memory MCP test client (`test/helpers/mcp.mjs`), shared HTTP mirror helpers,
+libgen/parse leftovers, and the README/AGENTS/dependabot statements the audit marked stale. The
+audit worklog is marked as an end-of-wave snapshot. Remaining work is optional P3 (MCP annotations,
+`registerTool`, Windows check, R2 SDK AJV validator); see plan.md section 5.
 Cached Anna detail pages remain intentionally deferred because loser cancellation is more useful.
 
 ## Preserved limits and safety

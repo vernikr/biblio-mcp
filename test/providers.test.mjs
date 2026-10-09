@@ -9,6 +9,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
+import { withMcpClient } from "./helpers/mcp.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE = await readFile(join(HERE, "fixtures", "libgen-search.html"), "utf8");
@@ -115,11 +116,7 @@ test("search_books reports the de-duplicated source list over MCP", async () => 
   requestCount = 0;
   requestUrls.length = 0;
   const { createServer: createMcpServer } = await import("../dist/server.js");
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const server = createMcpServer();
-  const client = new Client({ name: "source-dedup-test", version: "0.0.0" });
-  try {
-    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+  return withMcpClient(createMcpServer, async (client) => {
     const response = await client.callTool({
       name: "search_books",
       arguments: { query: "Vidyamurthy Pairs Trading via MCP", sources: ["libgen", "libgen"], limit: 10 },
@@ -128,10 +125,7 @@ test("search_books reports the de-duplicated source list over MCP", async () => 
     assert.equal(requestCount, 1);
     assert.match(requestUrls[0], /[?&]res=30(?:&|$)/);
     assert.deepEqual(result.sourcesSearched, ["libgen"]);
-  } finally {
-    await client.close().catch(() => {});
-    await server.close().catch(() => {});
-  }
+  }, "source-dedup-test");
 });
 
 test("search_papers resolves direct PDFs only when requested and keeps search best-effort", async () => {
