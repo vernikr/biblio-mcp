@@ -20,7 +20,9 @@ const DEFAULT_HEADERS: Record<string, string> = {
 /** Budget for scraping an HTML page (search results, ads.php, md5 detail). */
 export const TIMEOUT_MS = readNumber(NUMBER_SETTINGS.timeoutMs);
 
-/** Budget for pulling an actual file. Books are megabytes, not kilobytes. */
+/** How long a file server may take to answer with headers. Once bytes flow the
+ *  transfer is guarded by the idle watchdog (DOWNLOAD_STALL_MS), not by this
+ *  budget, so a long steady download is not cut off by it. */
 export const DOWNLOAD_TIMEOUT_MS = readNumber(NUMBER_SETTINGS.downloadTimeoutMs);
 
 /** How long a failed mirror is skipped before being given another chance. */
@@ -196,8 +198,18 @@ class MirrorHttpError extends Error {
   }
 }
 
+/** A validator throws this when a 2xx answer is the right site but lacks the record
+ *  (e.g. a Sci-Hub page with no PDF). The race moves on to the other mirrors. */
+export class MirrorRecordMissError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MirrorRecordMissError";
+  }
+}
+
 /** The mirror answered, but this record is not on it. Not a sign of a dead host. */
 function isRecordMiss(error: unknown): boolean {
+  if (error instanceof MirrorRecordMissError) return true;
   return error instanceof MirrorHttpError && (error.status === 404 || error.status === 410);
 }
 
@@ -315,27 +327,14 @@ export async function fetchFromMirrors(
 
 /** Thrown when a "direct" download URL serves an HTML page instead of a file. */
 export class HtmlInsteadOfFileError extends Error {
-  readonly status: number;
   readonly contentType: string | null;
-  readonly bytes: number;
-  readonly snippet: string;
 
-  constructor(opts: {
-    url: string;
-    status: number;
-    contentType: string | null;
-    bytes: number;
-    snippet: string;
-  }) {
+  constructor(opts: { url: string; contentType: string | null }) {
     super(
-      `${opts.url} returned an HTML page (${opts.bytes} bytes, ` +
-        `content-type ${opts.contentType ?? "unknown"}), not a file`
+      `${opts.url} returned an HTML page (content-type ${opts.contentType ?? "unknown"}), not a file`
     );
     this.name = "HtmlInsteadOfFileError";
-    this.status = opts.status;
     this.contentType = opts.contentType;
-    this.bytes = opts.bytes;
-    this.snippet = opts.snippet;
   }
 }
 
@@ -361,13 +360,12 @@ export async function downloadToFile(
   opts: {
     signal?: AbortSignal;
     onProgress?: (p: DownloadProgress) => void;
-    /** Overrides DOWNLOAD_TIMEOUT_MS for the initial request. */
-    timeoutMs?: number;
+    /** Overrides DOWNLOAD_TIMEOUT_MS for the response headers. */
+    headersTimeoutMs?: number;
   } = {}
 ): Promise<DownloadToFileResult> {
   const controller = new AbortController();
-  const budget = opts.timeoutMs ?? DOWNLOAD_TIMEOUT_MS;
-  const requestTimer = setTimeout(() => controller.abort(), budget);
+  const requestTimer = setTimeout(() => controller.abort(), opts.headersTimeoutMs ?? DOWNLOAD_TIMEOUT_MS);
   // One signal for the whole transfer: our timers or the caller can abort it.
   const linked = linkAbortSignals(controller.signal, opts.signal);
 
@@ -389,24 +387,15 @@ export async function downloadToFile(
 
   try {
     if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
       throw new Error(`HTTP ${res.status} for ${url}`);
     }
 
     // An HTML answer here means the link was an interstitial, not a file.
+    // Its body is never saved, so do not read it: release the connection now.
     if (contentType?.includes("text/html")) {
-      const bodyTimer = setTimeout(() => controller.abort(), budget);
-      try {
-        const text = await res.text();
-        throw new HtmlInsteadOfFileError({
-          url,
-          status: res.status,
-          contentType,
-          bytes: Buffer.byteLength(text),
-          snippet: text.replace(/\s+/g, " ").trim().slice(0, 160),
-        });
-      } finally {
-        clearTimeout(bodyTimer);
-      }
+      await res.body?.cancel().catch(() => {});
+      throw new HtmlInsteadOfFileError({ url, contentType });
     }
 
     if (!res.body) throw new Error(`Empty response body from ${url}`);

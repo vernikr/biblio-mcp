@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Fixed
+- `get_download_links` and `download_book` report unavailable sources as an error instead of an empty success. Sources that have no record are listed as `notFound`; partial results keep their `errors`.
+- A Sci-Hub mirror that answers without a PDF no longer blocks a mirror that has the PDF, and is not put into cooldown.
+- `BIBLIO_DOWNLOAD_TIMEOUT_MS` is documented as the response-header budget; a steady transfer longer than it completes, guarded by `BIBLIO_DOWNLOAD_STALL_MS`.
+- `book_details` no longer marks a total failure with `resolvedVia`.
+
 ## [2.0.0] - 2026-10-09
 
 ### Published distribution

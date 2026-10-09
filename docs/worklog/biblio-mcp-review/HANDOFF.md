@@ -48,24 +48,24 @@ node scripts/check-artifacts.mjs --registry
 использовать **npm registry**, но не живые shadow-library mirrors. Live: `pnpm run verify:live`
 отдельно. Generated `artifacts/`, `dist/`, `node_modules` не коммитить.
 
-Проверки до передачи: **203/203** offline tests на Node 22/24, **28/28** на 22.0.0; acceptance
+Проверки до передачи: **215/215** offline tests на Node 22/24 (PR3: 203 прежних + 12 новых), **28/28** на 22.0.0; acceptance
 npm/npx/pnpm/MCPB с настоящими сохранёнными байтами. Последний зелёный distribution CI:
 [7/7 jobs](https://github.com/vernikr/biblio-mcp/actions/runs/37856503504), включая Linux/macOS/Windows.
 Release checkpoint: **[7/7 jobs зелёные](https://github.com/vernikr/biblio-mcp/actions/runs/37863870454)**;
 [`handoff-ci-checkpoint.json`](handoff-ci-checkpoint.json). Последний main CI виден в badge/workflows;
 этот receipt закрепляет проверку commit, на который указывает release tag.
 
-## Следующая работа — PR3, не release/bootstrap заново
+## Следующая работа — PR4, PR3 выполнен
 
 См. [план исполнения](plan.md#5-план-исполнения) и исторический baseline в `snapshot.json`.
 
-- **F4:** определить контракт download timeout — текущий timer покрывает headers, body имеет
-  idle watchdog. Не считать это полным deadline; выбор полного deadline/переименования ещё не сделан.
-- **F5:** отличать outage (all 503/network) от healthy not-found (all 404/semantic miss).
-- **F6:** mixed Sci-Hub no-PDF/PDF должен дождаться PDF; semantic miss не должен отменять победителя.
-- **R3:** переиспользовать уже созданный DOM Libgen для download links вместо второго parse.
-- **R4:** не читать HTML body ради неиспользуемых error payload fields; сохранять typed HTML rejection.
-- Затем PR4: test lifecycle/metadata/HTTP boilerplate, активные docs. Не удалять уникальные сценарии
+**PR3 сделан (в main):** F4 — контракт выбран: `BIBLIO_DOWNLOAD_TIMEOUT_MS` = заголовки ответа,
+тело защищено idle watchdog (`BIBLIO_DOWNLOAD_STALL_MS`), общий deadline отвергнут; F5 — outage
+отделён от not-found (`get_download_links`/`download_book` возвращают `errors`/`notFound`);
+F6 — no-PDF на одном зеркале не блокирует зеркало с PDF; R3 — DOM Libgen парсится один раз;
+R4 — HTML-интерстициал отклоняется без чтения тела. Решения — `docs/decisions.md`.
+
+- Далее PR4: test lifecycle/metadata/HTTP boilerplate, активные docs. Не удалять уникальные сценарии
   или genuine provider captures ради количества строк/тестов.
 
 ## Инварианты и ограничения

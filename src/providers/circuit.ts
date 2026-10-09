@@ -131,6 +131,11 @@ export async function withSourceCircuit<T>(
   }
 }
 
+/** Forget every source circuit. Tests use it so one scenario's failures do not leak into the next. */
+export function resetSourceCircuits(): void {
+  circuits.clear();
+}
+
 /** Human-readable reason for a source whose circuit is currently open. */
 export function sourceCircuitMessage(source: SourceId): string | undefined {
   const state = circuits.get(source);

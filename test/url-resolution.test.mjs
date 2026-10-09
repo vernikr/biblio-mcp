@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import * as cheerio from "cheerio";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const md5 = "a".repeat(32);
@@ -45,12 +46,13 @@ test("Anna's Archive resolves protocol-relative image and download URLs", async 
 });
 
 test("Libgen resolves protocol-relative and path-relative download URLs", async () => {
-  const links = await libgen.downloadLinks(md5, {
-    base: mirror,
-    html:
+  const links = libgen.extractDownloadLinks(
+    cheerio.load(
       `<a href="//cdn.example/download/book.epub">Download EPUB</a>` +
-      `<a href="get.php?md5=${md5}">get.php</a>`,
-  });
+        `<a href="get.php?md5=${md5}">get.php</a>`
+    ),
+    mirror
+  );
   assert.equal(links[0].url, "http://cdn.example/download/book.epub");
   assert.equal(links[1].url, `${mirror}/get.php?md5=${md5}`);
 });

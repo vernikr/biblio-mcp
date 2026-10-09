@@ -41,11 +41,11 @@ test("fetchFromMirrors times out while reading a stalled response body", async (
   );
 });
 
-test("downloadToFile times out while reading an HTML interstitial body", async () => {
+test("downloadToFile rejects an HTML interstitial without waiting for its unfinished body", async () => {
   const dir = await mkdtemp(join(tmpdir(), "biblio-timeout-"));
   try {
     await assertFastRejection(
-      () => downloadToFile(`${base}/html`, join(dir, "book.pdf"), { timeoutMs: 200 }),
+      () => downloadToFile(`${base}/html`, join(dir, "book.pdf")),
       "downloadToFile"
     );
   } finally {

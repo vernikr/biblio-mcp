@@ -1,7 +1,12 @@
 // Anna's Archive provider.
 
 import * as cheerio from "cheerio";
-import { fetchFromMirrors, fetchWithTimeout, probeMirror } from "../http.js";
+import {
+  fetchFromMirrors,
+  fetchWithTimeout,
+  MirrorRecordMissError,
+  probeMirror,
+} from "../http.js";
 import { ANNAS_IDENTITY, ANNAS_MIRRORS } from "../mirrors.js";
 import { absoluteUrl, parseLanguage, parseSize, parseYear } from "../parse.js";
 import type { Book, DownloadLink } from "../types.js";
@@ -128,15 +133,22 @@ async function identityVerifiedMirrors(): Promise<string[]> {
   return ANNAS_MIRRORS.filter((base) => (verifiedUntil.get(base) ?? 0) > Date.now());
 }
 
-/** Use Anna's member API for verified direct downloads when an API key is set. */
 /** A member link is worth waiting for, but not for a dead mirror's full budget. */
 const FAST_DOWNLOAD_TIMEOUT_MS = 20_000;
 
+/** Use Anna's member API for verified direct downloads when an API key is set.
+ *
+ *  Returns a link, or `null` when no key is configured or the record is absent
+ *  from every verified mirror. Throws when the member API could not answer at
+ *  all, so the caller can tell a dead API from a missing record. */
 export async function fastDownload(md5: string): Promise<DownloadLink | null> {
   const key = process.env.BIBLIO_ANNAS_API_KEY?.trim();
   if (!key) return null;
 
   const mirrors = await identityVerifiedMirrors();
+  if (mirrors.length === 0) {
+    throw new Error("no Anna's Archive mirror passed the identity check for the member API");
+  }
   const cancels = mirrors.map(() => new AbortController());
 
   // Ask every verified mirror at once; the first usable answer wins and the
@@ -146,10 +158,20 @@ export async function fastDownload(md5: string): Promise<DownloadLink | null> {
       `${base}/dyn/api/fast_download.json?md5=${md5}&key=${encodeURIComponent(key)}`,
       {},
       async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // 404 and a body without a link both mean "this mirror has no such record".
+        if (res.status === 404) {
+          await res.body?.cancel().catch(() => {});
+          throw new MirrorRecordMissError("no member record for this md5");
+        }
+        if (!res.ok) {
+          await res.body?.cancel().catch(() => {});
+          throw new Error(`HTTP ${res.status}`);
+        }
         const data: any = await res.json();
         const url: unknown = data?.download_url ?? data?.url;
-        if (typeof url !== "string" || !url) throw new Error("no download_url");
+        if (typeof url !== "string" || !url) {
+          throw new MirrorRecordMissError("no member download for this md5");
+        }
 
         // Surface remaining quota when the API reports it, so a run can see it
         // is burning through the daily allowance.
@@ -172,9 +194,19 @@ export async function fastDownload(md5: string): Promise<DownloadLink | null> {
     const link = await Promise.any(attempts);
     cancels.forEach((cancel) => cancel.abort());
     return link;
-  } catch {
-    // Every verified mirror failed: no member link this time.
-    return null;
+  } catch (error) {
+    const reasons: unknown[] = (error as AggregateError).errors ?? [];
+    // Every mirror answered that the record is absent: a healthy "no".
+    if (reasons.length > 0 && reasons.every((r) => r instanceof MirrorRecordMissError)) {
+      return null;
+    }
+    // Otherwise at least one mirror failed to answer usefully: an outage.
+    // Reason text carries status codes only, never the key-bearing URL.
+    const summary = reasons
+      .map((r) => (r instanceof Error ? r.message : String(r)))
+      .map((m) => m.replace(/https?:\/\/\S+/g, "mirror"))
+      .join("; ");
+    throw new Error(`All ${mirrors.length} annas mirror(s) failed for the member API: ${summary}`);
   }
 }
 

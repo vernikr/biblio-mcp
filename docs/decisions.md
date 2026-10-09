@@ -13,6 +13,9 @@ This file keeps the rationale for non-obvious behavior out of implementation com
 ## Timeouts and downloads
 
 - The HTML request budget covers body consumption, not just response headers. Large file downloads have a separate budget and an idle stall watchdog.
+- `BIBLIO_DOWNLOAD_TIMEOUT_MS` bounds only the time a file server takes to answer with headers. Once bytes flow, `BIBLIO_DOWNLOAD_STALL_MS` is the only limit, so a steady transfer longer than the header budget completes. A total-body deadline was rejected: it would cut off legitimate large downloads on slow links.
+- A 2xx page that lacks the requested record (for example a Sci-Hub page with no PDF) is a record miss, not a dead mirror: it does not cool the host down, and another mirror may still win the race. A challenge page is a mirror failure. If every answer is a miss, the result is not-found; if a challenged mirror was among them, the result is unavailable, because the challenged mirror's record state is unknown.
+- Download lookups separate three outcomes. Links found, possibly beside a failed source, are returned with `errors`. Sources that answered "no record" are listed as `notFound` and are not errors. An empty result while any source was unavailable is an error, since absence is then unproven.
 - Downloads stream through a hash transform to a `.part` file and are published only after a complete transfer. Reject HTML interstitials instead of saving them as books; report the actual MD5 because mirror links can serve a different file.
 - Probe requests without an identity marker cancel unread bodies so health checks do not leave connections open.
 

@@ -6,7 +6,7 @@ import * as scihub from "./scihub.js";
 import * as zlibrary from "./zlibrary.js";
 import { ANNAS_MIRRORS, IPFS_GATEWAYS } from "../mirrors.js";
 import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
-import { areMirrorsCoolingDown } from "../http.js";
+import { areMirrorsCoolingDown, ResourceNotFoundError } from "../http.js";
 import { isUsefulLink } from "../parse.js";
 import {
   sourceCircuitMessage,
@@ -213,7 +213,6 @@ export async function bookDetails(md5: string): Promise<BookDetailsResult> {
       md5: hash,
       title: "",
       downloadLinks: [],
-      resolvedVia: "libgen",
       annasUnavailable:
         annasReason ?? sourceCircuitMessage("annas") ?? "unavailable — no usable metadata",
       libgenUnavailable:
@@ -222,12 +221,41 @@ export async function bookDetails(md5: string): Promise<BookDetailsResult> {
   }
 }
 
-/** Resolve every download candidate we can find for an md5. */
-export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
+/** What a download lookup learned, beyond the links themselves. */
+export interface DownloadResolution {
+  /** Verified and scraped download candidates, from every source that answered. */
+  links: DownloadLink[];
+  /** Sources that could not answer. Their silence is not evidence of no link. */
+  errors: SourceError[];
+  /** Sources that answered that they hold no record for this md5. */
+  notFound: SourceId[];
+}
+
+/** Resolve every download candidate we can find for an md5, with diagnostics. */
+export async function resolveDownloadReport(md5: string): Promise<DownloadResolution> {
   const links: DownloadLink[] = [];
-  const annasDetails = shouldQueryAnnasHtml()
-    ? withSourceCircuit("annas", () => annas.details(md5))
-    : Promise.resolve(undefined);
+  const errors: SourceError[] = [];
+  const notFound: SourceId[] = [];
+
+  // Classify one source's failure: a healthy "no record" is not an outage.
+  const record = (source: SourceId, error: unknown) => {
+    if (error instanceof ResourceNotFoundError) {
+      if (!notFound.includes(source)) notFound.push(source);
+      return;
+    }
+    // One reason per source is enough; the first one seen is kept.
+    if (!errors.some((e) => e.source === source)) {
+      errors.push({ source, error: summarizeSourceFailure(source, error) });
+    }
+  };
+
+  // Anna's HTML may be skipped because its circuit or mirrors are down. That is
+  // an outage, and it must be visible rather than silently absent.
+  const skipReason = shouldQueryAnnasHtml() ? undefined : annasHtmlSkipReason();
+  if (skipReason) errors.push({ source: "annas", error: skipReason });
+  const annasDetails = skipReason
+    ? Promise.resolve(undefined)
+    : withSourceCircuit("annas", () => annas.details(md5));
 
   const [fastRes, libgenRes, annasRes] = await Promise.allSettled([
     // The JSON member endpoint does not use the HTML mirrors' negative cache;
@@ -238,10 +266,18 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   ]);
 
   // Try the verified member endpoint before scraped partner links.
-  if (fastRes.status === "fulfilled" && fastRes.value) links.push(fastRes.value);
+  if (fastRes.status === "fulfilled") {
+    if (fastRes.value) links.push(fastRes.value);
+  } else {
+    record("annas", fastRes.reason);
+  }
   if (libgenRes.status === "fulfilled") links.push(...libgenRes.value);
-  if (annasRes.status === "fulfilled" && annasRes.value)
-    links.push(...annasRes.value.downloadLinks);
+  else record("libgen", libgenRes.reason);
+  if (annasRes.status === "fulfilled") {
+    if (annasRes.value) links.push(...annasRes.value.downloadLinks);
+  } else {
+    record("annas", annasRes.reason);
+  }
 
   // Surface an IPFS CID as gateway links if one appears among Anna's links.
   const cid = links
@@ -257,7 +293,12 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
 
   const hash = md5.toLowerCase();
   const useful = links.filter((l) => l.verified === true || isUsefulLink(l.url, hash));
-  return useful;
+  return { links: useful, errors, notFound };
+}
+
+/** Download candidates only; use resolveDownloadReport when the reasons matter. */
+export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
+  return (await resolveDownloadReport(md5)).links;
 }
 
 // isUsefulLink lives in ../parse.js, not here: libgen.ts needs it too, and

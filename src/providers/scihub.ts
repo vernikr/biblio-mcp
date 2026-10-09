@@ -1,33 +1,24 @@
 // Sci-Hub provider — academic papers by DOI / title / URL.
 
 import * as cheerio from "cheerio";
-import { fetchFromMirrors, ResourceNotFoundError } from "../http.js";
+import {
+  fetchFromMirrors,
+  MirrorRecordMissError,
+  ResourceNotFoundError,
+} from "../http.js";
 import { SCIHUB_MIRRORS } from "../mirrors.js";
-
-/** Sci-Hub sometimes answers HTTP 200 with a human-verification page (ALTCHA)
- *  instead of the article. That is a mirror failure, not a paper: the next
- *  mirror is tried, and if all of them challenge, the caller hears why. */
-const CHALLENGE_PAGE = /altcha-widget|\/captcha\/solution\/|проверка на робота/i;
-const isArticlePage = (html: string): boolean | string =>
-  CHALLENGE_PAGE.test(html)
-    ? "answered with a human-verification challenge (ALTCHA), not the article"
-    : true;
 import { absoluteUrl } from "../parse.js";
 import type { Paper } from "../types.js";
 
 const GROUP = "scihub";
 
-/** Resolve a paper via Sci-Hub using a DOI, article URL, or title. */
-export async function resolve(identifier: string): Promise<Paper> {
-  const id = identifier.trim();
-  const { html, base, finalUrl } = await fetchFromMirrors(
-    GROUP,
-    SCIHUB_MIRRORS,
-    (b) => `${b}/${encodeURIComponent(id)}`,
-    undefined,
-    isArticlePage
-  );
+/** Sci-Hub sometimes answers HTTP 200 with a human-verification page (ALTCHA)
+ *  instead of the article. That is a mirror failure, not a paper: the next
+ *  mirror is tried, and if all of them challenge, the caller hears why. */
+const CHALLENGE_PAGE = /altcha-widget|\/captcha\/solution\/|проверка на робота/i;
 
+/** The PDF location on an article page, or undefined when the page holds none. */
+function findPdfSrc(html: string): string | undefined {
   const $ = cheerio.load(html);
 
   // The PDF lives in an <embed>/<iframe id="pdf"> or a "save" button onclick.
@@ -51,19 +42,49 @@ export async function resolve(identifier: string): Promise<Paper> {
   }
 
   // Strip viewer fragment (e.g. #view=FitH) from PDF URL.
-  if (pdfSrc) pdfSrc = pdfSrc.replace(/#.*$/, "");
+  return pdfSrc ? pdfSrc.replace(/#.*$/, "") || undefined : undefined;
+}
 
+const NOT_IN_CATALOGUE =
+  "not found — Sci-Hub has no PDF for this identifier (the page is not an article)";
+
+/** Validate one mirror's answer during the race. A challenge is a mirror failure;
+ *  a page without a PDF is a miss for this record, so another mirror may still win. */
+function checkArticlePage(html: string): true | string {
+  if (CHALLENGE_PAGE.test(html)) {
+    return "answered with a human-verification challenge (ALTCHA), not the article";
+  }
+  if (!findPdfSrc(html)) throw new MirrorRecordMissError("answered without a PDF for this record");
+  return true;
+}
+
+/** Resolve a paper via Sci-Hub using a DOI, article URL, or title. */
+export async function resolve(identifier: string): Promise<Paper> {
+  const id = identifier.trim();
+  let fetched;
+  try {
+    fetched = await fetchFromMirrors(
+      GROUP,
+      SCIHUB_MIRRORS,
+      (b) => `${b}/${encodeURIComponent(id)}`,
+      undefined,
+      checkArticlePage
+    );
+  } catch (error) {
+    if (error instanceof ResourceNotFoundError) {
+      throw new ResourceNotFoundError(GROUP, error.tried, NOT_IN_CATALOGUE);
+    }
+    throw error;
+  }
+  const { html, base, finalUrl } = fetched;
+
+  const pdfSrc = findPdfSrc(html);
   // A page without a PDF is a "not in our catalogue" answer, often HTTP 200 with
   // third-party links. Returning it as a paper would put the page title in
   // `title`, so report it as a missing record instead.
-  if (!pdfSrc) {
-    throw new ResourceNotFoundError(
-      GROUP,
-      1,
-      "not found — Sci-Hub has no PDF for this identifier (the page is not an article)"
-    );
-  }
+  if (!pdfSrc) throw new ResourceNotFoundError(GROUP, 1, NOT_IN_CATALOGUE);
 
+  const $ = cheerio.load(html);
   const title =
     $("#citation i").first().text().trim() ||
     $("title").text().trim() ||

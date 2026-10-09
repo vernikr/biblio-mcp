@@ -275,10 +275,8 @@ export async function details(md5: string): Promise<Book & { downloadLinks: Down
 
   // Filtered here as well, not only in resolveDownloads(): book_details embeds
   // this list, and an agent following "http://annas-archive.org/" out of a
-  // details response gets nothing with no explanation.
-  const links = (await downloadLinks(md5, { html, base })).filter((l) =>
-    isUsefulLink(l.url, hash)
-  );
+  // details response gets nothing with no explanation. Reuses the DOM above.
+  const links = extractDownloadLinks($, base).filter((l) => isUsefulLink(l.url, hash));
 
   return {
     source: "libgen",
@@ -295,12 +293,13 @@ export async function details(md5: string): Promise<Book & { downloadLinks: Down
 }
 
 /** Resolve every candidate download URL for an md5. */
-export async function downloadLinks(
-  md5: string,
-  reuse?: { html: string; base: string }
-): Promise<DownloadLink[]> {
-  const { html, base } = reuse ?? (await fetchAdsPage(md5));
-  const $ = cheerio.load(html);
+export async function downloadLinks(md5: string): Promise<DownloadLink[]> {
+  const { html, base } = await fetchAdsPage(md5);
+  return extractDownloadLinks(cheerio.load(html), base);
+}
+
+/** Download candidates from an already-parsed ads.php page. */
+export function extractDownloadLinks($: cheerio.CheerioAPI, base: string): DownloadLink[] {
   const links: DownloadLink[] = [];
   const push = (url: string, label: string, direct: boolean) => {
     const full = absoluteUrl(url, base);

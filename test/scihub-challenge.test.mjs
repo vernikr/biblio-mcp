@@ -66,14 +66,16 @@ test("when every mirror answers with a challenge, the error says so instead of r
   }
 });
 
-test("a page with no PDF is reported as a missing record, not returned as a paper", async () => {
+test("a no-PDF page is never returned as a paper, even beside a challenged mirror", async () => {
+  // The challenged mirror could not be checked, so "no PDF" is not proven:
+  // that is an unavailable outcome, reported as a failure, not a paper.
   const { ResourceNotFoundError } = await import("../dist/http.js");
   resetMirrorCache();
   mode = "no-pdf";
   try {
     await assert.rejects(scihub.resolve("10.1126/science.1243094"), (error) => {
-      assert.ok(error instanceof ResourceNotFoundError, `got ${error?.name}: ${error?.message}`);
-      assert.match(error.message, /no PDF/);
+      assert.ok(!(error instanceof ResourceNotFoundError), "an unchecked mirror prevents a not-found claim");
+      assert.match(String(error.message), /mirror\(s\) failed|human-verification/i);
       return true;
     });
   } finally {

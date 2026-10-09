@@ -45,7 +45,7 @@ export const ENV_SETTINGS: readonly EnvSetting[] = [
   },
   {
     name: NUMBER_SETTINGS.downloadTimeoutMs.name,
-    help: "Timeout for fetching a file",
+    help: "Timeout for a file server's response headers; an active transfer is guarded by BIBLIO_DOWNLOAD_STALL_MS",
     defaultText: `${NUMBER_SETTINGS.downloadTimeoutMs.fallback}`,
   },
   {

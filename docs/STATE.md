@@ -26,18 +26,18 @@ pnpm run docs:env                     # fresh compiled environment table
 pnpm run verify:live                  # optional live diagnostics, separate from offline gate
 ```
 
-203/203 offline tests pass without skips; pnpm must be on PATH and its store primed for the clean
+215/215 offline tests pass without skips; pnpm must be on PATH and its store primed for the clean
 installer fixtures. Exact Node 22.0 smoke: 28/28. The cost of genuine install/build tests is kept
 rather than dropping coverage to hit an obsolete under-five-second target.
 
 ## Next code work
 
-PR3 is next: distinguish outage/not-found (F5), preserve mixed Sci-Hub semantic-miss/PDF races
-(F6), reuse Libgen's DOM (R3), and avoid unused HTML-error body/payload work (R4). F4 download
-budget covers headers plus a separate idle watchdog, **not** a total-body deadline; choose its
-contract explicitly before changing it. The audit plan retains detailed red/green acceptance.
+PR3 (F4, F5, F6, R3, R4) is implemented: outage is separated from not-found in download lookups,
+mixed Sci-Hub no-PDF/PDF races reach the PDF, Libgen's DOM is parsed once, and HTML interstitials
+are rejected without reading their body. The F4 contract is decided: `BIBLIO_DOWNLOAD_TIMEOUT_MS`
+covers response headers, and the idle watchdog covers the body (see `docs/decisions.md`).
 
-After that: test lifecycle/metadata/HTTP boilerplate and active-documentation reductions (PR4).
+Next: PR4, test lifecycle/metadata/HTTP boilerplate and active-documentation reductions.
 Cached Anna detail pages remain intentionally deferred because loser cancellation is more useful.
 
 ## Preserved limits and safety

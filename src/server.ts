@@ -19,7 +19,7 @@ import { sniffExt } from "./sniff.js";
 import { withSourceCircuit } from "./providers/circuit.js";
 import {
   searchBooks,
-  resolveDownloads,
+  resolveDownloadReport,
   bookDetails,
   libgen,
   scihub,
@@ -275,8 +275,27 @@ export function createServer(): McpServer {
       md5: md5Schema,
     },
     async ({ md5 }) => {
-      const links = await resolveDownloads(md5.toLowerCase());
-      return json({ md5: md5.toLowerCase(), count: links.length, links });
+      const hash = md5.toLowerCase();
+      const { links, errors, notFound } = await resolveDownloadReport(hash);
+      const body = {
+        md5: hash,
+        count: links.length,
+        links,
+        ...(notFound.length ? { notFound } : {}),
+        ...(errors.length ? { errors } : {}),
+      };
+      if (links.length > 0) return json(body);
+      // No links and some source unavailable: the empty list proves nothing.
+      if (errors.length > 0) {
+        return jsonError({
+          ...body,
+          reason:
+            "No download link obtained, and at least one source was unavailable. " +
+            "Retry later or run healthcheck; the record may still exist.",
+        });
+      }
+      // Every source answered and none has a link for this md5: a clean "no".
+      return json({ ...body, reason: "No source has a download link for this md5." });
     }
   );
 
@@ -306,13 +325,18 @@ export function createServer(): McpServer {
       const hash = md5.toLowerCase();
       // Validate before any network work: a bad name must never reach the disk.
       const plainName = filename === undefined ? undefined : plainFileName(filename);
-      const links = await resolveDownloads(hash);
+      const { links, errors: sourceErrors } = await resolveDownloadReport(hash);
       const direct = links.filter((l) => l.direct);
       if (direct.length === 0)
         return jsonError({
           saved: false,
-          reason: "No direct download link resolved. Use these links manually.",
+          reason:
+            sourceErrors.length > 0
+              ? "No direct download link resolved, and at least one source was unavailable. " +
+                "Retry later, or use these links manually."
+              : "No direct download link resolved. Use these links manually.",
           links,
+          ...(sourceErrors.length ? { sourceErrors } : {}),
         });
 
       // Resolve relative output paths from $HOME, a predictable location for both sides.
@@ -376,6 +400,7 @@ export function createServer(): McpServer {
               : {}),
             bytes: result.bytes,
             via: link.label,
+            ...(sourceErrors.length ? { sourceErrors } : {}),
             /** Hex MD5 of the bytes on disk. */
             md5: result.md5,
             /** True when the file's own hash equals the catalog hash requested. */
@@ -400,7 +425,12 @@ export function createServer(): McpServer {
           errors.push(`${link.label}: ${(e as Error).message}`);
         }
       }
-      return jsonError({ saved: false, errors, links });
+      return jsonError({
+        saved: false,
+        errors,
+        links,
+        ...(sourceErrors.length ? { sourceErrors } : {}),
+      });
     }
   );
 
