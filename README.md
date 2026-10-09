@@ -33,10 +33,10 @@ away when they do not.
 ## Quick start
 
 Use the pinned npm package **`@vernikr/biblio-mcp@2.1.0`** or the ready Desktop extension
-from [release v2.0.0](https://github.com/vernikr/biblio-mcp/releases/tag/v2.0.0).
+from [release v2.1.0](https://github.com/vernikr/biblio-mcp/releases/tag/v2.1.0).
 Both contain the same checked Node 22+ stdio runtime.
 
-- **Claude Desktop:** install `vernikr-biblio-mcp-2.0.0.mcpb` through Settings → Extensions
+- **Claude Desktop:** install `vernikr-biblio-mcp-2.1.0.mcpb` through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
 - **Other MCP clients:** use the prepared npm tarball now, or the pinned pnpm/npx configuration
