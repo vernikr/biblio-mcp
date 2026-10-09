@@ -63,9 +63,9 @@ Everything you need is on this page. Ask the user only where a step says so.
    - Write to `<file>.tmp`, check that it is valid JSON, then rename it over `<file>`.
 7. **Enable it by hand.** Ask the user to restart the client, turn the `biblio` server on in its
    MCP settings, and approve tool use if asked. You cannot click these for them.
-8. **Verify through the client, not the file.** The client must list seven tools for `biblio`:
-   `search_books`, `book_details`, `get_download_links`, `download_book`, `search_papers`,
-   `get_paper`, `healthcheck`. Call `healthcheck`. If no tools appear, report what the client's
+8. **Verify through the client, not the file.** The client must list eight tools for `biblio`:
+   `search_books`, `book_details`, `get_download_links`, `download_book`, `fetch_book`,
+   `search_papers`, `get_paper`, `healthcheck`. Call `healthcheck`. If no tools appear, report what the client's
    MCP log says. A valid JSON file alone is not success.
 
 Rules: no `sudo`, no global installs, no `env -i`. Put API keys only into the client's `env`
@@ -82,13 +82,13 @@ Both contain the same checked Node 22+ stdio runtime.
   The host's Node runtime must meet the extension's Node 22+ requirement.
 - **Other MCP clients:** use the prepared npm tarball now, or the pinned pnpm/npx configuration
   in [Install](#install).
-- Downloads go to the `output_dir` you pass to the tool, never the install/package-manager cache.
+- Downloads go to the `output_dir` you pass to the tool (default `~/Downloads/biblio-mcp`), never the install/package-manager cache.
 
 **One [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that searches Anna's Archive, Library Genesis (Libgen), Sci-Hub, and Z-Library — all at once.**
 
 Search millions of books, academic papers, and research articles across every major shadow library through a single unified interface. Resolve download links and fetch files directly from your AI assistant — Claude Code, Claude Desktop, Cline, Cursor, or any MCP-compatible client.
 
-No API keys. No login. No per-source servers to juggle. One server, seven tools, four sources.
+No API keys. No login. No per-source servers to juggle. One server, eight tools, four sources.
 
 ---
 
@@ -186,7 +186,8 @@ update guarantee is implied; install a newer release file when you choose to upd
 | `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 (when the source provides one; Z-Library does not) for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. An exact `(source, query, limit)` result—including a source error—is reused for 45 seconds within this process. |
 | `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused for 45 seconds across details and download-link lookups. |
 | `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. A recent Libgen `ads.php` response is reused. The result says why a link is missing: `notFound` lists sources that have no record, and `errors` lists sources that were unavailable. An empty list with an unavailable source is returned as an error, not as "no links". |
-| `download_book` | Stream the actual file to a local directory by MD5. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. Failures list `sourceErrors` when a source was unavailable. |
+| `download_book` | Stream the actual file to a local directory by MD5. `output_dir` is optional and defaults to `~/Downloads/biblio-mcp`. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. Failures list `sourceErrors` when a source was unavailable, and `alternatives` (other copies of the same title, ranked) when this MD5 cannot be saved. |
+| `fetch_book` | Get a book by title in one call: search, rank the copies (requested format, then PDF, then the largest), try up to `max_attempts` (1–5, default 3) with the next copy when one fails, and save the first that verifies. Returns `picked`, the `attempts` made, and a `nextStep` when nothing could be saved. Use it when you want a file, not a list. |
 | `search_papers` | Search Library Genesis scimag for papers; returns title, journal, authors, DOI and year. Set `resolvePdfs: true` to best-effort add direct `pdfUrl` values for up to three DOI results (extra Sci-Hub requests). |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
 | `healthcheck` | Can this server reach its sources? Per-mirror status and latency, without querying a catalogue. Use it to tell "the network is blocked" apart from "the query matched nothing". |
@@ -204,7 +205,7 @@ fork are there specifically for that reader:
   `[{"expected":"string","code":"invalid_type","path":["output_dir"]}]` you get:
 
   ```
-  download_book: "md5" is missing; "output_dir" is missing. Schema: required: "md5", "output_dir" — …
+  download_book: "md5" is missing. Schema: required: "md5" — …
   ```
 
   An invalid value is named the same way, e.g. `"md5" must be a 32-char MD5 hash`.
@@ -224,7 +225,9 @@ fork are there specifically for that reader:
 
 1. `search_books({ query: "dune frank herbert" })` → results, each with an `md5`
 2. `get_download_links({ md5: "..." })` → pick a `direct: true` link, **or**
-3. `download_book({ md5: "...", output_dir: "/absolute/path/Downloads/books" })` → saved file
+3. `download_book({ md5: "..." })` → saved file in `~/Downloads/biblio-mcp` (or pass `output_dir`)
+
+**Or in one call:** `fetch_book({ query: "dune frank herbert", format: "EPUB" })` searches, ranks the copies, and saves the first one that verifies.
 
 `download_book` answers with something like:
 

@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-10
+
+### Added
+- `fetch_book`: one call from a title to a saved file. It searches, ranks the copies (requested format, then PDF, then the largest), tries up to `max_attempts` (1–5, default 3) and saves the first copy that verifies. It returns `picked`, `attempts` and a `nextStep` when nothing could be saved.
+- `download_book` failures list `alternatives`: other copies of the same title, ranked, with a `nextStep` telling the agent to retry with one of their MD5s instead of a shell workaround.
+
+### Changed
+- `download_book`'s `output_dir` is optional and defaults to `~/Downloads/biblio-mcp`. Argument errors name only the fields that are actually missing.
+- The save-to-disk path moved into `src/acquire.ts`; behaviour of direct downloads is otherwise unchanged.
+
 ## [2.1.1] - 2026-10-10
 
 ### Changed
@@ -331,7 +341,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.1.1...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/vernikr/biblio-mcp/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/vernikr/biblio-mcp/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/vernikr/biblio-mcp/compare/v2.0.0...v2.1.0
 [1.8.0]: https://github.com/vernikr/biblio-mcp/compare/v1.7.0...v1.8.0
