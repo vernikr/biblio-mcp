@@ -46,9 +46,16 @@ export function buildLauncherConfig(input: LauncherConfigInput): LauncherConfig 
     mcpServers: {
       biblio: {
         command: input.pnpmPath,
-        // Always the newest published release. The cache flag stops pnpm from
-        // reusing a copy of `latest` fetched earlier (its default is one day).
-        args: ["--silent", "--config.dlx-cache-max-age=0", "dlx", `${PACKAGE_NAME}@latest`],
+        // Always the newest published release. pnpm skips releases younger than its
+        // minimum release age, so the exclude exempts this package only; the cache
+        // flag stops reuse of a `latest` fetched earlier (its default is one day).
+        args: [
+          "--silent",
+          `--config.minimum-release-age-exclude=${PACKAGE_NAME}`,
+          "--config.dlx-cache-max-age=0",
+          "dlx",
+          `${PACKAGE_NAME}@latest`,
+        ],
         env: { PATH: unique.join(ops.delimiter) },
       },
     },

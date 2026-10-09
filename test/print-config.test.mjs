@@ -12,7 +12,16 @@ import { readFileSync } from "node:fs";
 
 const entry = fileURLToPath(new URL("../dist/index.js", import.meta.url));
 const PKG_SPEC = "@vernikr/biblio-mcp@latest";
-const LAUNCH_ARGS = ["--silent", "--config.dlx-cache-max-age=0", "dlx", PKG_SPEC];
+// pnpm 12 skips releases younger than its minimum release age, so `latest` would
+// resolve to an older copy for about a day after publishing. The exclude exempts
+// this package only. The cache flag stops reuse of a previously fetched `latest`.
+const LAUNCH_ARGS = [
+  "--silent",
+  "--config.minimum-release-age-exclude=@vernikr/biblio-mcp",
+  "--config.dlx-cache-max-age=0",
+  "dlx",
+  PKG_SPEC,
+];
 
 function fakeExecutable(dir, name) {
   const file = join(dir, name);
