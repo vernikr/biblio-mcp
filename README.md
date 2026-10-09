@@ -46,10 +46,9 @@ Everything you need is on this page. Ask the user only where a step says so.
    minute. If you see `ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR` or a DNS error, the problem
    is the network. Keep the proxy variables and report the error. Do not strip the environment.
 4. **Build the client entry.** Run `pnpm --silent dlx @vernikr/biblio-mcp@<v> --print-config`.
-   It prints JSON with `mcpServers.biblio`. Its `PATH` already includes the real node directory.
-   Then make the entry always fetch the newest release: in `args`, insert
-   `"--config.dlx-cache-max-age=0"` right after `"--silent"`, and replace `@<v>` with `@latest`.
-   The result is `"args": ["--silent", "--config.dlx-cache-max-age=0", "dlx", "@vernikr/biblio-mcp@latest"]`.
+   It prints JSON with `mcpServers.biblio`. Its `PATH` already includes the real node directory,
+   and its `args` launch the newest release: `["--silent", "--config.dlx-cache-max-age=0", "dlx", "@vernikr/biblio-mcp@latest"]`.
+   Use that output as is. Do not pin a version unless the user asks.
    Never put a path containing `fnm_multishells` or `/tmp` into a config. If `--print-config` is
    not recognised, stop and tell the user.
 5. **Find the client's config file.**
@@ -76,14 +75,14 @@ block, and only if the user gives them to you. Never print a key back.
 
 ## Quick start
 
-Use the pinned npm package **`@vernikr/biblio-mcp@2.2.0`** or the ready Desktop extension
-from [release v2.2.0](https://github.com/vernikr/biblio-mcp/releases/tag/v2.2.0).
+Use the npm package **`@vernikr/biblio-mcp`** or the ready Desktop extension
+from [release v2.2.1](https://github.com/vernikr/biblio-mcp/releases/tag/v2.2.1).
 Both contain the same checked Node 22+ stdio runtime.
 
-- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.0.mcpb` through Settings → Extensions
+- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.1.mcpb` through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
-- **Other MCP clients:** use the prepared npm tarball now, or the pinned pnpm/npx configuration
+- **Other MCP clients:** use the prepared npm tarball now, or the pnpm/npx configuration
   in [Install](#install).
 - Downloads go to the `output_dir` you pass to the tool (default `~/Downloads/biblio-mcp`), never the install/package-manager cache.
 
@@ -125,7 +124,7 @@ Requires Node 22+. Install the prepared artifact, then configure your client to 
 `biblio-mcp` on stdio:
 
 ```bash
-npm install --global /path/to/vernikr-biblio-mcp-2.2.0.tgz
+npm install --global /path/to/vernikr-biblio-mcp-2.2.1.tgz
 biblio-mcp --selfcheck --offline
 ```
 
@@ -152,7 +151,7 @@ published release each time the client starts:
 the launcher from reusing a copy cached for up to a day. For **npx**, use
 `"command": "npx"` and `"args": ["--yes", "@vernikr/biblio-mcp@latest"]` instead. Both run the same
 artifact; no saved checkout or build tools are needed. To reproduce an exact release, replace
-`latest` with its version, for example `@vernikr/biblio-mcp@2.2.0`.
+`latest` with its version, for example `@vernikr/biblio-mcp@2.2.1`.
 
 Claude Code can register the same launcher:
 

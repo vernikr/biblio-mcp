@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-10-10
+
+### Changed
+- `--print-config` writes a launcher that always fetches the newest release: `pnpm --silent --config.dlx-cache-max-age=0 dlx @vernikr/biblio-mcp@latest`. Previously it pinned the version of the copy that printed it. Existing pinned entries keep working.
+- The README install steps and the agent runbook use `@latest` with the same cache flag, for pnpm and npx. Pin an explicit version only to reproduce a release.
+
 ## [2.2.0] - 2026-10-10
 
 ### Added
@@ -341,7 +347,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/vernikr/biblio-mcp/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/vernikr/biblio-mcp/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/vernikr/biblio-mcp/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/vernikr/biblio-mcp/compare/v2.0.0...v2.1.0
