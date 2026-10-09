@@ -32,14 +32,15 @@ away when they do not.
 
 ## Quick start
 
-**Distribution status:** `@vernikr/biblio-mcp@2.0.0` is prepared, **not yet published to npm**.
-Use the `.mcpb` or `.tgz` from the latest successful [CI artifacts](https://github.com/vernikr/biblio-mcp/actions/workflows/ci.yml) today. Registry launcher examples below become usable after npm publication.
+Use the pinned npm package **`@vernikr/biblio-mcp@2.0.0`** or the ready Desktop extension
+from [release v2.0.0](https://github.com/vernikr/biblio-mcp/releases/tag/v2.0.0).
+Both contain the same checked Node 22+ stdio runtime.
 
 - **Claude Desktop:** install `vernikr-biblio-mcp-2.0.0.mcpb` through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
 - **Other MCP clients:** use the prepared npm tarball now, or the pinned pnpm/npx configuration
-  in [Install](#install) once the scoped release is available.
+  in [Install](#install).
 - Downloads go to the `output_dir` you pass to the tool, never the install/package-manager cache.
 
 **One [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that searches Anna's Archive, Library Genesis (Libgen), Sci-Hub, and Z-Library — all at once.**
@@ -74,7 +75,7 @@ It connects to any MCP client (Claude, Cline, Cursor, Windsurf, or custom agents
 
 ## Install
 
-### npm tarball — available now
+### npm package or release tarball
 
 Requires Node 22+. Install the prepared artifact, then configure your client to launch
 `biblio-mcp` on stdio:
@@ -87,7 +88,7 @@ biblio-mcp --selfcheck --offline
 This installs production dependencies, not TypeScript or this checkout. The `biblio-mcp` npm
 name still belongs to upstream; this fork uses **`@vernikr/biblio-mcp`**.
 
-### Pinned launcher (pnpm) — after npm publication
+### Pinned launcher (pnpm)
 
 Any client that can launch a stdio process can use the same pinned package:
 
@@ -407,6 +408,8 @@ fix it. This fork pins compatible versions and CI checks the pairing on every pu
 only hit it after manually changing dependencies.
 
 ## Development
+
+Maintainer status and the next-agent entry point: [HANDOFF](docs/worklog/biblio-mcp-review/HANDOFF.md).
 
 Use Node 22 or 24 LTS. CI also checks the exact Node 22.0 runtime floor.
 

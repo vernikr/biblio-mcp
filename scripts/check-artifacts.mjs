@@ -97,6 +97,15 @@ try {
   await exercise("pnpm-dlx", "pnpm", ["--silent", "dlx", archive], box);
   await exercise("pnpm-dlx-offline", "pnpm", ["--silent", "dlx", "--offline", archive], box);
 
+  if (process.argv.includes("--registry")) {
+    const prefix = join(box, "isolated-npm-prefix");
+    mkdirSync(join(prefix, "lib", "node_modules"), { recursive: true });
+    await exercise("npx-public-registry", "npx", ["--yes", `${pkg.name}@${pkg.version}`], box, {
+      npm_config_cache: join(box, "cold-npm-registry-cache"), npm_config_prefix: prefix,
+    });
+    await exercise("pnpm-public-registry", "pnpm", ["--silent", "dlx", `${pkg.name}@${pkg.version}`], box);
+  }
+
   const unpacked = join(box, "mcpb with spaces");
   assert.equal(await unpackExtension({ mcpbPath: bundle, outputDir: unpacked, silent: true }), true);
   noDevTools(unpacked);

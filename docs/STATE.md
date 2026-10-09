@@ -1,45 +1,49 @@
-# Project state
+# Project state — 2.0.0
 
-Short, current snapshot for anyone (human or agent) picking the fork up. The long audit history is in
-[`worklog/biblio-mcp-audit.md`](worklog/biblio-mcp-audit.md); treat that file as an archive. Its
-opening sections describe the state after wave 1. The A16 entry (around line 332) is closed.
+**Start with [HANDOFF](worklog/biblio-mcp-review/HANDOFF.md).** Review evidence, stage reports,
+patches, snapshots, audit logs and release receipts are archived under
+`docs/worklog/biblio-mcp-review/`; they are historical checkpoints, not the current roadmap.
 
-## Version
+## Release and support
 
-`2.0.0` (see `package.json`), Node 22+. Scoped identity `@vernikr/biblio-mcp`; npm publication
-is pending. CI creates `.tgz`/`.mcpb` artifacts and exercises actual consumer installs/stdio/downloads.
-The checkout installer is for development, not a consumer prerequisite.
+- Public npm: [`@vernikr/biblio-mcp@2.0.0`](https://www.npmjs.com/package/@vernikr/biblio-mcp).
+  Registry tarball integrity matches the tested archive; cold npx and pnpm registry launchers pass.
+- GitHub `v2.0.0`: release draft and assets uploaded; publish after this checkpoint's CI.
+- Node **22+**, pnpm **12.10.1** for maintainers; CI covers 22/24 and exact 22.0.0.
+- npm/MCPB use the same compiled stdio runtime. MCPB carries locked production dependencies;
+  consumer checkout/TypeScript/build tools are not required. Source installer remains a developer utility.
+- Desktop GUI installation is not claimed; archive/runtime acceptance covers Linux/macOS/Windows.
 
-## Open items
-
-- **P4, cached Anna's detail pages:** deliberately not done. A cached load cannot be cancelled, and
-  cancelling the losing Anna's request is the bigger saving.
-- **Slow install tests:** `test/install.test.mjs` uses clean offline installation/build fixtures and a fresh docs build.
-  The full offline suite takes roughly 13–20 s. The "under 5 s" target was dropped rather than losing that coverage.
-- **`downloadToFile` is not fully on `fetchWithTimeout`:** the request timer currently covers headers, with a
-  separate body idle watchdog. The total-deadline contract remains an open decision.
-- **Live checks:** mirror availability changes often. The last recorded live run was
-  `node dist/index.js --selfcheck`, which passed; re-run it before relying on a mirror list.
-
-## Known limits
-
-- Anna's Archive fast-download needs `BIBLIO_ANNAS_API_KEY` and only goes to hosts that pass the
-  identity check.
-- Sci-Hub may answer with a human-verification (ALTCHA) page on HTTP 200. The server reports this as
-  an error and does not try to solve it.
-- Z-Library is off by default (`BIBLIO_DISABLE_SOURCES`).
-
-## Commands
+## Verification
 
 ```bash
-pnpm run typecheck
-pnpm run build
-pnpm run test                          # offline suite
-node --test test/<file>.test.mjs       # one file
-pnpm run verify                        # deterministic offline gate, one build
-pnpm run verify:live                   # additionally mirrors + a real search
-pnpm run docs:env                      # rebuild after changing src/config.ts
-pnpm run package:verify                # archives + real consumer acceptance
+pnpm install --frozen-lockfile
+pnpm run verify                       # offline, one top-level build, no live mirrors
+pnpm run package:verify               # archives + consumer acceptance; registry access may be needed
+node scripts/check-artifacts.mjs --registry  # actual public launchers, only for a published version
+pnpm run docs:env                     # fresh compiled environment table
+pnpm run verify:live                  # optional live diagnostics, separate from offline gate
 ```
 
-Some installer tests need `pnpm` on `PATH`; without it they are reported as skipped, with the reason.
+203/203 offline tests pass without skips; pnpm must be on PATH and its store primed for the clean
+installer fixtures. Exact Node 22.0 smoke: 28/28. The cost of genuine install/build tests is kept
+rather than dropping coverage to hit an obsolete under-five-second target.
+
+## Next code work
+
+PR3 is next: distinguish outage/not-found (F5), preserve mixed Sci-Hub semantic-miss/PDF races
+(F6), reuse Libgen's DOM (R3), and avoid unused HTML-error body/payload work (R4). F4 download
+budget covers headers plus a separate idle watchdog, **not** a total-body deadline; choose its
+contract explicitly before changing it. The audit plan retains detailed red/green acceptance.
+
+After that: test lifecycle/metadata/HTTP boilerplate and active-documentation reductions (PR4).
+Cached Anna detail pages remain intentionally deferred because loser cancellation is more useful.
+
+## Preserved limits and safety
+
+- Member fast-download key goes only to identity-verified hosts; never commit it.
+- Human-verification pages are reported, never solved or saved as books; Z-Library stays off by default.
+- Explicit filenames never overwrite; filesystems without hard-link support fail safely.
+- Production audit is clean. A dev-only node-forge RSA verification advisory remains in MCPB CLI;
+  signing/verification is not used, bundles are unsigned, the library is not shipped to consumers.
+- Mirror availability changes independently of code; optional live CI is non-blocking.

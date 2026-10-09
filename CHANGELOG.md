@@ -7,9 +7,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [2.0.0] - 2026-10-09
 
-### Prepared distribution (not yet published to npm)
+### Published distribution
 - Updated GitHub Actions to current stable Node-24-compatible releases; launcher acceptance distinguishes first registry bootstrap from warm offline reuse.
-- Own npm identity `@vernikr/biblio-mcp`, one compiled stdio runtime for npm and MCPB. Source installer remains a developer utility, not a consumer prerequisite.
+- Published `@vernikr/biblio-mcp@2.0.0`; cold public-registry npx/pnpm launchers are verified. One compiled stdio runtime for npm and MCPB; source installer remains a developer utility, not a consumer prerequisite.
 
 - Runtime support is now Node 22+ (user-approved); CI targets 22/24 LTS.
 - Updated SDK 1.32.1, Zod 4.6.5, Cheerio 1.2.0, TypeScript 7.0.2, tsx 4.23.15 and Node 22 types. The SDK update fixes GHSA-6qxp-vccf-f47h; production audit is clean.

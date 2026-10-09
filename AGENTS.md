@@ -2,6 +2,7 @@
 
 This repository uses the approved separate fork identity, `@vernikr/biblio-mcp`. Use Node.js 22+ and pnpm;
 keep changes testable without live access to shadow-library mirrors.
+Read `docs/worklog/biblio-mcp-review/HANDOFF.md` for current release status and the next-agent entry point.
 CI checks Node 22/24 LTS and the exact 22.0 runtime floor.
 
 ## Verification
@@ -20,7 +21,7 @@ invalid call; merely starting the process or grepping a tools list is not verifi
 Running tests:
 
 - One file: `node --test test/<file>.test.mjs` (after `pnpm run build`, since tests import `dist/`).
-- The offline suite takes roughly 20–25 seconds, plus its initial build. Installer write-path tests
+- The offline suite takes roughly 13–20 seconds, plus its initial build. Installer write-path tests
   start without `node_modules`/`dist` and run real dependency installation and builds.
 - Installer tests that need pnpm are reported as skipped when it is absent from `PATH`. Run
   `pnpm install --frozen-lockfile` once to prime the store; clean fixtures install in offline mode.
@@ -87,7 +88,8 @@ what a user gets (a new benefit, a removed limitation, a changed default), and k
 
 - The user approved npm name `@vernikr/biblio-mcp` and Node 22+. Never publish under upstream's
   `biblio-mcp` name. Registry publication still requires authenticated scope rights; do not
-  describe a prepared archive as already published. Publish only tested tarballs after
+  describe a prepared archive as already published. Version 2.0.0 is now public; never republish
+  different bytes under that immutable version. Publish only tested tarballs after
   verifying scope rights; registry authentication/trusted publishing is separate from GitHub PATs.
 - `pnpm run package:verify` runs the offline gate once, then builds `.tgz`/`.mcpb` and checks real
   consumer launches outside checkout. Packaging/consumer dependency installation may use npm's
