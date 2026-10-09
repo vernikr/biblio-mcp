@@ -2,20 +2,11 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { access, link as linkFile, mkdir, open, rename, unlink } from "node:fs/promises";
-import { join, isAbsolute, resolve } from "node:path";
-import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
-import {
-  downloadToFile,
-  HtmlInsteadOfFileError,
-  resetDeadCache,
-  type DownloadProgress,
-} from "./http.js";
+import { resetDeadCache, type DownloadProgress } from "./http.js";
+import { saveBook } from "./acquire.js";
 import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
 import { describeArgsError, toolDescription } from "./toolmeta.js";
-import { sniffExt } from "./sniff.js";
 import { withSourceCircuit } from "./providers/circuit.js";
 import {
   searchBooks,
@@ -52,19 +43,6 @@ const json = (data: unknown) => ({
 
 /** Same body as `json`, flagged so clients see a failed outcome as a failure. */
 const jsonError = (data: unknown) => ({ ...json(data), isError: true });
-
-/** Read the first `bytes` of a file. Used to sniff a container format after a
- *  streamed download, when we never held the whole file in memory. */
-async function readFileHead(path: string, bytes: number): Promise<Buffer> {
-  const handle = await open(path, "r");
-  try {
-    const buf = Buffer.alloc(bytes);
-    const { bytesRead } = await handle.read(buf, 0, bytes, 0);
-    return buf.subarray(0, bytesRead);
-  } finally {
-    await handle.close();
-  }
-}
 
 /** Build a throttled progress reporter for one tool call. */
 export function makeProgressReporter(extra?: {
@@ -329,112 +307,13 @@ export function createServer(): McpServer {
       const hash = md5.toLowerCase();
       // Validate before any network work: a bad name must never reach the disk.
       const plainName = filename === undefined ? undefined : plainFileName(filename);
-      const { links, errors: sourceErrors } = await resolveDownloadReport(hash);
-      const direct = links.filter((l) => l.direct);
-      if (direct.length === 0)
-        return jsonError({
-          saved: false,
-          reason:
-            sourceErrors.length > 0
-              ? "No direct download link resolved, and at least one source was unavailable. " +
-                "Retry later, or use these links manually."
-              : "No direct download link resolved. Use these links manually.",
-          links,
-          ...(sourceErrors.length ? { sourceErrors } : {}),
-        });
-
-      // Resolve relative output paths from $HOME, a predictable location for both sides.
-      const wasRelative = !isAbsolute(output_dir);
-      const dir = wasRelative ? resolve(homedir(), output_dir) : output_dir;
-      await mkdir(dir, { recursive: true });
-
-      // A file the caller named is theirs: refuse rather than overwrite it.
-      if (plainName !== undefined) {
-        const taken = await access(join(dir, plainName)).then(() => true, () => false);
-        if (taken) {
-          return jsonError({
-            saved: false,
-            reason: `${plainName} already exists in ${dir}; choose another filename.`,
-          });
-        }
-      }
-
-      const onProgress = makeProgressReporter(extra);
-      // A staging name unique to this call, so concurrent downloads of the same
-      // md5 into the same directory cannot write or delete each other's bytes.
-      const staging = join(dir, `${hash}.${randomUUID()}.downloading`);
-      const errors: string[] = [];
-
-      for (const link of direct) {
-        try {
-          const result = await downloadToFile(link.url, staging, {
-            onProgress,
-            signal: extra?.signal,
-          });
-
-          const name =
-            plainName ??
-            `${hash}.${sniffExt(await readFileHead(staging, 4096), result.contentType)}`;
-          const path = join(dir, name);
-          try {
-            // A precheck cannot prevent a concurrent writer. link is atomic and
-            // refuses an existing caller-chosen name; never fall back to rename.
-            if (plainName !== undefined) await linkFile(staging, path);
-            else await rename(staging, path);
-          } catch (e) {
-            await unlink(staging).catch(() => {});
-            // Publication is a local failure, not a reason to try another URL.
-            return jsonError({
-              saved: false,
-              reason: (e as NodeJS.ErrnoException).code === "EEXIST"
-                ? `${name} already exists in ${dir}; choose another filename.`
-                : `Cannot publish ${name} in ${dir}: ${(e as Error).message}`,
-            });
-          }
-          if (plainName !== undefined) await unlink(staging).catch(() => {});
-
-          return json({
-            saved: true,
-            path,
-            /** Absolute directory the file landed in — always resolved, so a
-             *  relative `output_dir` never leaves the caller guessing. */
-            outputDir: dir,
-            ...(wasRelative
-              ? { note: `"${output_dir}" was relative; resolved to ${dir}. Pass an absolute path to avoid surprises.` }
-              : {}),
-            bytes: result.bytes,
-            via: link.label,
-            ...(sourceErrors.length ? { sourceErrors } : {}),
-            /** Hex MD5 of the bytes on disk. */
-            md5: result.md5,
-            /** True when the file's own hash equals the catalog hash requested. */
-            md5MatchesRequest: result.md5 === hash,
-            ...(result.md5 !== hash
-              ? {
-                  warning:
-                    "Downloaded file MD5 does not match the requested catalog MD5; " +
-                    "verify it before use.",
-                }
-              : {}),
-            contentType: result.contentType,
-          });
-        } catch (e) {
-          await unlink(staging).catch(() => {});
-          if (e instanceof HtmlInsteadOfFileError) {
-            // The one-time key in a Libgen get.php URL expires, and the page it
-            // then serves is HTML. Move on to the next candidate; never save it.
-            errors.push(`${link.label}: served an HTML page, not a file`);
-            continue;
-          }
-          errors.push(`${link.label}: ${(e as Error).message}`);
-        }
-      }
-      return jsonError({
-        saved: false,
-        errors,
-        links,
-        ...(sourceErrors.length ? { sourceErrors } : {}),
+      const outcome = await saveBook(hash, {
+        outputDir: output_dir,
+        plainName,
+        onProgress: makeProgressReporter(extra),
+        signal: extra?.signal,
       });
+      return outcome.saved ? json(outcome.body) : jsonError(outcome.body);
     }
   );
 
