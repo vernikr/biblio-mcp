@@ -7,7 +7,7 @@
 
 Search millions of books, academic papers, and research articles across every major shadow library through a single unified interface. Resolve download links and fetch files directly from your AI assistant — Claude Code, Claude Desktop, Cline, Cursor, or any MCP-compatible client.
 
-No API keys. No login. No per-source servers to juggle. One server, eight tools, four sources.
+No API keys. No login. No per-source servers to juggle. One server for all four sources.
 
 ## Quick start
 
@@ -107,7 +107,7 @@ user only where a step says so.
      includes a `PATH`.
 4. **Enable it by hand.** Ask the user to restart the client, turn the `biblio` server on in its
    MCP settings, and approve tool use if asked. You cannot click these for them.
-5. **Verify through the client, not the file.** The client must list eight tools for `biblio`:
+5. **Verify through the client, not the file.** The client must list these tools for `biblio`:
    `search_books`, `book_details`, `get_download_links`, `download_book`, `fetch_book`,
    `search_papers`, `get_paper`, `healthcheck`. Call `healthcheck`. If no tools appear, report what
    the client's MCP log says. A valid JSON file alone is not success.
@@ -196,8 +196,8 @@ update guarantee is implied; install a newer release file when you choose to upd
 
 | Tool | What it does |
 |---|---|
-| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 (when the source provides one; Z-Library does not) for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. An exact `(source, query, limit)` result—including a source error—is reused for 45 seconds within this process. |
-| `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused for 45 seconds across details and download-link lookups. |
+| `search_books` | Search the enabled sources at once; merged & deduped by MD5. Returns title, author, year, format, size, and md5 (when the source provides one; Z-Library does not) for each result, plus concise source-level `errors`. If you pass `sources`, select at least one; duplicates are ignored. An exact `(source, query, limit)` result—including a source error—is reused briefly within this process. |
+| `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused across details and download-link lookups. |
 | `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. A recent Libgen `ads.php` response is reused. The result says why a link is missing: `notFound` lists sources that have no record, and `errors` lists sources that were unavailable. An empty list with an unavailable source is returned as an error, not as "no links". |
 | `download_book` | Stream the actual file to a local directory by MD5. `output_dir` is optional and defaults to `~/Downloads/biblio-mcp`. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. Failures list `sourceErrors` when a source was unavailable, and `alternatives` (other copies of the same title, ranked) when this MD5 cannot be saved. |
 | `fetch_book` | Get a book by title in one call: search, rank the copies (requested format, then PDF, then the largest), try up to `max_attempts` (1–5, default 3) with the next copy when one fails, and save the first that verifies. Returns `picked`, the `attempts` made, and a `nextStep` when nothing could be saved. Use it when you want a file, not a list. |
@@ -269,7 +269,7 @@ asked for. When it is `false`, the mirror served a different file and you should
 ### A note on client timeouts (important)
 
 `download_book` can legitimately take longer than a minute — a throttled mirror serving a 5 MB
-book has been measured at 96 seconds. MCP clients apply a request timeout, **60 seconds by
+book can take minutes. MCP clients apply a request timeout, **60 seconds by
 default in the TypeScript SDK**, and that timeout is *not* extended by work in progress unless
 the client asks for it.
 
@@ -316,9 +316,9 @@ back is still used. `pnpm selfcheck` prints the current reachability of every ho
 
 Two of these deserve a note:
 
-- **`BIBLIO_TIMEOUT_MS` fell from 20 s to 8 s**, and downloads got their own, much larger budget.
-  Sharing one 20 s number made page scraping far too patient and file downloads far too strict —
-  a book larger than a few megabytes could not finish at all.
+- **`BIBLIO_TIMEOUT_MS` covers page scraping only.** Downloads got their own, much larger
+  budget. Sharing one number made page scraping far too patient and file downloads far too
+  strict — a book larger than a few megabytes could not finish at all.
 - **`BIBLIO_MIRROR_DEAD_TTL_MS`** is what makes search fast. Without a negative cache, every
   request paid the full timeout for every dead mirror on every call.
 
@@ -346,18 +346,18 @@ perfectly healthy in your AI client's list of tools — and then fail on *every 
 Nothing in the setup warned you, and the error message it produced was an internal one
 (`keyValidator._parse is not a function`) that tells a human nothing. In practice this sent
 both people and AI agents off on long detours: reading source code, guessing at arguments,
-rewriting working software by hand. One such attempt burned eight minutes and still did not
+rewriting working software by hand. One such attempt burned a long detour and still did not
 download the book.
 
 **What this fork does about it.**
 
 | | Before (upstream) | In this fork |
 |---|---|---|
-| **Broken installs** | Look healthy, then fail on every request | Detected in about one second, with the exact command that fixes it |
+| **Broken installs** | Look healthy, then fail on every request | Detected before the first request, with the exact command that fixes it |
 | **A broken build that starts anyway** | Listed its tools cheerfully, then failed every one of them | Refuses to start, and says which two packages to fix |
 | **Installing it** | Six commands, and the npm package is the broken one | `node scripts/install.mjs` — and it checks itself before handing you a config |
 | **Proving it works** | No way short of using it and hoping | `pnpm selfcheck` reports tools, mirror health and timings |
-| **Search speed** | ~14 seconds, mostly waiting on dead websites | ~1 second on the same query |
+| **Search speed** | Slowed by waiting on dead websites, on every search | A failed host is skipped for a cooldown window instead |
 | **Downloads** | Saved whatever came back, including stray web pages | Streamed to disk and checksum-verified, so you know it is the right file |
 | **A dead source** | Slowed down every search and reported an error you could not act on | Switched off by default; opt back in when you have a working address |
 | **A domain that stopped being the real site** | Answered “OK”, got trusted, and quietly returned nothing | Detected and refused — a status code is not proof of identity |
@@ -388,7 +388,7 @@ that admits them.
   embeds a **BibTeX block** with exact title/author/publisher/ISBN/year/series. The first usable
   metadata result wins, and the response reports `resolvedVia` plus a concise `annasUnavailable`
   reason when known. After three consecutive real failures (not counting a record that simply
-  does not exist), that provider is paused for five minutes and then tried again. Members can
+  does not exist), that provider is paused for a cooldown window and then tried again. Members can
   still use `BIBLIO_ANNAS_API_KEY` for the independent fast-download JSON endpoint; the key is
   sent only to a mirror that proves it is Anna's Archive.
   > Worth knowing: an earlier version of this README blamed "an advertising interstitial" on
@@ -441,7 +441,7 @@ that admits them.
 
 ### Roadmap
 
-Phases 0–5 of the improvement plan are implemented: strict offline verification, captured parser
+The improvement plan is implemented: strict offline verification, captured parser
 fixtures, resilient mirrors, streaming downloads, source circuits and caches, schema-derived tool
 hints, a maintainer guide, optional paper-PDF enrichment, and an updated quick start.
 

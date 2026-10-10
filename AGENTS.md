@@ -21,8 +21,8 @@ invalid call; merely starting the process or grepping a tools list is not verifi
 Running tests:
 
 - One file: `node --test test/<file>.test.mjs` (after `pnpm run build`, since tests import `dist/`).
-- The offline suite takes roughly 13–20 seconds, plus its initial build. Installer write-path tests
-  start without `node_modules`/`dist` and run real dependency installation and builds.
+- Installer write-path tests start without `node_modules`/`dist` and run real dependency
+  installation and builds, so they dominate the suite's runtime.
 - Installer tests that need pnpm are reported as skipped when it is absent from `PATH`. Run
   `pnpm install --frozen-lockfile` once to prime the store; clean fixtures install in offline mode.
 - Servers that stand in for mirrors start with `listenLocal` and stop with `closeServer` from

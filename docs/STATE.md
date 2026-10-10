@@ -1,4 +1,4 @@
-# Project state — 2.0.0
+# Project state
 
 **Start with [HANDOFF](worklog/biblio-mcp-review/HANDOFF.md).** Review evidence, stage reports,
 patches, snapshots, audit logs and release receipts are archived under
@@ -26,8 +26,8 @@ pnpm run docs:env                     # fresh compiled environment table
 pnpm run verify:live                  # optional live diagnostics, separate from offline gate
 ```
 
-216/216 offline tests pass without skips; pnpm must be on PATH and its store primed for the clean
-installer fixtures. Exact Node 22.0 smoke: 28/28. The cost of genuine install/build tests is kept
+The offline suite passes without skips; pnpm must be on PATH and its store primed for the clean
+installer fixtures. The cost of genuine install/build tests is kept
 rather than dropping coverage to hit an obsolete under-five-second target.
 
 ## Next code work
