@@ -105,6 +105,37 @@ test("saveBook attaches alternatives and a next step when no direct link resolve
   assert.match(String(outcome.body.nextStep), new RegExp(B));
 });
 
+test("saveBook uses the copies the caller already ranked and never looks up more", async () => {
+  let lookups = 0;
+  const deps = {
+    resolve: async () => ({ links: [], errors: [] }),
+    alternatives: async () => {
+      lookups += 1;
+      return [{ md5: B, title: "Algorithmic Trading", source: "libgen" }];
+    },
+  };
+
+  const none = await saveBook(
+    A,
+    { outputDir: "/tmp/biblio-acquire-unused", onProgress: async () => {}, alternatives: [] },
+    deps
+  );
+  assert.equal(lookups, 0, "an empty list means 'there are none', not 'go and find them'");
+  assert.deepEqual(none.body.alternatives, []);
+
+  const given = await saveBook(
+    A,
+    {
+      outputDir: "/tmp/biblio-acquire-unused",
+      onProgress: async () => {},
+      alternatives: [{ md5: C, title: "Algorithmic Trading", source: "libgen" }],
+    },
+    deps
+  );
+  assert.equal(lookups, 0);
+  assert.equal(given.body.alternatives[0].md5, C);
+});
+
 test("fetchBook moves on to the next copy after a failure and reports every attempt", async () => {
   const calls = [];
   const result = await fetchBook(
@@ -128,7 +159,7 @@ test("fetchBook moves on to the next copy after a failure and reports every atte
   assert.equal(result.attempts[0].error, "Libgen HTTP 500");
 });
 
-test("fetchBook gives up after maxAttempts and says what to do next", async () => {
+test("fetchBook gives up after maxAttempts and names the copies it never reached", async () => {
   const result = await fetchBook(
     { query: "Algorithmic Trading", outputDir: "/tmp/biblio-acquire-unused", maxAttempts: 2 },
     {
@@ -140,8 +171,37 @@ test("fetchBook gives up after maxAttempts and says what to do next", async () =
     }
   );
   assert.equal(result.saved, false);
-  assert.equal(result.attempts.length, 2);
-  assert.match(String(result.nextStep), /query|format|later/i);
+  assert.equal(result.attempts.length, 2, "C is never tried on its own");
+  assert.deepEqual(
+    (result.alternatives ?? []).map((a) => a.md5),
+    [C],
+    "the search already ranked C; it must be offered, not looked up again"
+  );
+  assert.match(String(result.nextStep), new RegExp(C));
+});
+
+
+test("fetchBook pays for no second lookup per copy that fails to save", async () => {
+  let lookups = 0;
+  const result = await fetchBook(
+    { query: "Algorithmic Trading", outputDir: "/tmp/biblio-acquire-unused", maxAttempts: 2 },
+    {
+      search: async () => ({
+        results: [book(A, { format: "PDF" }), book(B, { format: "PDF" })],
+        errors: [],
+      }),
+      saveBook: (hash, req) =>
+        saveBook(hash, req, {
+          resolve: async () => ({ links: [], errors: [] }),
+          alternatives: async () => {
+            lookups += 1;
+            return [];
+          },
+        }),
+    }
+  );
+  assert.equal(result.saved, false);
+  assert.equal(lookups, 0, "the ranked list is the answer; a per-copy details call plus search buys nothing");
 });
 
 test("fetchBook reports an empty search as a clear, non-retry failure", async () => {

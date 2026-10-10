@@ -28,6 +28,10 @@ export interface SaveRequest {
   outputDir: string;
   /** A caller-chosen plain file name; when set, an existing file is never replaced. */
   plainName?: string;
+  /** Other copies to suggest if this one cannot be saved. A caller that already
+   *  ranked a candidate list passes it here; otherwise the copies are looked up
+   *  by title. An empty array means "there are none", not "go and find them". */
+  alternatives?: Alternative[];
   onProgress: (p: DownloadProgress) => Promise<void>;
   signal?: AbortSignal;
 }
@@ -69,9 +73,10 @@ export async function saveBook(
   deps: SaveDeps = DEFAULT_SAVE_DEPS
 ): Promise<SaveOutcome> {
   const { links, errors: sourceErrors } = await deps.resolve(hash);
+  const alternativesFor = () => req.alternatives ?? deps.alternatives(hash);
   const direct = links.filter((l) => l.direct);
   if (direct.length === 0) {
-    const alternatives = await deps.alternatives(hash);
+    const alternatives = await alternativesFor();
     return {
       saved: false,
       body: {
@@ -178,7 +183,7 @@ export async function saveBook(
       errors.push(`${link.label}: ${(e as Error).message}`);
     }
   }
-  const alternatives = await deps.alternatives(hash);
+  const alternatives = await alternativesFor();
   return {
     saved: false,
     body: {
@@ -254,6 +259,18 @@ const DEFAULT_ALTERNATIVE_DEPS: AlternativeDeps = {
   search: (query, sources, limit) => searchBooks(query, sources, limit),
 };
 
+/** Usable copies as the shape a failure response suggests them in. */
+function toAlternatives(books: Book[]): Alternative[] {
+  return books.slice(0, MAX_ALTERNATIVES).map((b) => ({
+    md5: b.md5 as string,
+    title: b.title,
+    ...(b.author ? { author: b.author } : {}),
+    ...(b.format ? { format: b.format } : {}),
+    ...(b.size ? { size: b.size } : {}),
+    source: b.source,
+  }));
+}
+
 /** Other copies of the book behind `hash`, found by its title. Best-effort: any
  *  failure yields an empty list, because this only ever adds a suggestion. */
 export async function findAlternatives(
@@ -265,16 +282,7 @@ export async function findAlternatives(
     if (!details.title) return [];
     const query = [details.title, details.author].filter(Boolean).join(" ");
     const { results } = await deps.search(query, BOOK_SOURCES, 20);
-    return rankCandidates(results, { exclude: hash })
-      .slice(0, MAX_ALTERNATIVES)
-      .map((b) => ({
-        md5: b.md5 as string,
-        title: b.title,
-        ...(b.author ? { author: b.author } : {}),
-        ...(b.format ? { format: b.format } : {}),
-        ...(b.size ? { size: b.size } : {}),
-        source: b.source,
-      }));
+    return toAlternatives(rankCandidates(results, { exclude: hash }));
   } catch {
     return [];
   }
@@ -347,12 +355,19 @@ export async function fetchBook(
   }
 
   const attempts: Record<string, unknown>[] = [];
+  const tried = new Set<string>();
+  // The ranked list is already the answer to "what else could I try?". Looking
+  // the copies up by title instead costs a details call plus a full search for
+  // every copy that fails to save, and returns copies ranked here already.
+  const untried = () => candidates.filter((c) => !tried.has(c.md5 as string));
   for (const candidate of candidates.slice(0, maxAttempts)) {
     const md5 = candidate.md5 as string;
+    tried.add(md5);
     const outcome = await deps.saveBook(md5, {
       outputDir: args.outputDir,
       onProgress: args.onProgress,
       signal: args.signal,
+      alternatives: toAlternatives(untried()),
     });
     const info = {
       md5,
@@ -381,14 +396,28 @@ export async function fetchBook(
     attempts.push({ ...info, saved: false, error });
   }
 
+  const remaining = toAlternatives(untried());
+  const [next] = remaining;
   return {
     saved: false,
     query: args.query,
     reason: `None of the first ${attempts.length} copies could be saved.`,
     attempts,
-    nextStep:
-      "Retry later (a source may be briefly down), try another format or a more specific query, " +
-      "or use the links from get_download_links.",
+    // What the agent can still do: the search found these, fetch_book never
+    // reached them, and nothing has been said about whether they work.
+    ...(next
+      ? {
+          alternatives: remaining,
+          nextStep:
+            `The search found ${remaining.length} further ${remaining.length === 1 ? "copy" : "copies"} ` +
+            `that fetch_book did not reach. Call download_book with one of their md5 values ` +
+            `(for example ${next.md5}), or raise max_attempts.`,
+        }
+      : {
+          nextStep:
+            "Retry later (a source may be briefly down), try another format or a more specific query, " +
+            "or use the links from get_download_links.",
+        }),
     ...searchErrors,
   };
 }
