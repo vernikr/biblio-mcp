@@ -23,8 +23,8 @@ could fail for the wrong reason.
 | Offline suite (`run-tests.mjs`, 2 cores) | 16.5 s | **15.8 s** |
 | `pnpm run verify` | ≈ 22 s | **16.4 s** |
 | CI jobs per push | 7 | **6** |
-| CI runner time per push | 316 s | **266 s** |
-| CI wall time (slowest job, Windows) | 133 s | 114 s |
+| CI runner time per push | 292 s / 316 s (runs #61/#62) | **266 s / 339 s** (runs #63/#64) |
+| CI wall time (slowest job, Windows) | 127 s / 133 s | 114 s / 147 s |
 | Suite at `--test-concurrency=16` | 1 flake | **3/3 clean, 232 pass** |
 
 "Before" for the suite and `install.test.mjs` is the wave-2 commit re-measured in a
@@ -57,6 +57,13 @@ node scripts/install.mjs --dry-run  ok
 node --test <5 floor files>         ok
 ```
 
-GitHub Actions [run #63](https://github.com/vernikr/biblio-mcp/actions/runs/38062021091):
-6/6 green — build (22) 33 s, build (24) 32 s, artifacts ubuntu 27 s / macos 34 s /
-windows 114 s, live 26 s. Runner time 266 s against 316 s for the previous push.
+GitHub Actions [run #63](https://github.com/vernikr/biblio-mcp/actions/runs/38062021091)
+and [run #64](https://github.com/vernikr/biblio-mcp/actions/runs/38064795170): 6/6 green
+both times. Run #63: build (22) 33 s, build (24) 32 s, artifacts ubuntu 27 s / macos 34 s /
+windows 114 s, live 26 s — 266 s total.
+
+**Do not read the runner-time delta as 50 s.** The packaging legs swing by tens of
+seconds between runs on identical code (macos 34 s vs 65 s, windows 114 s vs 147 s), so
+the honest statement is the structural one: one job disappears, and with it a full
+checkout + install + build that bought nothing but a Node binary swap. Everything the
+`runtime-floor` job checked still runs, on every push.
