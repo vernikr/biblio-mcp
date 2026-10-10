@@ -32,20 +32,24 @@ rather than dropping coverage to hit an obsolete under-five-second target.
 
 ## Next code work
 
-The audit that drove PR1–PR4 is closed and archived. The current backlog is the refactor plan
-(`biblio-mcp-refactor-plan.md`): shrink what an agent has to read, cut CI time, then fix the
-remaining behaviour and performance findings.
+Iteration 1 of the refactor is closed: five waves, reports archived under
+`docs/worklog/archive/2026.10.10-refactor-wave1…5/`. It de-duplicated `src/`, cut the tracked tree
+from 15 MB to 2.1 MB, moved the maintainer half of the README into `AGENTS.md` and
+`docs/architecture.md`, and fixed the behaviour findings listed below.
 
-Wave 1 (volume, CI, de-guarded docs) is done — see
-[`docs/worklog/2026.10.10-refactor-wave1/`](2026.10.10-refactor-wave1/report.md).
+The remaining backlog is a draft, not a commitment:
+[`docs/worklog/2026.10.11-refactor-iteration2/plan.md`](2026.10.11-refactor-iteration2/plan.md).
+Nothing in it is scheduled until its evidence has been re-checked against the tree — three of
+iteration 1's estimates were wrong when measured.
 
-Open findings, in priority order:
+Closed by iteration 1, so nobody re-opens them:
 
-- `fetch_book` re-runs a full source search on every failed copy instead of reusing the ranked
+- `fetch_book` re-ran a full source search on every failed copy; it now reuses the ranked
   candidate list it already holds.
-- `get_download_links` can report a source as unavailable while that same source supplied links.
-- Sci-Hub parses each mirror's page twice; Libgen serialises the DOM for every result row.
-- `downloadToFile` re-arms a timer on every chunk of a download.
+- `get_download_links` reported a source as unavailable while that same source supplied links.
+- Sci-Hub parsed each mirror's page twice; `scihub.resolve` went from 57–65 ms to 27–28 ms.
+- Two findings were built, measured and deliberately reverted: Libgen row serialisation and the
+  per-chunk stall timer. Both are recorded with their measurements in the draft plan.
 
 Cached Anna detail pages remain intentionally deferred because loser cancellation is more useful.
 
