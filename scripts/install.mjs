@@ -285,6 +285,7 @@ export async function runInstall({
   if (!opts.configPath) {
     ctx.ok("add this to your MCP client config (Claude Desktop, Cline, Cursor, …):");
     write(`\n${text}\n\n`);
+    ctx.note("this entry runs the checkout above, not the published release");
     ctx.note(`or re-run with --write-config <path> to merge it in for you`);
   } else {
     writeConfig(ctx, opts.configPath, { command: process.execPath, args: [entry] }, entry);

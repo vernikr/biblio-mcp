@@ -458,7 +458,7 @@ audit and remaining follow-up notes are in
 
 ### How do I search for books with Claude?
 
-Add the server to Claude (`claude mcp add -s user biblio -- node /absolute/path/to/biblio-mcp/dist/index.js`), then ask naturally: "Find me Dune by Frank Herbert as an EPUB." Claude calls `search_books` and `get_download_links` automatically.
+Add the server to Claude (`claude mcp add -s user biblio -- npx --yes @vernikr/biblio-mcp@latest`), then ask naturally: "Find me Dune by Frank Herbert as an EPUB." Claude calls `search_books` and `get_download_links` automatically.
 
 ### Does this work with ChatGPT or other AI assistants?
 
