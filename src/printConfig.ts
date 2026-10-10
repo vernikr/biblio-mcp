@@ -1,5 +1,5 @@
 // `--print-config`: a ready-to-paste MCP client entry that launches the published
-// package through pnpm. Pure builder + PATH lookup; the CLI wiring lives in index.ts.
+// package through npx. Pure builder + PATH lookup; the CLI wiring lives in index.ts.
 
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { delimiter as posixDelimiter, dirname as posixDirname, isAbsolute as posixIsAbsolute, join as posixJoin } from "node:path";
@@ -10,8 +10,8 @@ export const PACKAGE_NAME = "@vernikr/biblio-mcp";
 export interface LauncherConfigInput {
   /** Absolute path of the node binary running biblio-mcp. */
   execPath: string;
-  /** Command to start pnpm: an absolute path when it was found, otherwise "pnpm". */
-  pnpmPath: string;
+  /** Command to start npx: an absolute path when it was found, otherwise "npx". */
+  npxPath: string;
   platform: NodeJS.Platform;
 }
 
@@ -33,29 +33,21 @@ function pathOps(platform: NodeJS.Platform) {
 
 /**
  * Build the MCP entry. The PATH it carries lets a GUI-started client find both
- * pnpm and the node that pnpm uses for `dlx`, which a GUI launch does not inherit
+ * npx and the node that npx runs on, which a GUI launch does not inherit
  * from the user's shell.
  */
 export function buildLauncherConfig(input: LauncherConfigInput): LauncherConfig {
   const ops = pathOps(input.platform);
   const dirs: string[] = [ops.dirname(input.execPath)];
-  if (ops.isAbsolute(input.pnpmPath)) dirs.push(ops.dirname(input.pnpmPath));
+  if (ops.isAbsolute(input.npxPath)) dirs.push(ops.dirname(input.npxPath));
   if (input.platform !== "win32") dirs.push("/usr/bin", "/bin");
   const unique = [...new Set(dirs)];
   return {
     mcpServers: {
       biblio: {
-        command: input.pnpmPath,
-        // Always the newest published release. pnpm skips releases younger than its
-        // minimum release age, so the exclude exempts this package only; the cache
-        // flag stops reuse of a `latest` fetched earlier (its default is one day).
-        args: [
-          "--silent",
-          `--config.minimum-release-age-exclude=${PACKAGE_NAME}`,
-          "--config.dlx-cache-max-age=0",
-          "dlx",
-          `${PACKAGE_NAME}@latest`,
-        ],
+        command: input.npxPath,
+        // npx resolves @latest on each start, so the client always gets the newest release.
+        args: ["--yes", `${PACKAGE_NAME}@latest`],
         env: { PATH: unique.join(ops.delimiter) },
       },
     },
@@ -109,7 +101,7 @@ function isExecutableFile(file: string, platform: NodeJS.Platform): boolean {
 
 /**
  * Find `name` on the given PATH, returning the absolute path, or undefined.
- * On Windows pnpm is usually a `.cmd` shim, so those extensions are tried too.
+ * On Windows npx is usually a `.cmd` shim, so those extensions are tried too.
  */
 export function findOnPath(
   name: string,
