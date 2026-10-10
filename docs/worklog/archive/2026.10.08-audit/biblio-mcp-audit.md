@@ -1,10 +1,11 @@
 > **Снимок на конец волны 1 (2026-10-08), не текущий backlog.** Статусы «открыто» ниже относятся к тому моменту.
-> Актуальное состояние — [`docs/STATE.md`](../STATE.md) и [HANDOFF](biblio-mcp-review/HANDOFF.md); план PR 1–4 — [`plan.md`](biblio-mcp-review/plan.md).
+> Актуальное состояние — [`docs/STATE.md`](../../STATE.md) и [`AGENTS.md`](../../AGENTS.md);
+> план PR 1–4 — [`plan.md`](../2026.10.09-biblio-mcp-review/plan.md).
 
 # Аудит `vernikr/biblio-mcp` — баги, скорость, DX/AX, рефакторинг
 
 Ревизия исходного аудита: `f6c4e42` (main, 2026-10-07). Обновлено 2026-10-08 после фаз 0–5.
-Рабочая копия плана сохранена в `docs/worklog/biblio-mcp-audit.md`; обоснование LOC — в
+Рабочая копия плана сохранена в `docs/worklog/archive/`; обоснование LOC — в
 [`docs/decisions.md`](../decisions.md).
 
 > **Текущий статус.** Фазы 0–5 завершены. Фаза 0 — `f181085`; фаза 1 — `f16de8e`, `a9bc3a4`,
