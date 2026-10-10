@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.4] - 2026-10-10
+
+### Changed
+- The README no longer documents a pnpm launcher for clients. Install and Quick start give one entry, `npx --yes @vernikr/biblio-mcp@latest`, and one Claude Code command. The release-age and cache flags that the pnpm entry needed are gone with it.
+
 ## [2.2.3] - 2026-10-10
 
 ### Changed
@@ -359,7 +364,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.3...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.4...HEAD
+[2.2.4]: https://github.com/vernikr/biblio-mcp/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/vernikr/biblio-mcp/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/vernikr/biblio-mcp/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/vernikr/biblio-mcp/compare/v2.2.0...v2.2.1

@@ -35,11 +35,10 @@ If the client starts from the Dock and says it cannot find `npx` or `node`, add 
 a `PATH`. Run `npx --yes @vernikr/biblio-mcp@latest --print-config` and copy its entry: it has the
 absolute path to `npx` and a `PATH` that lists the folders holding `node` and `npx`.
 
-- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.3.mcpb` through Settings → Extensions
+- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.4.mcpb` through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
-- **Other options:** the prepared npm tarball, the launcher that uses pnpm, or the printed entry; see
-  [Install](#install).
+- **Other options:** the prepared npm tarball or the printed entry; see [Install](#install).
 - Downloads go to the `output_dir` you pass to the tool (default `~/Downloads/biblio-mcp`), never
   the install/package-manager cache.
 
@@ -146,50 +145,24 @@ Requires Node 22+. Install the prepared artifact, then configure your client to 
 `biblio-mcp` on stdio:
 
 ```bash
-npm install --global /path/to/vernikr-biblio-mcp-2.2.3.tgz
+npm install --global /path/to/vernikr-biblio-mcp-2.2.4.tgz
 biblio-mcp --selfcheck --offline
 ```
 
 This installs production dependencies, not TypeScript or this checkout. The `biblio-mcp` npm
 name still belongs to upstream; this fork uses **`@vernikr/biblio-mcp`**.
 
-### Launcher (npx or pnpm)
+### Launcher (npx)
 
-The Quick start entry (`npx --yes @vernikr/biblio-mcp@latest`) is the default. Any client that can
+The Quick start entry is the launcher: `npx --yes @vernikr/biblio-mcp@latest`. Any client that can
 launch a stdio process can use it. `@latest` fetches the newest published release each time the
-client starts; no checkout or build tools are needed.
+client starts; no checkout or build tools are needed. To reproduce an exact release, replace
+`@latest` with its version, for example `@vernikr/biblio-mcp@2.2.4`.
 
-To use the launcher that runs through pnpm, put this in the client's config:
-
-```json
-{
-  "mcpServers": {
-    "biblio": {
-      "command": "pnpm",
-      "args": [
-        "--silent",
-        "--config.minimum-release-age-exclude=@vernikr/biblio-mcp",
-        "--config.dlx-cache-max-age=0",
-        "dlx",
-        "@vernikr/biblio-mcp@latest"
-      ]
-    }
-  }
-}
-```
-
-The flags are needed for pnpm only. `--silent` keeps package-manager output out of MCP stdout.
-pnpm 12 skips package versions younger than its minimum release age, so a new release is invisible
-to `latest` for about a day after it is published. `--config.minimum-release-age-exclude=@vernikr/biblio-mcp`
-exempts only this package from that check; every other package keeps it. `--config.dlx-cache-max-age=0`
-stops the launcher from reusing a copy cached for up to a day. To reproduce an exact release, replace
-`@latest` with its version, for example `@vernikr/biblio-mcp@2.2.3`.
-
-Claude Code can register either launcher:
+Claude Code can register the same launcher:
 
 ```bash
 claude mcp add -s user biblio -- npx --yes @vernikr/biblio-mcp@latest
-claude mcp add -s user biblio -- pnpm --silent --config.minimum-release-age-exclude=@vernikr/biblio-mcp --config.dlx-cache-max-age=0 dlx @vernikr/biblio-mcp@latest
 ```
 
 For a globally installed tarball, use `"command": "biblio-mcp", "args": []` instead.
