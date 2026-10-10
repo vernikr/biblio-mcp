@@ -72,6 +72,44 @@ test("fetchFromMirrors falls through a failing mirror to a working one", async (
   }
 });
 
+test("fetchFromMirrors hands the validator's parse back instead of making the caller redo it", async () => {
+  resetMirrorCache();
+  let loads = 0;
+  const server = await serve({ "/x": (_q, res) => res.writeHead(200).end("<html>page</html>") });
+
+  try {
+    const result = await fetchFromMirrors(
+      "validator-value",
+      [server.url],
+      (b) => `${b}/x`,
+      undefined,
+      (html) => {
+        loads += 1;
+        return { value: { length: html.length } };
+      }
+    );
+    assert.deepEqual(result.parsed, { length: "<html>page</html>".length });
+    assert.equal(loads, 1, "the page is parsed once, by the validator, not again by the caller");
+    assert.equal(server.hits("/x"), 1);
+  } finally {
+    await server.close();
+  }
+});
+
+test("a validator that returns false still reports the generic reason", async () => {
+  resetMirrorCache();
+  const server = await serve({ "/x": (_q, res) => res.writeHead(200).end("<html>page</html>") });
+
+  try {
+    await assert.rejects(
+      fetchFromMirrors("validator-false", [server.url], (b) => `${b}/x`, undefined, () => false),
+      /validator-false.*is not the expected site|is not the expected site/
+    );
+  } finally {
+    await server.close();
+  }
+});
+
 test("fetchFromMirrors tries a route fallback on the same mirror after HTTP 404", async () => {
   resetMirrorCache();
   const server = await serve({

@@ -151,7 +151,7 @@ export async function fetchWithTimeout<T>(
   }
 }
 
-export interface MirrorFetchResult {
+export interface MirrorFetchResult<T = never> {
   html: string;
   /** The base mirror that served the request (e.g. "https://libgen.li"). */
   base: string;
@@ -159,10 +159,18 @@ export interface MirrorFetchResult {
   /** Mirrors that were skipped or failed, with reasons. Surfaces in tool
    *  output so a degraded source is visible instead of silently absent. */
   attempts: string[];
+  /** What a validator returned alongside its verdict, when it returned one. */
+  parsed?: T;
 }
 
-/** Decide whether a 2xx response really came from the site we asked for. */
-export type MirrorValidator = (html: string, base: string) => boolean | string;
+/**
+ * Decide whether a 2xx response really came from the site we asked for.
+ *
+ * A validator that has to parse the page anyway can hand the parse back as
+ * `{ value }` instead of `true`; the caller then reads it from the result
+ * rather than parsing the same page a second time.
+ */
+export type MirrorValidator<T = never> = (html: string, base: string) => boolean | string | { value: T };
 type MirrorPathBuilder = (base: string) => string | string[];
 
 class MirrorHttpError extends Error {
@@ -197,13 +205,13 @@ export class ResourceNotFoundError extends Error {
 }
 
 /** Fetch an HTML page, racing the group's mirrors until one returns 2xx. */
-export async function fetchFromMirrors(
+export async function fetchFromMirrors<T = never>(
   groupKey: string,
   mirrors: string[],
   buildPath: MirrorPathBuilder,
   init?: RequestInit,
-  validate?: MirrorValidator
-): Promise<MirrorFetchResult> {
+  validate?: MirrorValidator<T>
+): Promise<MirrorFetchResult<T>> {
   const ordered = orderMirrors(groupKey, mirrors);
   if (ordered.length === 0) {
     const envName = groupKey === "zlibrary" ? "BIBLIO_ZLIB_MIRRORS" : `BIBLIO_${groupKey.toUpperCase()}_MIRRORS`;
@@ -238,15 +246,14 @@ export async function fetchFromMirrors(
                 throw new MirrorHttpError(base, res.status);
               }
               const html = await res.text();
-              if (validate) {
-                const verdict = validate(html, base);
-                if (verdict !== true) {
-                  const why =
-                    typeof verdict === "string"
-                      ? verdict
-                      : "response is not the expected site";
-                  throw new Error(`${base} -> ${why}`);
+              const verdict = validate?.(html, base);
+              if (verdict !== undefined && verdict !== true) {
+                if (typeof verdict === "object") {
+                  return { html, base, finalUrl: res.url || url, attempts: [], parsed: verdict.value };
                 }
+                const why =
+                  typeof verdict === "string" ? verdict : "response is not the expected site";
+                throw new Error(`${base} -> ${why}`);
               }
               return { html, base, finalUrl: res.url || url, attempts: [] };
             },
@@ -325,7 +332,14 @@ export interface DownloadToFileResult {
   md5: string;
 }
 
-/** Stream a URL straight to disk and hash it on the way through. */
+/**
+ * Stream a URL straight to disk and hash it on the way through.
+ *
+ * `destPath` is owned by the caller and must be a name no other call will use:
+ * bytes go to `${destPath}.part` and are renamed into place, so two calls with
+ * the same `destPath` would share one staging file. `acquire.saveBook` passes a
+ * UUID staging name for exactly that reason.
+ */
 export async function downloadToFile(
   url: string,
   destPath: string,
