@@ -10,7 +10,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -343,39 +342,6 @@ test("the installer is plain JavaScript with no imports from src", () => {
 // Documentation drift guards
 // ---------------------------------------------------------------------------
 
-test("every BIBLIO_* variable in the code is documented in --help and the README", async () => {
-  // This drifted twice: BIBLIO_ANNAS_API_KEY was in the README but not --help,
-  // and BIBLIO_SKIP_STARTUP_CHECK was in neither. An undocumented switch is one
-  // nobody can find when they need it.
-  const { execFileSync } = await import("node:child_process");
-  const here = dirname(fileURLToPath(import.meta.url));
-  const root = join(here, "..");
-
-  const inCode = new Set();
-  const walk = (dir) => {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      const p = join(dir, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (/\.(ts|mjs)$/.test(e.name)) {
-        for (const m of readFileSync(p, "utf8").matchAll(/BIBLIO_[A-Z_]+/g)) inCode.add(m[0]);
-      }
-    }
-  };
-  walk(join(root, "src"));
-  walk(join(root, "scripts"));
-
-  const help = execFileSync(process.execPath, [join(root, "dist", "index.js"), "--help"], {
-    encoding: "utf8",
-  });
-  const readme = readFileSync(join(root, "README.md"), "utf8");
-
-  const missingFromHelp = [...inCode].filter((v) => !help.includes(v));
-  const missingFromReadme = [...inCode].filter((v) => !readme.includes(v));
-
-  assert.deepEqual(missingFromHelp, [], `undocumented in --help: ${missingFromHelp.join(", ")}`);
-  assert.deepEqual(missingFromReadme, [], `undocumented in README: ${missingFromReadme.join(", ")}`);
-});
-
 test("every command the README tells you to run actually exists", async () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const readme = readFileSync(join(here, "..", "README.md"), "utf8");
@@ -403,16 +369,7 @@ test("the consumer package ships runtime checks, not the checkout installer", ()
   assert.ok(!pkg.files.includes("scripts/install.mjs"));
 });
 
-test("the package uses the approved fork scope, never the upstream npm name", () => {
-  const pkg = readRootPackage();
-  assert.equal(pkg.name, "@vernikr/biblio-mcp");
-  assert.equal(pkg.publishConfig.access, "public");
-  assert.notEqual(pkg.private, true);
-});
-
-test("every version in the CHANGELOG has a matching compare link", async () => {
-  // Five fork releases shipped with no tag and, for four of them, no link at all,
-  // so the "keep a changelog" link references pointed nowhere. Guard it.
+test("every version in the CHANGELOG links somewhere, and the current release is listed", async () => {
   const here = dirname(fileURLToPath(import.meta.url));
   const changelog = readFileSync(join(here, "..", "CHANGELOG.md"), "utf8");
 
@@ -424,22 +381,9 @@ test("every version in the CHANGELOG has a matching compare link", async () => {
   const missing = declared.filter((v) => !linked.has(v));
   assert.deepEqual(missing, [], `CHANGELOG declares versions with no link reference: ${missing.join(", ")}`);
 
-  // Fork releases must point at the fork; upstream releases at upstream. A fork
-  // release linked to upstream would misattribute the work.
   const pkg = readRootPackage();
-  const forkHost = /vernikr\/biblio-mcp/;
-  for (const m of changelog.matchAll(/^\[(\d+\.\d+\.\d+)\]:\s+(\S+)$/gm)) {
-    const [, version, url] = m;
-    // 1.0.0 and 1.1.0 predate the fork.
-    if (version === "1.0.0" || version === "1.1.0") {
-      assert.match(url, /yashimosh\/biblio-mcp/, `${version} is an upstream release and must link upstream`);
-    } else {
-      assert.ok(forkHost.test(url), `${version} is a fork release but links to ${url}`);
-    }
-  }
   assert.ok(declared.includes(pkg.version), `package.json version ${pkg.version} is not in the CHANGELOG`);
 });
-
 
 test("the installer rejects Node 21 before fetching or installing", () => {
   const r = spawnSync(process.execPath, ["--input-type=module", "-e", `

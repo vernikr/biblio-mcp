@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -36,6 +36,28 @@ test("readNumber takes a positive number from the environment and falls back oth
     if (saved === undefined) delete process.env[setting.name];
     else process.env[setting.name] = saved;
   }
+});
+
+test("every BIBLIO_* setting the code reads is registered in the registry", () => {
+  // An unregistered switch is invisible: it never reaches --help or the README
+  // table, because both are generated from ENV_SETTINGS.
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const names = new Set(ENV_SETTINGS.map((s) => s.name));
+  const unregistered = new Set();
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) walk(path);
+      else if (/\.(ts|mjs)$/.test(entry.name)) {
+        for (const m of readFileSync(path, "utf8").matchAll(/BIBLIO_[A-Z_]+/g)) {
+          if (!names.has(m[0])) unregistered.add(m[0]);
+        }
+      }
+    }
+  };
+  walk(join(root, "src"));
+  walk(join(root, "scripts"));
+  assert.deepEqual([...unregistered], [], "read but not listed in ENV_SETTINGS");
 });
 
 test("the README environment table is generated from the registry", () => {
