@@ -116,8 +116,15 @@ function useReadableValidationErrors(server: McpServer): void {
     validateToolInput: (tool: unknown, args: unknown, toolName: string) => Promise<unknown>;
   };
   const target = server as unknown as Partial<ValidatingServer>;
-  // Skip the override when this SDK version does not expose the method.
-  if (typeof target.validateToolInput !== "function") return;
+  if (typeof target.validateToolInput !== "function") {
+    // Say so rather than letting a future SDK bump quietly hand every agent raw
+    // Zod dumps again. Degraded error messages beat a server that will not start.
+    console.error(
+      "biblio-mcp: this @modelcontextprotocol/sdk version does not expose " +
+        "validateToolInput, so argument errors will not be translated."
+    );
+    return;
+  }
   const original = target.validateToolInput.bind(server);
 
   target.validateToolInput = async (tool, args, toolName) => {
@@ -135,8 +142,17 @@ function useReadableValidationErrors(server: McpServer): void {
   };
 }
 
-/** A caller-supplied filename is one plain name: no separators, drive
- *  prefixes, NUL bytes, or the `.`/`..` entries that climb out of the directory. */
+/** Device names Windows cannot use as a file, with or without an extension. */
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i;
+
+/**
+ * A caller-supplied filename is one plain name: no separators, drive prefixes,
+ * NUL bytes, or the `.`/`..` entries that climb out of the directory.
+ *
+ * Also refused are names Windows would reject or silently change — a file saved
+ * under a name other than the one reported back is the worse of the two, and
+ * the Desktop extension is Windows-first.
+ */
 function plainFileName(name: string): string {
   const trimmed = name.trim();
   if (
@@ -150,6 +166,17 @@ function plainFileName(name: string): string {
         "Use output_dir for the directory."
     );
   }
+  if (WINDOWS_RESERVED.test(trimmed)) {
+    throw new Error(`"${name}" is a reserved device name on Windows; choose another filename.`);
+  }
+  // Windows drops a trailing dot, so "book.pdf." would save as "book.pdf".
+  if (trimmed.endsWith(".")) {
+    throw new Error(
+      `filename must not end with a dot (got "${name}"); Windows would silently change it.`
+    );
+  }
+  // A name too long for the filesystem is the one case the OS reports clearly
+  // on every platform, so it is left to the OS.
   return trimmed;
 }
 

@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { join, dirname, relative, isAbsolute } from "node:path";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
@@ -74,6 +74,28 @@ test("a filename containing a path separator is rejected", async () => {
     box.cleanup();
   }
 });
+
+// Windows refuses or silently rewrites these; the Desktop extension is
+// Windows-first, so a name that only works elsewhere is a name to refuse.
+for (const bad of ["con", "NUL.pdf", "com1", "lpt9.txt", "book.pdf."]) {
+  test(`a filename Windows would reject or rewrite is refused: ${JSON.stringify(bad.slice(-24))}`, async () => {
+    const box = sandbox();
+    try {
+      const result = await callDownload({ output_dir: box.outDir, filename: bad });
+      assert.equal(result.isError, true, `${bad} must be refused, not saved under another name`);
+      assert.doesNotMatch(
+        result.content[0].text,
+        /"saved":\s*true/,
+        `${bad} must not be reported as saved`
+      );
+      // Refused before the directory is even created, so tolerate its absence.
+      const written = existsSync(box.outDir) ? readdirSync(box.outDir) : [];
+      assert.deepEqual(written, [], "nothing may be written");
+    } finally {
+      box.cleanup();
+    }
+  });
+}
 
 test("a plain filename is saved inside output_dir", async () => {
   const box = sandbox();
