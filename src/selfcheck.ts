@@ -9,7 +9,9 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "./server.js";
 import { resetMirrorCache } from "./http.js";
 import { MIRROR_GROUPS, probeGroup } from "./mirrors.js";
+import { TOOL_NAMES } from "./toolmeta.js";
 import { BOOK_SOURCES, DISABLED_BOOK_SOURCES } from "./providers/index.js";
+import { errText } from "./errors.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** dist/ and scripts/ are siblings in the repo and in the published package. */
@@ -17,15 +19,7 @@ const PREFLIGHT_SCRIPT = resolve(HERE, "..", "scripts", "preflight.mjs");
 
 /** Tools every working build must expose. A missing one means the registration
  *  changed, which is a breaking change for any agent already using it. */
-const REQUIRED_TOOLS = [
-  "search_books",
-  "book_details",
-  "get_download_links",
-  "download_book",
-  "search_papers",
-  "get_paper",
-  "healthcheck",
-];
+const REQUIRED_TOOLS = TOOL_NAMES;
 
 async function withInMemoryClient<T>(name: string, run: (client: Client) => Promise<T>): Promise<T> {
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
@@ -127,7 +121,7 @@ async function runToolsStage(): Promise<StageResult> {
       return { ...stage, ok: true, summary: stage.summary + "; invalid-call validation passed" };
     });
   } catch (e) {
-    const message = String((e as Error)?.message ?? e);
+    const message = errText(e);
     const incompatible = /_parse is not a function/.test(message);
     return {
       name: "tools", ok: false, summary: "could not exercise tools",
@@ -185,7 +179,7 @@ async function runLiveStage(): Promise<StageResult> {
       name: "live",
       ok: false,
       summary: "live search_books call failed",
-      problem: String((e as Error)?.message ?? e),
+      problem: errText(e),
     };
   }
 }

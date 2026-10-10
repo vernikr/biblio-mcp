@@ -1,6 +1,8 @@
 // Agent-facing tool metadata: what each tool does, one call example, and
 // human-readable argument errors. Argument descriptions stay in the Zod schemas.
 
+import { errText } from "./errors.js";
+
 export interface ToolMeta {
   /** What the tool does; shown to agents with the example appended. */
   description: string;
@@ -42,6 +44,10 @@ export const TOOL_META: Record<string, ToolMeta> = {
     example: "{}",
   },
 };
+
+/** The one list of tool names. `selfcheck` and the tool-surface tests read it, so a
+ *  renamed or added tool cannot leave a second copy behind. */
+export const TOOL_NAMES: readonly string[] = Object.keys(TOOL_META);
 
 /** The full description an agent sees: what the tool does, then one example call. */
 export function toolDescription(name: string): string {
@@ -105,7 +111,7 @@ export function describeArgsError(name: string, error: unknown, schema?: unknown
     problems.push(missing ? `"${field}" is missing` : `"${field}" ${message}`);
   }
 
-  const what = problems.length > 0 ? problems.join("; ") : String((error as Error)?.message ?? error);
+  const what = problems.length > 0 ? problems.join("; ") : errText(error);
   const requirements = requirementsFromSchema(schema);
   return [
     `${name}: ${what}.`,

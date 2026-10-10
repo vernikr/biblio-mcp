@@ -3,18 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "../dist/server.js";
+import { TOOL_NAMES as REQUIRED_TOOLS } from "../dist/toolmeta.js";
 import { withMcpClient } from "./helpers/mcp.mjs";
-
-const REQUIRED_TOOLS = [
-  "search_books",
-  "book_details",
-  "get_download_links",
-  "download_book",
-  "fetch_book",
-  "search_papers",
-  "get_paper",
-  "healthcheck",
-];
 
 async function withClient(fn) {
   return withMcpClient(createServer, async (client) => {
