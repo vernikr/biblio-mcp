@@ -63,6 +63,7 @@ node --test <5 floor files>         ok
 
 `knip`: 0 unused values in `src/` (unchanged from wave 1).
 
-**Not yet pushed.** The GitHub token used for the first three waves now returns
-401, so the remote cannot be reached from here. The five commits are on local
-`main`; wave 3 (`9a952bf`) is the last thing GitHub has.
+GitHub Actions [run #66](https://github.com/vernikr/biblio-mcp/actions/runs/38088542315):
+6/6 green — build (22) 35 s, build (24) 31 s, artifacts ubuntu 25 s / macos 45 s /
+windows 120 s, live 24 s. Runner time 280 s against 266 s for the wave-3 push, i.e.
+unchanged within the run-to-run swing recorded in the wave-3 report.
