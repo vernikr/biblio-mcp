@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.3] - 2026-10-10
+
+### Changed
+- `--print-config` writes an npx entry instead of a pnpm one: `command` is the absolute path to `npx`, `args` are `--yes @vernikr/biblio-mcp@latest`, and `env.PATH` lists the folders holding `node` and `npx`. npx resolves `latest` without pnpm's release-age check, so no extra flags are needed.
+- The README Quick start is the second block, right after the title and description. Its JSON entry uses npx and has one argument per line. The pnpm launcher stays under Install with its flags.
+
 ## [2.2.2] - 2026-10-10
 
 ### Fixed
@@ -353,7 +359,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.2...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.3...HEAD
+[2.2.3]: https://github.com/vernikr/biblio-mcp/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/vernikr/biblio-mcp/compare/v2.2.1...v2.2.2
 [2.2.1]: https://github.com/vernikr/biblio-mcp/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/vernikr/biblio-mcp/compare/v2.1.1...v2.2.0
