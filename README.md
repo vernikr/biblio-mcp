@@ -35,7 +35,7 @@ If the client starts from the Dock and says it cannot find `npx` or `node`, add 
 a `PATH`. Run `npx --yes @vernikr/biblio-mcp@latest --print-config` and copy its entry: it has the
 absolute path to `npx` and a `PATH` that lists the folders holding `node` and `npx`.
 
-- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.4.mcpb` through Settings → Extensions
+- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.5.mcpb` through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
 - **Other options:** the prepared npm tarball or the printed entry; see [Install](#install).
@@ -73,47 +73,48 @@ away when they do not.
 
 ## For AI agents: install this package
 
-If you were asked to connect `@vernikr/biblio-mcp` as an MCP server, follow these steps.
-Everything you need is on this page. Ask the user only where a step says so.
+If you were asked to connect `@vernikr/biblio-mcp` as an MCP server, follow these steps. Ask the
+user only where a step says so.
 
-1. **Check prerequisites.** `node --version` must be v22 or newer. `pnpm --version` must be 10
-   or newer. If pnpm is missing, ask the user how they want it installed. Do not run
-   `npm install -g`.
-2. **Find the latest version.** Run `npm view @vernikr/biblio-mcp version`. Use the printed
-   number as `<v>` below and pin it everywhere.
-3. **Verify the package runs.** Run
-   `pnpm --silent dlx @vernikr/biblio-mcp@<v> --selfcheck --offline`.
-   The last line must be `selfcheck passed.` The first run downloads the package and can take a
-   minute. If you see `ERR_PNPM_RESOLVING_NPM_RESOLVER_NETWORK_ERROR` or a DNS error, the problem
-   is the network. Keep the proxy variables and report the error. Do not strip the environment.
-4. **Build the client entry.** Run `pnpm --silent dlx @vernikr/biblio-mcp@<v> --print-config`.
-   It prints JSON with `mcpServers.biblio`. Its `command` is the absolute path to `npx`, its `args`
-   are `--yes @vernikr/biblio-mcp@latest` (the newest release), and its `PATH` already includes the
-   real node directory.
-   Use that output as is. Do not pin a version unless the user asks.
-   Never put a path containing `fnm_multishells` or `/tmp` into a config. If `--print-config` is
-   not recognised, stop and tell the user.
-5. **Find the client's config file.**
-   - Freebuff Desktop: `~/.freebuff/mcp.json`, with the top-level key `mcpServers`.
-   - Claude Code: `claude mcp add -s user biblio -- npx --yes @vernikr/biblio-mcp@latest`.
-   - Any other client: ask the user. Do not guess a path, and never write MCP entries into app
-     state files such as `state.json`.
-6. **Merge the entry safely.**
-   - Back up the file first: `cp <file> <file>.bak-$(date +%s)`.
+1. **Check Node.** `node --version` must be v22 or newer. If it is not, ask the user. Do not install
+   Node or any global package yourself.
+2. **Find the config file.** The default is `~/.agents/mcp.json` (read by FreeBuff and ZCode), with
+   the top-level key `mcpServers`. If the user's client is different, ask for its MCP config path.
+   Do not guess a path, and never write MCP entries into app state files such as `state.json`.
+   For Claude Code, run `claude mcp add -s user biblio -- npx --yes @vernikr/biblio-mcp@latest`
+   instead of editing a file.
+3. **Merge the entry safely.**
+   - Back up the file first: `cp <file> <file>.bak-$(date +%s)`. If it does not exist, create it
+     with `{"mcpServers": {}}`.
    - Parse it as JSON. If it does not parse, stop and tell the user. Do not repair it.
-   - Set only `mcpServers.biblio` to the entry from step 4. Keep every other key.
+   - Set only `mcpServers.biblio` to this entry, and keep every other key:
+
+     ```json
+     {
+       "command": "npx",
+       "args": [
+         "--yes",
+         "@vernikr/biblio-mcp@latest"
+       ]
+     }
+     ```
+
    - Do not add `allowedTools`, `autoApprove` or `disabled` unless the user asks. A wrong
      allow-list silently blocks the real tools.
    - Write to `<file>.tmp`, check that it is valid JSON, then rename it over `<file>`.
-7. **Enable it by hand.** Ask the user to restart the client, turn the `biblio` server on in its
+   - If the user's client is a GUI app that reports it cannot find `npx` or `node`, ask the user to
+     run `npx --yes @vernikr/biblio-mcp@latest --print-config` and paste the entry it prints, which
+     includes a `PATH`.
+4. **Enable it by hand.** Ask the user to restart the client, turn the `biblio` server on in its
    MCP settings, and approve tool use if asked. You cannot click these for them.
-8. **Verify through the client, not the file.** The client must list eight tools for `biblio`:
+5. **Verify through the client, not the file.** The client must list eight tools for `biblio`:
    `search_books`, `book_details`, `get_download_links`, `download_book`, `fetch_book`,
-   `search_papers`, `get_paper`, `healthcheck`. Call `healthcheck`. If no tools appear, report what the client's
-   MCP log says. A valid JSON file alone is not success.
+   `search_papers`, `get_paper`, `healthcheck`. Call `healthcheck`. If no tools appear, report what
+   the client's MCP log says. A valid JSON file alone is not success.
 
-Rules: no `sudo`, no global installs, no `env -i`. Put API keys only into the client's `env`
-block, and only if the user gives them to you. Never print a key back.
+Rules: no `sudo`, no global installs. Never put a path containing `fnm_multishells` or `/tmp` into a
+config. Put API keys only into the client's `env` block, and only if the user gives them to you.
+Never print a key back.
 
 ## What is biblio-mcp?
 
@@ -145,7 +146,7 @@ Requires Node 22+. Install the prepared artifact, then configure your client to 
 `biblio-mcp` on stdio:
 
 ```bash
-npm install --global /path/to/vernikr-biblio-mcp-2.2.4.tgz
+npm install --global /path/to/vernikr-biblio-mcp-2.2.5.tgz
 biblio-mcp --selfcheck --offline
 ```
 
@@ -157,7 +158,7 @@ name still belongs to upstream; this fork uses **`@vernikr/biblio-mcp`**.
 The Quick start entry is the launcher: `npx --yes @vernikr/biblio-mcp@latest`. Any client that can
 launch a stdio process can use it. `@latest` fetches the newest published release each time the
 client starts; no checkout or build tools are needed. To reproduce an exact release, replace
-`@latest` with its version, for example `@vernikr/biblio-mcp@2.2.4`.
+`@latest` with its version, for example `@vernikr/biblio-mcp@2.2.5`.
 
 Claude Code can register the same launcher:
 
@@ -170,16 +171,16 @@ Keys and mirror overrides go in your client's environment; see [Configuration](#
 
 #### Let an agent do it
 
-Give an AI agent the package link and ask it to connect the package through pnpm. The steps it
-should follow are in [For AI agents](#for-ai-agents-install-this-package) above.
+Give an AI agent the package link and ask it to connect `@vernikr/biblio-mcp`. The steps it should
+follow are in [For AI agents](#for-ai-agents-install-this-package) above.
 
-To print the client entry from a release that has it, without writing anything:
+To print the client entry without writing anything:
 
 ```bash
-pnpm --silent dlx @vernikr/biblio-mcp@<version> --print-config
+npx --yes @vernikr/biblio-mcp@latest --print-config
 ```
 
-The output is the npx entry from Quick start, with the absolute path to `npx` and a `PATH` that lets
+The output is the Quick start entry with the absolute path to `npx` and a `PATH` that lets
 GUI-started clients find `npx` and node. It contains no keys; add those yourself in the client's
 `env` block.
 

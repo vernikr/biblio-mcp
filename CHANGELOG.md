@@ -5,6 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.5] - 2026-10-10
+
+### Changed
+- The "For AI agents" install steps are shorter and pnpm-free. The agent checks Node, writes `mcpServers.biblio` into `~/.agents/mcp.json` (read by FreeBuff and ZCode) or the config path the user gives, and verifies the eight tools through the client. Claude Code uses `claude mcp add`. The agent no longer runs `--selfcheck` or `--print-config` first; those stay available for debugging.
+
 ## [2.2.4] - 2026-10-10
 
 ### Changed
@@ -364,7 +369,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.4...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...HEAD
+[2.2.5]: https://github.com/vernikr/biblio-mcp/compare/v2.2.4...v2.2.5
 [2.2.4]: https://github.com/vernikr/biblio-mcp/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/vernikr/biblio-mcp/compare/v2.2.2...v2.2.3
 [2.2.2]: https://github.com/vernikr/biblio-mcp/compare/v2.2.1...v2.2.2
