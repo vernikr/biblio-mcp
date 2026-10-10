@@ -262,17 +262,23 @@ export async function resolveDownloadReport(md5: string): Promise<DownloadResolu
     annasDetails,
   ]);
 
+  // Anna's Archive is asked twice: the member API and the scraped page. Either
+  // one answering is the source answering, so a failure is only worth reporting
+  // when neither produced a link — otherwise the report calls a source
+  // unavailable and then lists that source's links straight after it.
+  const annasPageLinks: DownloadLink[] =
+    annasRes.status === "fulfilled" && annasRes.value ? annasRes.value.downloadLinks : [];
+
   // Try the verified member endpoint before scraped partner links.
   if (fastRes.status === "fulfilled") {
     if (fastRes.value) links.push(fastRes.value);
-  } else {
+  } else if (annasPageLinks.length === 0) {
     record("annas", fastRes.reason);
   }
   if (libgenRes.status === "fulfilled") links.push(...libgenRes.value);
   else record("libgen", libgenRes.reason);
-  if (annasRes.status === "fulfilled") {
-    if (annasRes.value) links.push(...annasRes.value.downloadLinks);
-  } else {
+  links.push(...annasPageLinks);
+  if (annasRes.status === "rejected" && !links.some((l) => l.source === "annas")) {
     record("annas", annasRes.reason);
   }
 

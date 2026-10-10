@@ -112,6 +112,62 @@ test("resolveDownloads drops the bare-domain link Libgen's ads page advertises",
   }
 });
 
+test("a source that answered with links is never reported as unavailable", async (t) => {
+  const md5 = "cccccccccccccccccccccccccccccccc";
+  // The member API is broken (HTTP 500) while the scraped page is fine. Anna's
+  // Archive did answer; only one of its two doors was shut.
+  const stub = await startStub((req, res) => {
+    const url = req.url ?? "";
+    if (url === "/") {
+      res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+      res.end("<html>Anna's Archive</html>");
+      return;
+    }
+    if (url.startsWith("/dyn/api/fast_download.json")) {
+      res.writeHead(500, { "content-type": "text/plain" });
+      res.end("upstream error");
+      return;
+    }
+    if (url.startsWith("/md5/")) {
+      res.writeHead(200, { "content-type": "text/html; charset=UTF-8" });
+      res.end(
+        `<html>Anna's Archive<h1>Some Book</h1>` +
+          `<a href="/slow_download/${md5}/key/0">Download now</a></html>`
+      );
+      return;
+    }
+    res.writeHead(404, { "content-type": "text/plain" });
+    res.end("not found");
+  });
+  t.after(() => stub.close());
+
+  const report = await runInProcess(
+    {
+      BIBLIO_ANNAS_MIRRORS: stub.origin,
+      BIBLIO_LIBGEN_MIRRORS: UNREACHABLE, // so only Anna's is under test here
+      BIBLIO_ZLIB_MIRRORS: UNREACHABLE,
+      BIBLIO_ANNAS_API_KEY: "test-key", // makes the member API a real attempt
+      BIBLIO_TIMEOUT_MS: "3000",
+    },
+    { md5 },
+    async (c) => {
+      const { resolveDownloadReport } = await import("./dist/providers/index.js");
+      const r = await resolveDownloadReport(c.md5);
+      return { links: r.links.map((l) => ({ source: l.source })), errors: r.errors };
+    }
+  );
+
+  assert.ok(
+    report.links.some((l) => l.source === "annas"),
+    `the scraped page must still contribute its link, got ${JSON.stringify(report)}`
+  );
+  assert.equal(
+    report.errors.some((e) => e.source === "annas"),
+    false,
+    `Anna's Archive supplied a link, so it cannot be listed as unavailable: ${JSON.stringify(report.errors)}`
+  );
+});
+
 // ---------------------------------------------------------------------------
 // bookDetails — Anna's Archive, then Libgen BibTeX
 // ---------------------------------------------------------------------------
