@@ -2,8 +2,15 @@
 
 This repository uses the approved separate fork identity, `@vernikr/biblio-mcp`. Use Node.js 22+ and pnpm;
 keep changes testable without live access to shadow-library mirrors.
-Read `docs/worklog/biblio-mcp-review/HANDOFF.md` for current release status and the next-agent entry point.
 CI checks Node 22/24 LTS and the exact 22.0 runtime floor.
+
+## Current state
+
+- Published on npm as `@vernikr/biblio-mcp`; the current version is the one in `package.json`.
+- `docs/STATE.md` — what is released, verified, and what the next code task is.
+- `docs/decisions.md` — why the non-obvious behaviour is the way it is.
+- `docs/worklog/` — reports for work in progress; closed tasks move to `docs/worklog/archive/`.
+  Nothing there is current instruction: an archived report described its own day.
 
 ## Verification
 
@@ -39,7 +46,8 @@ Running tests:
   the group's identity marker, and run `pnpm run selfcheck` before changing preference order.
 - Provider fetch validation is per-provider. Anna's scraped pages have an identity validator; the
   Sci-Hub ALTCHA pages (HTTP 200) are rejected by the provider validator, so the next mirror is
-  tried; the server never attempts to solve the check (A16 in `docs/worklog/biblio-mcp-audit.md`).
+  tried; the server never attempts to solve the check (A16 in
+`docs/worklog/archive/2026.10.08-audit/`).
 - Keep unreachable domains only when they may recover or are useful as user-configurable fallbacks;
   explain non-obvious ordering in `docs/decisions.md`.
 

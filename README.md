@@ -448,7 +448,7 @@ hints, a maintainer guide, optional paper-PDF enrichment, and an updated quick s
 Sci-Hub's human-check pages (A16) are detected and skipped rather than returned as papers. The
 server does not solve those checks; if every mirror asks for one, `get_paper` says so. The full
 audit and remaining follow-up notes are in
-[`docs/worklog/biblio-mcp-audit.md`](docs/worklog/biblio-mcp-audit.md).
+[`docs/worklog/archive/2026.10.08-audit/`](docs/worklog/archive/2026.10.08-audit/).
 
 ## FAQ
 
@@ -481,7 +481,7 @@ only hit it after manually changing dependencies.
 
 ## Development
 
-Maintainer status and the next-agent entry point: [HANDOFF](docs/worklog/biblio-mcp-review/HANDOFF.md).
+Maintainer guide and the next-agent entry point: [`AGENTS.md`](AGENTS.md); current state: [`docs/STATE.md`](docs/STATE.md).
 
 Use Node 22 or 24 LTS. CI also checks the exact Node 22.0 runtime floor.
 
@@ -547,7 +547,7 @@ test/
 
 Design rationale and the reasons for the current source/test footprint are recorded in
 [`docs/decisions.md`](docs/decisions.md); the full audit and worklog are in
-[`docs/worklog/biblio-mcp-audit.md`](docs/worklog/biblio-mcp-audit.md).
+[`docs/worklog/archive/2026.10.08-audit/`](docs/worklog/archive/2026.10.08-audit/).
 
 ### Contributing
 
