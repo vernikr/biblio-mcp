@@ -280,14 +280,14 @@ export async function details(md5: string): Promise<Book & { downloadLinks: Down
 
   return {
     source: "libgen",
-    md5,
+    md5: hash,
     title,
     series: bibtex.series || undefined,
     author: bibtex.author || undefined,
     publisher: bibtex.publisher || undefined,
     year: parseYear(bibtex.year),
     isbn: bibtex.isbn || undefined,
-    url: `${base}/ads.php?md5=${md5}`,
+    url: `${base}/ads.php?md5=${hash}`,
     downloadLinks: links,
   };
 }

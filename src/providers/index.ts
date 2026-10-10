@@ -83,10 +83,6 @@ function annasHtmlSkipReason(): string | undefined {
   return undefined;
 }
 
-function shouldQueryAnnasHtml(): boolean {
-  return annasHtmlSkipReason() === undefined;
-}
-
 /** Merge two records for the same md5, preferring non-empty fields. */
 function mergeBook(a: Book, b: Book): Book {
   const pick = <K extends keyof Book>(k: K) => a[k] || b[k];
@@ -233,6 +229,7 @@ export interface DownloadResolution {
 
 /** Resolve every download candidate we can find for an md5, with diagnostics. */
 export async function resolveDownloadReport(md5: string): Promise<DownloadResolution> {
+  const hash = md5.toLowerCase();
   const links: DownloadLink[] = [];
   const errors: SourceError[] = [];
   const notFound: SourceId[] = [];
@@ -251,17 +248,17 @@ export async function resolveDownloadReport(md5: string): Promise<DownloadResolu
 
   // Anna's HTML may be skipped because its circuit or mirrors are down. That is
   // an outage, and it must be visible rather than silently absent.
-  const skipReason = shouldQueryAnnasHtml() ? undefined : annasHtmlSkipReason();
+  const skipReason = annasHtmlSkipReason();
   if (skipReason) errors.push({ source: "annas", error: skipReason });
   const annasDetails = skipReason
     ? Promise.resolve(undefined)
-    : withSourceCircuit("annas", () => annas.details(md5));
+    : withSourceCircuit("annas", () => annas.details(hash));
 
   const [fastRes, libgenRes, annasRes] = await Promise.allSettled([
     // The JSON member endpoint does not use the HTML mirrors' negative cache;
     // keep it available even while scraped Anna's pages are circuit-broken.
-    annas.fastDownload(md5),
-    withSourceCircuit("libgen", () => libgen.downloadLinks(md5)),
+    annas.fastDownload(hash),
+    withSourceCircuit("libgen", () => libgen.downloadLinks(hash)),
     annasDetails,
   ]);
 
@@ -291,7 +288,6 @@ export async function resolveDownloadReport(md5: string): Promise<DownloadResolu
     }
   }
 
-  const hash = md5.toLowerCase();
   const useful = links.filter((l) => l.verified === true || isUsefulLink(l.url, hash));
   return { links: useful, errors, notFound };
 }
@@ -301,5 +297,5 @@ export async function resolveDownloads(md5: string): Promise<DownloadLink[]> {
   return (await resolveDownloadReport(md5)).links;
 }
 
-export { annas, libgen, scihub, zlibrary };
+export { libgen, scihub };
 export type { Book, Paper, DownloadLink, SearchResult, SourceId };
