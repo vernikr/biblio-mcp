@@ -2,11 +2,15 @@
 
 import { readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { availableParallelism } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const args = ["--test", "--test-concurrency=4"];
+// More workers help on big runners and add nothing on a 2-core box; the cap
+// keeps a loaded machine from stretching timing-sensitive tests past their budget.
+const workers = Math.min(Math.max(availableParallelism(), 2), 8);
+const args = ["--test", `--test-concurrency=${workers}`];
 args.push(
   ...readdirSync(join(root, "test"))
     .filter((file) => file.endsWith(".test.mjs"))
