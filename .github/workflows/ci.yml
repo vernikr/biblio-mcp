@@ -57,7 +57,11 @@ jobs:
       # Prove the startup guard actually refuses a server that cannot serve.
       # The real broken pairing (sdk 1.12.1 + zod 4) is exercised in a throwaway
       # tree, because the point is to show what a user with that install sees.
+      #
+      # One leg only: what is under test is the dependency pairing, not the Node
+      # version, and the step pays for a throwaway npm install over the network.
       - name: Startup guard rejects the broken zod/SDK pairing
+        if: matrix.node-version == 24
         run: |
           set -euo pipefail
           trap 'rm -rf /tmp/broken-pairing' EXIT
@@ -81,19 +85,19 @@ jobs:
           grep -q "@modelcontextprotocol/sdk" err.txt || { echo "the fix is not named"; cat err.txt; exit 1; }
           echo "startup guard correctly refused the broken pairing (exit $code)"
 
-  runtime-floor:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: pnpm/action-setup@v6.1.0
+      # The declared floor is ">=22.0.0", so the five files that could regress on
+      # an older 22.x minor run against exactly that binary. They used to need a
+      # fourth full checkout + install + build of their own; dist/ is already
+      # built here, so only the Node binary changes.
       - uses: actions/setup-node@v7.1.0
+        if: matrix.node-version == 22
         with:
           node-version: "22.0.0"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+
       - name: Exact runtime floor (no live mirrors)
+        if: matrix.node-version == 22
         run: |
+          node --version
           node --test test/stdio.test.mjs test/selfcheck.test.mjs test/server.test.mjs test/config.test.mjs test/preflight.test.mjs
           node dist/index.js --selfcheck --offline
 
@@ -103,7 +107,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # Packaging is slow and rarely breaks on a PR-only change, and what it
+        # protects is release-time acceptance. main and tags still run all three.
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "windows-latest", "macos-latest"]') }}
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: pnpm/action-setup@v6.1.0
