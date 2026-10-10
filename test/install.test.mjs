@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import { basename, delimiter, join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { runStartupSelftest } from "../dist/selfcheck.js";
+import { runInstall } from "../scripts/install.mjs";
 import { readRootPackage } from "../scripts/lib/pkg.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,35 @@ const PNPM_ON_PATH = (process.env.PATH ?? "")
   .some((dir) => dir && existsSync(join(dir, "pnpm")));
 const needsPnpm = PNPM_ON_PATH ? {} : { skip: "pnpm is not on PATH; the installer requires it" };
 
-/** Run the installer and return { status, stdout, stderr }. */
+/**
+ * Run the installer in this process and capture its output. `stubPackageManager`
+ * skips the ~350 ms pnpm probe for tests that are not about package-manager
+ * detection; the happy path and the detection tests use the real thing.
+ */
+async function installHere(args, { capture = false, stubPackageManager = true } = {}) {
+  let stdout = "";
+  const status = await runInstall({
+    argv: args,
+    capture,
+    write: (text) => (stdout += text),
+    packageManager: stubPackageManager ? { name: "pnpm", version: "test" } : undefined,
+  });
+  return { status, stdout, stderr: "" };
+}
+
+/** Run the installer as if Node reported `version`. */
+async function installOnNode(args, version) {
+  const real = process.versions.node;
+  Object.defineProperty(process.versions, "node", { value: version, configurable: true });
+  try {
+    return await installHere(args);
+  } finally {
+    Object.defineProperty(process.versions, "node", { value: real, configurable: true });
+  }
+}
+
+/** Run the installer in a subprocess. Only for cases that must be isolated:
+ *  the CLI entry point itself, and the two tests that really install and build. */
 function runInstaller(args, cwd, env) {
   const r = spawnSync(process.execPath, [INSTALLER, ...args], {
     encoding: "utf8",
@@ -39,6 +68,16 @@ function runInstaller(args, cwd, env) {
     env: env ?? process.env,
   });
   return { status: r.status, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/** Swap PATH for the duration of one callback. */
+function withPath(t, value, fn) {
+  const saved = process.env.PATH;
+  process.env.PATH = value;
+  t.after(() => {
+    process.env.PATH = saved;
+  });
+  return fn();
 }
 
 function freshCheckout(t) {
@@ -99,9 +138,11 @@ for (const bypass of [false, true]) {
 // The installer (item 24)
 // ---------------------------------------------------------------------------
 
-test("the installer runs end to end in dry-run mode and writes nothing", needsPnpm, () => {
+test("the installer runs end to end in dry-run mode and writes nothing", needsPnpm, async () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
-  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo")]);
+  const r = await installHere(["--dry-run", "--dir", join(dir, "repo")], {
+    stubPackageManager: false,
+  });
   assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /\[1\] checking prerequisites/);
   assert.match(r.stdout, /\[7\] MCP client configuration/);
@@ -114,18 +155,14 @@ test("the installer runs end to end in dry-run mode and writes nothing", needsPn
   assert.ok(parsed.mcpServers.biblio.args[0].endsWith("dist/index.js"));
 });
 
-test("the installer stops at an unsupported Node prerequisite", () => {
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
-    Object.defineProperty(process.versions, "node", { value: "17.0.0" });
-    process.argv = [process.execPath, ${JSON.stringify(INSTALLER)}, "--dry-run"];
-    await import(${JSON.stringify(pathToFileURL(INSTALLER).href)});
-  `], { encoding: "utf8" });
+test("the installer stops at an unsupported Node prerequisite", async () => {
+  const r = await installOnNode(["--dry-run"], "17.0.0");
   assert.equal(r.status, 1);
   assert.match(r.stdout, /node 17\.0\.0 is too old/);
   assert.doesNotMatch(r.stdout, /\[2\] obtaining|ok\s+pnpm|no package manager found/);
 });
 
-test("the installer refuses npm fallback when the checkout has a pnpm lockfile", () => {
+test("the installer refuses npm fallback when the checkout has a pnpm lockfile", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-pm-"));
   const bin = join(dir, "bin");
   const npmMarker = join(dir, "npm-was-run");
@@ -134,10 +171,9 @@ test("the installer refuses npm fallback when the checkout has a pnpm lockfile",
   writeFileSync(fakeNpm, `#!/bin/sh\nprintf ran > ${JSON.stringify(npmMarker)}\necho 99.0.0\n`);
   chmodSync(fakeNpm, 0o755);
 
-  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo")], join(HERE, ".."), {
-    ...process.env,
-    PATH: bin,
-  });
+  const r = await withPath(t, bin, () =>
+    installHere(["--dry-run", "--dir", join(dir, "repo")], { stubPackageManager: false })
+  );
   assert.equal(r.status, 1);
   assert.match(r.stdout, /no package manager found — install pnpm/);
   assert.equal(existsSync(npmMarker), false, "npm must not be probed or run over the pnpm lockfile");
@@ -145,40 +181,40 @@ test("the installer refuses npm fallback when the checkout has a pnpm lockfile",
   assert.doesNotMatch(r.stdout, /\[2\] obtaining/, "the installer should stop at the missing pnpm prerequisite");
 });
 
-test("the installer --live flag runs the live selfcheck", needsPnpm, () => {
+test("the installer --live flag runs the live selfcheck", async () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
-  const r = runInstaller(["--dry-run", "--live", "--dir", join(dir, "repo")]);
+  const r = await installHere(["--dry-run", "--live", "--dir", join(dir, "repo")]);
   assert.equal(r.status, 0, `installer failed:\n${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /--selfcheck --live/);
   assert.doesNotMatch(r.stdout, /skipping the live mirror check/);
 });
 
-test("the installer rejects contradictory --live and --skip-network flags immediately", () => {
+test("the installer rejects contradictory --live and --skip-network flags immediately", async () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
-  const r = runInstaller(["--dry-run", "--live", "--skip-network", "--dir", join(dir, "repo")]);
+  const r = await installHere(["--dry-run", "--live", "--skip-network", "--dir", join(dir, "repo")]);
   assert.equal(r.status, 1);
   assert.match(r.stdout, /cannot be used together/);
   assert.doesNotMatch(r.stdout, /\[1\] checking prerequisites/);
 });
 
-test("the installer refuses to overwrite a config it cannot parse", needsPnpm, () => {
+test("the installer refuses to overwrite a config it cannot parse", async () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const cfg = join(dir, "mcp.json");
   writeFileSync(cfg, "{ this is not json\n");
 
-  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
+  const r = await installHere(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
 
   assert.equal(r.status, 1, "must fail rather than clobber");
   assert.match(r.stdout, /is not valid JSON, so it was left untouched/);
   assert.equal(readFileSync(cfg, "utf8"), "{ this is not json\n", "the file must be unchanged");
 });
 
-test("the installer refuses a config that is not a JSON object", needsPnpm, () => {
+test("the installer refuses a config that is not a JSON object", async () => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const cfg = join(dir, "mcp.json");
   writeFileSync(cfg, "[1,2,3]\n");
 
-  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
+  const r = await installHere(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
 
   assert.equal(r.status, 1);
   assert.match(r.stdout, /does not contain a JSON object/);
@@ -186,14 +222,14 @@ test("the installer refuses a config that is not a JSON object", needsPnpm, () =
 });
 
 for (const mcpServers of [[], null, "not an object", 42, false]) {
-  test(`the installer rejects mcpServers=${JSON.stringify(mcpServers)} even in dry-run mode`, needsPnpm, (t) => {
+  test(`the installer rejects mcpServers=${JSON.stringify(mcpServers)} even in dry-run mode`, async (t) => {
     const dir = mkdtempSync(join(tmpdir(), "biblio-install-shape-"));
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     const cfg = join(dir, "mcp.json");
     const original = JSON.stringify({ mcpServers, theme: "dark" });
     writeFileSync(cfg, original);
     writeFileSync(`${cfg}.bak`, "previous backup");
-    const r = runInstaller(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
+    const r = await installHere(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
     assert.equal(r.status, 1, r.stdout);
     assert.match(r.stdout, /mcpServers must be a JSON object/);
     assert.doesNotMatch(r.stdout, /install complete|would write/);
@@ -203,12 +239,12 @@ for (const mcpServers of [[], null, "not an object", 42, false]) {
   });
 }
 
-test("the installer accepts a config with an absent mcpServers field", needsPnpm, (t) => {
+test("the installer accepts a config with an absent mcpServers field", async (t) => {
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-shape-"));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const cfg = join(dir, "mcp.json");
   writeFileSync(cfg, JSON.stringify({ theme: "dark" }));
-  const r = runInstaller(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
+  const r = await installHere(["--dry-run", "--dir", join(dir, "repo"), "--write-config", cfg]);
   assert.equal(r.status, 0, r.stdout);
   assert.match(r.stdout, /would write/);
   assert.equal(existsSync(`${cfg}.bak`), false);
@@ -262,7 +298,7 @@ test("the installer builds a clean checkout, merges an existing config and keeps
   assert.equal(readFileSync(`${cfg}.bak`, "utf8"), original);
 });
 
-test("the installer rejects an incompatible pair after installation and before building", (t) => {
+test("the installer rejects an incompatible pair after installation and before building", async (t) => {
   const { dir, projectDir } = freshCheckout(t);
   const bin = join(dir, "bin");
   const calls = join(dir, "pm-calls.jsonl");
@@ -288,10 +324,9 @@ for (const [name, pkg] of ${JSON.stringify(packages)}) {
 }
 `);
   chmodSync(fakePnpm, 0o755);
-  const r = runInstaller(["--skip-network", "--dir", projectDir], projectDir, {
-    ...process.env,
-    PATH: bin,
-  });
+  const r = await withPath(t, bin, () =>
+    installHere(["--skip-network", "--dir", projectDir], { capture: true })
+  );
   assert.equal(r.status, 1);
   assert.match(r.stdout, /preflight failed/);
   assert.match(r.stdout, /keyValidator\._parse is not a function/);
@@ -303,12 +338,12 @@ for (const [name, pkg] of ${JSON.stringify(packages)}) {
   assert.doesNotMatch(r.stdout, /\[5\] building|install complete/);
 });
 
-test("the installer validates the path it is about to put in a config", () => {
+test("the installer validates the path it is about to put in a config", async () => {
   // A config whose args point at a missing file produces a client that fails with
   // no useful message. The installer must not be the thing that creates it.
   const dir = mkdtempSync(join(tmpdir(), "biblio-install-"));
   const cfg = join(dir, "mcp.json");
-  const r = runInstaller([
+  const r = await installHere([
     "--dry-run",
     "--dir", join(dir, "does-not-exist"),
     "--write-config", cfg,
@@ -385,12 +420,8 @@ test("every version in the CHANGELOG links somewhere, and the current release is
   assert.ok(declared.includes(pkg.version), `package.json version ${pkg.version} is not in the CHANGELOG`);
 });
 
-test("the installer rejects Node 21 before fetching or installing", () => {
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `
-    Object.defineProperty(process.versions, "node", { value: "21.99.0" });
-    process.argv = [process.execPath, ${JSON.stringify(INSTALLER)}, "--dry-run"];
-    await import(${JSON.stringify(pathToFileURL(INSTALLER).href)});
-  `], { encoding: "utf8" });
+test("the installer rejects Node 21 before fetching or installing", async () => {
+  const r = await installOnNode(["--dry-run"], "21.99.0");
   assert.equal(r.status, 1);
   assert.match(r.stdout, /22\.0.*required/);
   assert.doesNotMatch(r.stdout, /\[2\] obtaining/);
