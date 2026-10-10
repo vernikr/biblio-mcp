@@ -16,7 +16,11 @@ process.env.BIBLIO_DOWNLOAD_STALL_MS = "1000";
 const { downloadToFile } = await import("../dist/http.js");
 
 const CHUNK = Buffer.alloc(16 * 1024, 0x61);
-const CHUNKS = 12; // 12 chunks, one every 60 ms: ~720 ms, well past the 150 ms header budget.
+const CHUNKS = 12;
+// One gap of 250 ms, not twelve of 60 ms: the transfer still outlasts the 150 ms
+// header budget, and the single gap has 4x headroom inside the 1000 ms stall
+// budget. Pacing many small chunks flaked under load, when one gap overran it.
+const STEADY_GAP_MS = 250;
 
 const server = createServer((req, res) => {
   if (req.url === "/steady") {
@@ -24,16 +28,11 @@ const server = createServer((req, res) => {
       "content-type": "application/octet-stream",
       "content-length": String(CHUNK.length * CHUNKS),
     });
-    let sent = 0;
-    const tick = setInterval(() => {
-      res.write(CHUNK);
-      sent += 1;
-      if (sent === CHUNKS) {
-        clearInterval(tick);
-        res.end();
-      }
-    }, 60);
-    res.on("close", () => clearInterval(tick));
+    res.write(CHUNK);
+    setTimeout(
+      () => res.end(Buffer.concat(Array.from({ length: CHUNKS - 1 }, () => CHUNK))),
+      STEADY_GAP_MS
+    );
     return;
   }
   if (req.url === "/no-headers") {
@@ -56,7 +55,10 @@ test("a steady transfer longer than the header budget completes", async () => {
     const result = await downloadToFile(`${base}/steady`, join(dir, "book.bin"));
     const elapsed = Date.now() - started;
     assert.equal(result.bytes, CHUNK.length * CHUNKS);
-    assert.ok(elapsed > 150, `the transfer must outlast the header budget (took ${elapsed}ms)`);
+    assert.ok(
+      elapsed > 150 && elapsed < 1000,
+      `the transfer must outlast the header budget and stay inside the stall budget (took ${elapsed}ms)`
+    );
     assert.equal((await readFile(join(dir, "book.bin"))).length, CHUNK.length * CHUNKS);
   } finally {
     await rm(dir, { recursive: true, force: true });
