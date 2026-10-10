@@ -16,10 +16,42 @@ CI checks Node 22/24 LTS and the exact 22.0 runtime floor.
 ## Verification
 
 ```bash
-pnpm run verify       # typecheck + one build + offline suite + offline tool selfcheck
-pnpm run verify:live  # the offline gate, then mirror probes and a real search
-pnpm run docs:env     # rebuild before regenerating the README environment table
+git clone https://github.com/vernikr/biblio-mcp.git
+cd biblio-mcp
+pnpm install --frozen-lockfile
+pnpm run verify
 ```
+
+Node 22 or 24 LTS; CI also checks the exact Node 22.0 runtime floor. Maintainers use pnpm and
+the committed lockfile; consumers need neither this checkout nor a compiler.
+
+| Script | What it does |
+|---|---|
+| `pnpm run dev` | run from source via tsx |
+| `pnpm run typecheck` | strict checks for `src/` |
+| `pnpm run build` | compile to `dist/` |
+| `pnpm run test` | offline suite only (builds first) |
+| `pnpm run test:live` | optional live mirror/provider checks |
+| `pnpm run test:all` | offline suite, then live suite |
+| `pnpm run preflight` | offline install/dependency check (before or after build) |
+| `pnpm run preflight:strict` | ...and fail if `dist/` is missing |
+| `pnpm run selfcheck` | tools + mirror reachability with timings |
+| `pnpm run selfcheck:live` | ...plus one real search |
+| `pnpm run verify` | typecheck + one build + offline suite + offline selfcheck |
+| `pnpm run verify:live` | ...then mirrors and a real search |
+| `pnpm run docs:env` | rebuild and synchronize the README environment table |
+| `pnpm run fixtures:capture` | refresh the verified provider-page fixtures (uses the network) |
+| `pnpm run benchmark` | opt-in live provider timing (before/after comparison) |
+| `pnpm run package:artifacts` | one build, npm tarball + MCPB |
+| `pnpm run package:verify` | offline gate, then archive/consumer acceptance |
+
+`scripts/install.mjs` is a **source-checkout utility**, not the consumer install path: it
+installs locked dependencies, builds and runs the offline selfcheck. `--write-config <path>`
+validates and merges client config with a backup; `--dry-run` writes nothing; `--live` adds
+mirror/search checks. It is not shipped in the consumer tarball.
+
+Design rationale is in [`docs/decisions.md`](docs/decisions.md); the closed audit is in
+[`docs/worklog/archive/2026.10.08-audit/`](docs/worklog/archive/2026.10.08-audit/).
 
 Default verification needs no live mirrors. `pnpm run test` also builds independently; for one
 file, build first. Optional mirror tests are under `test/live/` (`pnpm run test:live`) and remain
@@ -28,7 +60,6 @@ invalid call; merely starting the process or grepping a tools list is not verifi
 
 Running tests:
 
-- One file: `node --test test/<file>.test.mjs` (after `pnpm run build`, since tests import `dist/`).
 - Installer write-path tests start without `node_modules`/`dist` and run real dependency
   installation and builds, so they dominate the suite's runtime.
 - Installer tests that need pnpm are reported as skipped when it is absent from `PATH`. Run
@@ -111,3 +142,17 @@ what a user gets (a new benefit, a removed limitation, a changed default), and k
   It is not shipped as a runtime dependency. Patched `tmp` is pinned for its prompt dependency.
 - Never commit PATs, API keys, user config, dependency trees or generated archives. Keep
   `BIBLIO_ANNAS_API_KEY` in runtime settings; use temporary credentials for Git pushes.
+
+## Contributing
+
+Parser fixes when sites change their HTML are the most welcome PRs. The most common maintenance
+task is updating [`src/mirrors.ts`](src/mirrors.ts) when domains rotate; run `pnpm selfcheck`
+first, since it measures every host and prints the timings you need to order them.
+
+Two rules this fork holds to:
+
+1. **A red build must mean "something regressed", not "something we already know about."**
+   Known-bad behaviour is pinned with `todo` tests that describe the intended fix.
+2. **CI must be able to tell a working server from one that merely starts.** The offline
+   integration suite sends a real `tools/call` over an in-memory transport, because
+   `tools/list` succeeds even on a build that cannot serve a single request.
