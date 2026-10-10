@@ -56,15 +56,18 @@ that something you can rely on.
   spelled out. The checkout installer preserves invalid client configuration and backups.
 - **Faster answers.** Searches come back many times faster, because the server stops waiting on
   websites that are no longer there.
-- **Honest results.** A source that is down is reported, not silently dropped. A website that
-  has stopped being the real library is refused, and a page that asks you to prove you are a
-  human is reported as such, not handed over as the book. Downloaded files are checked, so you know you
-  got the right book. Files you name explicitly won't replace an existing file.
+- **Honest results.** A source that is down is reported, not silently dropped — and one that
+  answered with links is never reported as down. A website that has stopped being the real
+  library is refused, and a page that asks you to prove you are a human is reported as such,
+  not handed over as the book. Downloaded files are checked, so you know you got the right
+  book. Files you name explicitly won't replace an existing file, and a name your operating
+  system would reject or silently change is refused before anything is written.
 - **Cleaner information.** Titles, authors and formats come from the right fields, and broken
   or useless links are filtered out.
 - **Less time lost.** When something goes wrong, the message says what happened and what to do
-  next, and a one-call health check tells you whether anything is reachable at all.
-  Empty searches are stopped before contacting websites.
+  next: a failed `fetch_book` names the other copies its search already found. A one-call health
+  check tells you whether anything is reachable at all, and empty searches are stopped before
+  contacting websites.
 
 One honest caveat: the sources are third-party websites that can go offline or change at any
 time. This fork cannot promise they stay reachable, but it promises that you will know right
@@ -200,7 +203,8 @@ update guarantee is implied; install a newer release file when you choose to upd
 | `book_details` | Full metadata + download options for one book by MD5 hash. Queries Anna's Archive and Libgen in parallel when mirrors are available, returns the first usable result, and reports which one answered (`resolvedVia`). Libgen's `ads.php` response is reused across details and download-link lookups. |
 | `get_download_links` | Every resolvable download URL for an MD5 — Libgen `get.php`, Anna's partner servers, IPFS gateways. Links marked `direct: true` point straight at the file; unrelated scraped links are dropped, while member API URLs are trusted for the requested MD5 even when their signed URL is opaque. A recent Libgen `ads.php` response is reused. The result says why a link is missing: `notFound` lists sources that have no record, and `errors` lists sources that were unavailable. An empty list with an unavailable source is returned as an error, not as "no links". |
 | `download_book` | Stream the actual file to a local directory by MD5. `output_dir` is optional and defaults to `~/Downloads/biblio-mcp`. Returns the saved path, byte count, and **the MD5 of what was written**; a mismatch sets `md5MatchesRequest: false` and includes a warning. Emits progress notifications while transferring. Failures list `sourceErrors` when a source was unavailable, and `alternatives` (other copies of the same title, ranked) when this MD5 cannot be saved. |
-| `fetch_book` | Get a book by title in one call: search, rank the copies (requested format, then PDF, then the largest), try up to `max_attempts` (1–5, default 3) with the next copy when one fails, and save the first that verifies. Returns `picked`, the `attempts` made, and a `nextStep` when nothing could be saved. Use it when you want a file, not a list. |
+| `fetch_book` | Get a book by title in one call: search, rank the copies (requested format, then PDF, then the largest), try up to `max_attempts` (1–5, default 3) with the next copy when one fails, and save the first that verifies. Returns `picked`, the `attempts` made, and — when nothing could be saved — the `alternatives`
+its search already ranked, with a `nextStep`. Use it when you want a file, not a list. |
 | `search_papers` | Search Library Genesis scimag for papers; returns title, journal, authors, DOI and year. Set `resolvePdfs: true` to best-effort add direct `pdfUrl` values for up to three DOI results (extra Sci-Hub requests). |
 | `get_paper` | Resolve a paper's PDF via Sci-Hub by DOI, URL, or title. Returns the direct PDF URL when available. |
 | `healthcheck` | Can this server reach its sources? Per-mirror status and latency, without querying a catalogue. Use it to tell "the network is blocked" apart from "the query matched nothing". |
