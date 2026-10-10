@@ -377,25 +377,30 @@ test("the installer is plain JavaScript with no imports from src", () => {
 // Documentation drift guards
 // ---------------------------------------------------------------------------
 
-test("every command the README tells you to run actually exists", async () => {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const readme = readFileSync(join(here, "..", "README.md"), "utf8");
-  const pkg = readRootPackage();
+// The script names a reader is told to run live in AGENTS.md now; the README
+// keeps the two a user can run without a checkout. Both are scanned, so a
+// renamed script cannot leave a documented command behind in either file.
+for (const doc of ["README.md", "AGENTS.md"]) {
+  test(`every pnpm script ${doc} tells you to run actually exists`, async () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const text = readFileSync(join(here, "..", doc), "utf8");
+    const pkg = readRootPackage();
 
-  const scripts = new Set(Object.keys(pkg.scripts));
-  // pnpm's own builtins are not package scripts, and prose words are not
-  // commands at all ("Why pnpm and not npm?").
-  const BUILTINS = new Set(["install", "add", "remove", "run", "exec", "dlx", "why", "update", "list"]);
-  const PROSE = new Set(["and", "or", "the", "with", "only", "not", "is", "a"]);
-  const referenced = new Set();
-  for (const m of readme.matchAll(/pnpm (?:run )?([a-z][a-z0-9:]*)/g)) {
-    const name = m[1];
-    if (BUILTINS.has(name) || PROSE.has(name)) continue;
-    referenced.add(name);
-  }
-  const missing = [...referenced].filter((s) => !scripts.has(s));
-  assert.deepEqual(missing, [], `README references pnpm scripts that do not exist: ${missing.join(", ")}`);
-});
+    const scripts = new Set(Object.keys(pkg.scripts));
+    // pnpm's own builtins are not package scripts, and prose words are not
+    // commands at all ("No Git, pnpm or build step").
+    const BUILTINS = new Set(["install", "add", "remove", "run", "exec", "dlx", "why", "update", "list"]);
+    const PROSE = new Set(["and", "or", "are", "the", "with", "only", "not", "is", "a"]);
+    const referenced = new Set();
+    for (const m of text.matchAll(/pnpm (?:run )?([a-z][a-z0-9:]*)/g)) {
+      const name = m[1];
+      if (BUILTINS.has(name) || PROSE.has(name)) continue;
+      referenced.add(name);
+    }
+    const missing = [...referenced].filter((s) => !scripts.has(s));
+    assert.deepEqual(missing, [], `${doc} references pnpm scripts that do not exist: ${missing.join(", ")}`);
+  });
+}
 
 test("the consumer package ships runtime checks, not the checkout installer", () => {
   const pkg = readRootPackage();

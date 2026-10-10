@@ -72,3 +72,12 @@ sharing. Not viable.
 
 The suite stays as it is: 35 files grouped by domain. If the suite ever gets slow enough to
 justify the rewrite, the place to start is the installer write-path tests, which dominate it.
+
+## The README-command guard followed the script list
+
+The test that checks every `pnpm <script>` named in the README still exists was watching the wrong
+file once the script list moved to `AGENTS.md`: the README is down to two script names
+(`preflight`, `selfcheck`), and the other fifteen were unguarded.
+
+The guard now scans both files, so the renamed-script check covers seventeen names instead of two.
+Counting the tests: 242 → 243.
