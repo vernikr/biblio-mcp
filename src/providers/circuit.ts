@@ -1,4 +1,5 @@
 import type { SourceId } from "../types.js";
+import { errText } from "../errors.js";
 import { ResourceNotFoundError } from "../http.js";
 import { NUMBER_SETTINGS, readNumber } from "../config.js";
 
@@ -16,7 +17,7 @@ type CircuitState = {
 
 const circuits = new Map<SourceId, CircuitState>();
 
-export class SourceCircuitOpenError extends Error {
+class SourceCircuitOpenError extends Error {
   readonly source: SourceId;
 
   constructor(source: SourceId, message: string) {
@@ -27,7 +28,7 @@ export class SourceCircuitOpenError extends Error {
 }
 
 function errorMessage(error: unknown): string {
-  return String((error as Error)?.message ?? error);
+  return errText(error);
 }
 
 /** Convert mirror-level diagnostics into a short, actionable source error. */

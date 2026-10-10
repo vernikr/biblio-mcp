@@ -93,23 +93,6 @@ test("--print-config warns and still prints when npx is not on PATH", () => {
   assert.match(r.stderr, /npx not found on PATH/);
 });
 
-test("stableExecDir resolves a symlinked node (fnm multishell) to its real install directory", async () => {
-  const { stableExecDir } = await import("../dist/printConfig.js");
-  const real = "/home/u/.local/share/fnm/node-versions/v22.23.2/installation/bin/node";
-  const dir = stableExecDir(
-    "/home/u/.local/state/fnm_multishells/15352_1791579648621/bin/node",
-    "darwin",
-    () => real,
-  );
-  assert.equal(dir, "/home/u/.local/share/fnm/node-versions/v22.23.2/installation/bin");
-});
-
-test("stableExecDir falls back to the given path when realpath fails", async () => {
-  const { stableExecDir } = await import("../dist/printConfig.js");
-  const dir = stableExecDir("/opt/node/bin/node", "linux", () => { throw new Error("ENOENT"); });
-  assert.equal(dir, "/opt/node/bin");
-});
-
 test("ephemeralPathWarning flags per-shell and temp locations, not stable installs", async () => {
   const { ephemeralPathWarning } = await import("../dist/printConfig.js");
   assert.match(ephemeralPathWarning("/h/.local/state/fnm_multishells/1/bin/node") ?? "", /per-shell/);

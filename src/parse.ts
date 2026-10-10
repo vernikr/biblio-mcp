@@ -1,5 +1,5 @@
 // Table and field parsing helpers.
-export const KNOWN_LANGUAGES: ReadonlySet<string> = new Set([
+const KNOWN_LANGUAGES: ReadonlySet<string> = new Set([
   "english","spanish","french","german","russian","chinese","arabic","portuguese",
   "italian","dutch","japanese","korean","turkish","persian","hindi","polish",
   "ukrainian","czech","swedish","norwegian","danish","finnish","hungarian",

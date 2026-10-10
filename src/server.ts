@@ -15,7 +15,6 @@ import {
   libgen,
   scihub,
   BOOK_SOURCES,
-  ALL_BOOK_SOURCES,
   DISABLED_BOOK_SOURCES,
 } from "./providers/index.js";
 import type { Paper, SourceId } from "./types.js";
@@ -448,4 +447,4 @@ export function createServer(): McpServer {
   return server;
 }
 
-export { SERVER_NAME, SERVER_VERSION, ALL_BOOK_SOURCES };
+export { SERVER_NAME, SERVER_VERSION };

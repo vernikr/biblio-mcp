@@ -6,6 +6,7 @@ import { rename, unlink } from "node:fs/promises";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { NUMBER_SETTINGS, readNumber } from "./config.js";
+import { errText } from "./errors.js";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
@@ -18,12 +19,12 @@ const DEFAULT_HEADERS: Record<string, string> = {
 };
 
 /** Budget for scraping an HTML page (search results, ads.php, md5 detail). */
-export const TIMEOUT_MS = readNumber(NUMBER_SETTINGS.timeoutMs);
+const TIMEOUT_MS = readNumber(NUMBER_SETTINGS.timeoutMs);
 
 /** How long a file server may take to answer with headers. Once bytes flow the
  *  transfer is guarded by the idle watchdog (DOWNLOAD_STALL_MS), not by this
  *  budget, so a long steady download is not cut off by it. */
-export const DOWNLOAD_TIMEOUT_MS = readNumber(NUMBER_SETTINGS.downloadTimeoutMs);
+const DOWNLOAD_TIMEOUT_MS = readNumber(NUMBER_SETTINGS.downloadTimeoutMs);
 
 /** How long a failed mirror is skipped before being given another chance. */
 const DEAD_TTL_MS = readNumber(NUMBER_SETTINGS.mirrorDeadTtlMs);
@@ -121,35 +122,9 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-interface LinkedAbortSignal {
-  signal: AbortSignal;
-  dispose: () => void;
-}
-
-function linkAbortSignals(...signals: Array<AbortSignal | null | undefined>): LinkedAbortSignal {
-  const active = signals.filter((signal): signal is AbortSignal => signal != null);
-  const nativeAny = (AbortSignal as unknown as {
-    any?: (signals: AbortSignal[]) => AbortSignal;
-  }).any;
-  if (nativeAny) return { signal: nativeAny.call(AbortSignal, active), dispose: () => {} };
-
-  const controller = new AbortController();
-  const listeners: Array<[AbortSignal, () => void]> = [];
-  for (const signal of active) {
-    if (signal.aborted) {
-      controller.abort(signal.reason);
-      break;
-    }
-    const onAbort = () => controller.abort(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    listeners.push([signal, onAbort]);
-  }
-  return {
-    signal: controller.signal,
-    dispose: () => {
-      for (const [signal, listener] of listeners) signal.removeEventListener("abort", listener);
-    },
-  };
+/** One signal for our timers and the caller: either side can abort the request. */
+function linkAbortSignals(...signals: Array<AbortSignal | null | undefined>): AbortSignal {
+  return AbortSignal.any(signals.filter((signal): signal is AbortSignal => signal != null));
 }
 
 export async function fetchWithTimeout<T>(
@@ -161,19 +136,18 @@ export async function fetchWithTimeout<T>(
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const linked = linkAbortSignals(controller.signal, externalSignal, init.signal);
+  const signal = linkAbortSignals(controller.signal, externalSignal, init.signal);
 
   try {
     const response = await fetch(url, {
       ...init,
       redirect: "follow",
-      signal: linked.signal,
+      signal,
       headers: { ...DEFAULT_HEADERS, ...(init.headers as object) },
     });
     return await consume(response);
   } finally {
     clearTimeout(timer);
-    linked.dispose();
   }
 }
 
@@ -247,7 +221,7 @@ export async function fetchFromMirrors(
     const signal = linkAbortSignals(controller.signal, init?.signal);
 
     try {
-      await sleep(index * STAGGER_MS, signal.signal);
+      await sleep(index * STAGGER_MS, signal);
       const urls = [buildPath(base)].flat();
       if (urls.length === 0) throw new Error(`${base} -> no request path configured`);
 
@@ -276,14 +250,14 @@ export async function fetchFromMirrors(
               }
               return { html, base, finalUrl: res.url || url, attempts: [] };
             },
-            signal.signal
+            signal
           );
           return { base, controller, result };
         } catch (error) {
           lastError = error;
           const hasRouteFallback = pathIndex < urls.length - 1;
           if (
-            signal.signal.aborted ||
+            signal.aborted ||
             !hasRouteFallback ||
             !(error instanceof MirrorHttpError) ||
             (error.status !== 404 && error.status !== 405)
@@ -294,16 +268,14 @@ export async function fetchFromMirrors(
       }
       throw lastError ?? new Error(`${base} -> no request path succeeded`);
     } catch (error) {
-      if (!signal.signal.aborted) {
+      if (!signal.aborted) {
         const miss = isRecordMiss(error);
         // One missing md5 must not cool the whole host down for five minutes.
         if (!miss) noteDead(groupKey, base);
-        attempts.push(String((error as Error)?.message ?? error));
+        attempts.push(errText(error));
         recordMisses.push(miss);
       }
       throw error;
-    } finally {
-      signal.dispose();
     }
   });
 
@@ -367,83 +339,76 @@ export async function downloadToFile(
   const controller = new AbortController();
   const requestTimer = setTimeout(() => controller.abort(), opts.headersTimeoutMs ?? DOWNLOAD_TIMEOUT_MS);
   // One signal for the whole transfer: our timers or the caller can abort it.
-  const linked = linkAbortSignals(controller.signal, opts.signal);
+  const signal = linkAbortSignals(controller.signal, opts.signal);
 
   let res: Response;
   try {
     res = await fetch(url, {
       redirect: "follow",
-      signal: linked.signal,
+      signal,
       headers: DEFAULT_HEADERS,
     });
-  } catch (err) {
-    linked.dispose();
-    throw err;
   } finally {
     clearTimeout(requestTimer);
   }
 
   const contentType = res.headers.get("content-type");
 
-  try {
-    if (!res.ok) {
-      await res.body?.cancel().catch(() => {});
-      throw new Error(`HTTP ${res.status} for ${url}`);
-    }
-
-    // An HTML answer here means the link was an interstitial, not a file.
-    // Its body is never saved, so do not read it: release the connection now.
-    if (contentType?.includes("text/html")) {
-      await res.body?.cancel().catch(() => {});
-      throw new HtmlInsteadOfFileError({ url, contentType });
-    }
-
-    if (!res.body) throw new Error(`Empty response body from ${url}`);
-
-    const totalHeader = Number(res.headers.get("content-length"));
-    const total = Number.isFinite(totalHeader) && totalHeader > 0 ? totalHeader : undefined;
-
-    const hash = createHash("md5");
-    let bytes = 0;
-    // Stall watchdog: the request timer above only covers the headers, so a
-    // mirror that dribbles nothing after connecting needs its own deadline.
-    let stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
-    const touch = () => {
-      clearTimeout(stallTimer);
-      stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
-    };
-
-    const counter = new Transform({
-      transform(chunk: Buffer, _enc, cb) {
-        bytes += chunk.length;
-        hash.update(chunk);
-        touch();
-        opts.onProgress?.({ bytes, total });
-        cb(null, chunk);
-      },
-    });
-
-    const partPath = `${destPath}.part`;
-    try {
-      await pipeline(
-        Readable.fromWeb(res.body as import("node:stream/web").ReadableStream),
-        counter,
-        createWriteStream(partPath)
-      );
-      await rename(partPath, destPath);
-    } catch (err) {
-      await unlink(partPath).catch(() => {});
-      throw controller.signal.aborted && !(opts.signal?.aborted ?? false)
-        ? new Error(`download stalled or timed out after ${bytes} bytes: ${url}`)
-        : err;
-    } finally {
-      clearTimeout(stallTimer);
-    }
-
-    return { path: destPath, bytes, contentType, md5: hash.digest("hex") };
-  } finally {
-    linked.dispose();
+  if (!res.ok) {
+    await res.body?.cancel().catch(() => {});
+    throw new Error(`HTTP ${res.status} for ${url}`);
   }
+
+  // An HTML answer here means the link was an interstitial, not a file.
+  // Its body is never saved, so do not read it: release the connection now.
+  if (contentType?.includes("text/html")) {
+    await res.body?.cancel().catch(() => {});
+    throw new HtmlInsteadOfFileError({ url, contentType });
+  }
+
+  if (!res.body) throw new Error(`Empty response body from ${url}`);
+
+  const totalHeader = Number(res.headers.get("content-length"));
+  const total = Number.isFinite(totalHeader) && totalHeader > 0 ? totalHeader : undefined;
+
+  const hash = createHash("md5");
+  let bytes = 0;
+  // Stall watchdog: the request timer above only covers the headers, so a
+  // mirror that dribbles nothing after connecting needs its own deadline.
+  let stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
+  const touch = () => {
+    clearTimeout(stallTimer);
+    stallTimer = setTimeout(() => controller.abort(), DOWNLOAD_STALL_MS);
+  };
+
+  const counter = new Transform({
+    transform(chunk: Buffer, _enc, cb) {
+      bytes += chunk.length;
+      hash.update(chunk);
+      touch();
+      opts.onProgress?.({ bytes, total });
+      cb(null, chunk);
+    },
+  });
+
+  const partPath = `${destPath}.part`;
+  try {
+    await pipeline(
+      Readable.fromWeb(res.body as import("node:stream/web").ReadableStream),
+      counter,
+      createWriteStream(partPath)
+    );
+    await rename(partPath, destPath);
+  } catch (err) {
+    await unlink(partPath).catch(() => {});
+    throw controller.signal.aborted && !(opts.signal?.aborted ?? false)
+      ? new Error(`download stalled or timed out after ${bytes} bytes: ${url}`)
+      : err;
+  } finally {
+    clearTimeout(stallTimer);
+  }
+
+  return { path: destPath, bytes, contentType, md5: hash.digest("hex") };
 }
 
 export interface MirrorProbe {
@@ -499,7 +464,7 @@ export async function probeMirror(
       base,
       ok: false,
       ms: Date.now() - started,
-      error: String((err as Error)?.message ?? err),
+      error: errText(err),
     };
   }
 }

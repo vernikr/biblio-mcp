@@ -70,14 +70,6 @@ export function stableExecPath(
   }
 }
 
-export function stableExecDir(
-  execPath: string,
-  platform: NodeJS.Platform = process.platform,
-  realpath: (p: string) => string = realpathSync
-): string {
-  return pathOps(platform).dirname(stableExecPath(execPath, realpath));
-}
-
 /** A warning when a path is expected to disappear, or undefined when it looks stable. */
 export function ephemeralPathWarning(file: string): string | undefined {
   if (/[\\/]fnm_multishells[\\/]/.test(file)) {

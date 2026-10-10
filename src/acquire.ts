@@ -208,7 +208,7 @@ const MAX_ALTERNATIVES = 5;
 const MD5 = /^[a-f0-9]{32}$/;
 
 /** "9.2 MB" -> bytes. Unknown or unparseable sizes sort last. */
-export function sizeInBytes(size: string | undefined): number {
+function sizeInBytes(size: string | undefined): number {
   const m = /^([\d.]+)\s*(B|kB|KB|MB|GB)$/i.exec((size ?? "").trim());
   if (!m) return -1;
   const unit = { b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3 }[(m[2] ?? "").toLowerCase()] ?? 1;
