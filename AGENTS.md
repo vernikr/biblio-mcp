@@ -7,6 +7,7 @@ CI checks Node 22/24 LTS and the exact 22.0 runtime floor.
 ## Current state
 
 - Published on npm as `@vernikr/biblio-mcp`; the current version is the one in `package.json`.
+- `docs/architecture.md` — request flow, module map, the three invariants.
 - `docs/STATE.md` — what is released, verified, and what the next code task is.
 - `docs/decisions.md` — why the non-obvious behaviour is the way it is.
 - `docs/worklog/` — reports for work in progress; closed tasks move to `docs/worklog/archive/`.
