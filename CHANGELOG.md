@@ -5,6 +5,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.6] - 2026-10-11
+
+### Changed
+- The README is a page for the person installing, not for the person changing the code: 581 lines
+  became 395. The comparison tables moved to `docs/about-this-fork.md`, the development section to
+  `AGENTS.md`, the request flow to `docs/architecture.md`, and the roadmap to `docs/STATE.md`.
+- `docs/architecture.md` describes the request flow and the three invariants an agent must not
+  break, so reading it is cheaper than reading `src/`.
+- One recommended launcher everywhere: the README's FAQ no longer offers a second way to start the
+  server, and the source installer says that the entry it writes runs the checkout, not the
+  published release.
+
+### Fixed
+- The check that every documented `pnpm` script exists now scans `AGENTS.md` as well as the README,
+  so the script list cannot move out from under it again.
+
 ## [2.2.5] - 2026-10-10
 
 ### Changed
@@ -370,6 +386,7 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
 [Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...HEAD
+[2.2.6]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...v2.2.6
 [2.2.5]: https://github.com/vernikr/biblio-mcp/compare/v2.2.4...v2.2.5
 [2.2.4]: https://github.com/vernikr/biblio-mcp/compare/v2.2.3...v2.2.4
 [2.2.3]: https://github.com/vernikr/biblio-mcp/compare/v2.2.2...v2.2.3
