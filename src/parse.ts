@@ -1,4 +1,7 @@
 // Table and field parsing helpers.
+
+import type * as cheerio from "cheerio";
+import type { DownloadLink, SourceId } from "./types.js";
 const KNOWN_LANGUAGES: ReadonlySet<string> = new Set([
   "english","spanish","french","german","russian","chinese","arabic","portuguese",
   "italian","dutch","japanese","korean","turkish","persian","hindi","polish",
@@ -81,6 +84,35 @@ export function absoluteUrl(href: string | undefined | null, base: string): stri
   } catch {
     return undefined;
   }
+}
+
+/** What a page's anchor must look like to be a download link for its site. */
+export interface AnchorLink {
+  source: SourceId;
+  /** Anchor text, short; the fallback label is applied by the caller below. */
+  label: string;
+  /** True when the URL points at the file itself, not an intermediate page. */
+  direct: boolean;
+}
+
+/** One pass over a page's anchors, keeping the links `decide` accepts. Each
+ *  provider owns the rule for its own site; the iteration does not repeat. */
+export function anchorsToLinks(
+  $: cheerio.CheerioAPI,
+  base: string,
+  decide: (href: string, url: string, text: string) => AnchorLink | null,
+  { dedupe = false }: { dedupe?: boolean } = {}
+): DownloadLink[] {
+  const links: DownloadLink[] = [];
+  $("a").each((_i, el) => {
+    const href = $(el).attr("href") || "";
+    const url = absoluteUrl(href, base);
+    if (!url) return;
+    const hit = decide(href, url, $(el).text().replace(/\s+/g, " ").trim());
+    if (!hit || (dedupe && links.some((l) => l.url === url))) return;
+    links.push({ source: hit.source, label: hit.label || "download", url, direct: hit.direct });
+  });
+  return links;
 }
 
 /** "223 / 223" -> "223"; "" or "0" -> undefined. */

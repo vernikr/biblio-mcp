@@ -5,7 +5,7 @@ import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
 import { fetchFromMirrors } from "../http.js";
 import { LIBGEN_MIRRORS } from "../mirrors.js";
 import {
-  absoluteUrl,
+  anchorsToLinks,
   columnMap,
   isIsbnLike,
   isUsefulLink,
@@ -300,23 +300,17 @@ export async function downloadLinks(md5: string): Promise<DownloadLink[]> {
 
 /** Download candidates from an already-parsed ads.php page. */
 export function extractDownloadLinks($: cheerio.CheerioAPI, base: string): DownloadLink[] {
-  const links: DownloadLink[] = [];
-  const push = (url: string, label: string, direct: boolean) => {
-    const full = absoluteUrl(url, base);
-    if (full && !links.some((l) => l.url === full)) {
-      links.push({ source: "libgen", label, url: full, direct });
-    }
-  };
-
-  $("a").each((_i, el) => {
-    const href = $(el).attr("href") || "";
-    const text = $(el).text().replace(/\s+/g, " ").trim();
-    if (/get\.php\?/i.test(href)) push(href, "Libgen direct (get.php)", true);
-    else if (/\/get\b|cdn|download/i.test(href) && /^(get|download|libgen)/i.test(text))
-      push(href, text || "download", true);
-    else if (/(annas-archive|libgen\.pw|randombook)/i.test(href))
-      push(href, `mirror: ${text || href}`, false);
-  });
-
-  return links;
+  return anchorsToLinks(
+    $,
+    base,
+    (href, _url, text) => {
+      if (/get\.php\?/i.test(href)) return { source: "libgen", label: "Libgen direct (get.php)", direct: true };
+      if (/\/get\b|cdn|download/i.test(href) && /^(get|download|libgen)/i.test(text))
+        return { source: "libgen", label: text, direct: true };
+      if (/(annas-archive|libgen\.pw|randombook)/i.test(href))
+        return { source: "libgen", label: `mirror: ${text || href}`, direct: false };
+      return null;
+    },
+    { dedupe: true }
+  );
 }

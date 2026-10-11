@@ -8,7 +8,7 @@ import {
   probeMirror,
 } from "../http.js";
 import { ANNAS_IDENTITY, ANNAS_MIRRORS } from "../mirrors.js";
-import { absoluteUrl, parseLanguage, parseSize, parseYear } from "../parse.js";
+import { absoluteUrl, anchorsToLinks, parseLanguage, parseSize, parseYear } from "../parse.js";
 import type { Book, DownloadLink } from "../types.js";
 
 const GROUP = "annas";
@@ -210,28 +210,18 @@ export async function fastDownload(md5: string): Promise<DownloadLink | null> {
   }
 }
 
-function extractDownloadLinks(
-  $: cheerio.CheerioAPI,
-  base: string
-): DownloadLink[] {
-  const links: DownloadLink[] = [];
-  $("a").each((_i, el) => {
-    const href = $(el).attr("href") || "";
-    const text = $(el).text().replace(/\s+/g, " ").trim();
+function extractDownloadLinks($: cheerio.CheerioAPI, base: string): DownloadLink[] {
+  return anchorsToLinks($, base, (href, url, text) => {
     const isDownload =
       /\/(slow_download|fast_download|download)\//.test(href) ||
       /ipfs/i.test(href) ||
       /^download/i.test(text) ||
       /download now|option #/i.test(text);
-    if (!isDownload) return;
-    const url = absoluteUrl(href, base);
-    if (!url) return;
-    links.push({
+    if (!isDownload) return null;
+    return {
       source: "annas",
-      label: text.slice(0, 80) || "download",
-      url,
+      label: text.slice(0, 80),
       direct: /ipfs|\.(pdf|epub|mobi|djvu)(\?|$)/i.test(url),
-    });
+    };
   });
-  return links;
 }

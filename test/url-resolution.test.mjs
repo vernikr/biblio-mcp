@@ -5,11 +5,17 @@ import * as cheerio from "cheerio";
 import { closeServer, listenLocal } from "./helpers/mirror-server.mjs";
 
 const md5 = "a".repeat(32);
+const repeatMd5 = "b".repeat(32);
 const server = createServer((req, res) => {
   const { pathname } = new URL(req.url ?? "/", "http://fixture");
   const pages = {
     "/search": `<html><title>Anna's Archive</title><a href="/md5/${md5}"><h3>Relative book</h3><img src="//images.example/cover.jpg"></a></html>`,
     [`/md5/${md5}`]: `<html><title>Anna's Archive</title><h1>Relative book</h1><a href="//cdn.example/download/book.pdf">Download PDF</a></html>`,
+    [`/md5/${repeatMd5}`]:
+      `<html><title>Anna's Archive</title><h1>Repeated</h1>` +
+      `<a href="/download/one">Download now</a>` +
+      `<a href="/download/one"></a>` +
+      `<a href="/about">About this record</a></html>`,
     "/relative-paper": `<html><title>Test paper</title><div id="article"><embed id="pdf" src="//files.example/paper.pdf#page=1"></div></html>`,
     "/s/relative-url-test": `<z-bookcard title="Z book" href="//books.example/book/1" author="A. N. Author"></z-bookcard>`,
   };
@@ -65,4 +71,27 @@ test("Sci-Hub resolves a protocol-relative PDF URL and strips its fragment", asy
 test("Z-Library resolves protocol-relative book URLs", async () => {
   const [book] = await zlibrary.search("relative-url-test", 1);
   assert.equal(book.url, "http://books.example/book/1");
+});
+
+test("the shared anchor pass keeps each provider's own rule for repeated links", async () => {
+  // Anna's Archive lists what the page lists: two anchors to one URL are two
+  // links, and an anchor without text still gets a label.
+  const repeat = await annas.details(repeatMd5);
+  assert.deepEqual(
+    repeat.downloadLinks.map((l) => [l.label, l.url]),
+    [
+      ["Download now", `${mirror}/download/one`],
+      ["download", `${mirror}/download/one`],
+    ]
+  );
+
+  // Libgen names the same URL once, in the order the page gives it.
+  const heap = cheerio.load(
+    `<a href="get.php?md5=${md5}">get.php</a><a href="get.php?md5=${md5}">get.php</a>` +
+      `<a href="about">About</a>`
+  );
+  assert.deepEqual(
+    libgen.extractDownloadLinks(heap, mirror).map((l) => l.url),
+    [`${mirror}/get.php?md5=${md5}`]
+  );
 });
