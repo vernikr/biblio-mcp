@@ -35,7 +35,8 @@ If the client starts from the Dock and says it cannot find `npx` or `node`, add 
 a `PATH`. Run `npx --yes @vernikr/biblio-mcp@latest --print-config` and copy its entry: it has the
 absolute path to `npx` and a `PATH` that lists the folders holding `node` and `npx`.
 
-- **Claude Desktop:** install `vernikr-biblio-mcp-2.2.5.mcpb` through Settings → Extensions
+- **Claude Desktop:** install the newest `vernikr-biblio-mcp-*.mcpb` from the
+  [releases page](https://github.com/vernikr/biblio-mcp/releases) through Settings → Extensions
   (Install Extension), review permissions and optional settings. No Git, pnpm or build step.
   The host's Node runtime must meet the extension's Node 22+ requirement.
 - **Other options:** the prepared npm tarball or the printed entry; see [Install](#install).
@@ -55,7 +56,8 @@ that something you can rely on.
   the same checked runtime. A broken setup is caught before requests are served, with the fix
   spelled out. The checkout installer preserves invalid client configuration and backups.
 - **Faster answers.** Searches come back many times faster, because the server stops waiting on
-  websites that are no longer there.
+  websites that are no longer there — and a paper a search has already found is not looked up
+  again when your assistant opens it.
 - **Honest results.** A source that is down is reported, not silently dropped — and one that
   answered with links is never reported as down. A website that has stopped being the real
   library is refused, and a page that asks you to prove you are a human is reported as such,
@@ -65,9 +67,11 @@ that something you can rely on.
 - **Cleaner information.** Titles, authors and formats come from the right fields, and broken
   or useless links are filtered out.
 - **Less time lost.** When something goes wrong, the message says what happened and what to do
-  next: a failed `fetch_book` names the other copies its search already found. A one-call health
-  check tells you whether anything is reachable at all, and empty searches are stopped before
-  contacting websites.
+  next: a call with a bad argument names the argument and shows a working example, a download that
+  meets an unresponsive server gives up in seconds instead of hanging until your assistant times
+  out, and a failed `fetch_book` names the other copies its search already found. A one-call
+  health check tells you whether anything is reachable at all, and empty searches are stopped
+  before contacting websites.
 
 One honest caveat: the sources are third-party websites that can go offline or change at any
 time. This fork cannot promise they stay reachable, but it promises that you will know right
@@ -147,8 +151,8 @@ Three ways to install; the launcher is the one the Quick start uses.
 ### Launcher (npx) — recommended
 
 `npx --yes @vernikr/biblio-mcp@latest` needs no checkout and no build tools, and fetches the
-newest release each time the client starts. Pin an exact release by replacing `@latest` with its
-version, for example `@vernikr/biblio-mcp@2.2.5`. Claude Code can register the same launcher:
+newest release each time the client starts. Pin an exact release by replacing `@latest` with the
+version you want. Claude Code can register the same launcher:
 
 ```bash
 claude mcp add -s user biblio -- npx --yes @vernikr/biblio-mcp@latest
@@ -167,7 +171,7 @@ Requires Node 22+. Install the prepared artifact, then configure your client to 
 `biblio-mcp` on stdio:
 
 ```bash
-npm install --global /path/to/vernikr-biblio-mcp-2.2.5.tgz
+npm install --global /path/to/vernikr-biblio-mcp-<version>.tgz
 biblio-mcp --selfcheck --offline
 ```
 
