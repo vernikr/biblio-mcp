@@ -37,16 +37,19 @@ Iteration 1 of the refactor is closed: five waves, reports archived under
 from 15 MB to 2.1 MB, moved the maintainer half of the README into `AGENTS.md` and
 `docs/architecture.md`, and fixed the behaviour findings listed below.
 
-Iteration 2 has two waves. Wave 1 (one definition per fact: the source list, the argument-error
-extractor, the anchor pass, the pinned versions, file-type sniffing; 2.2.7) and wave 2 (measured
+Iteration 2 has three waves. Wave 1 (one definition per fact: the source list, the argument-error
+extractor, the anchor pass, the pinned versions, file-type sniffing; 2.2.7), wave 2 (measured
 hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mirror page bodies;
-2.2.8) are done and released; their reports and measurements are in
+2.2.8) and wave 3 (facts that stay true: the last hand-written dependency version, and a mirror
+registry that no longer claims measurements it cannot keep) are done and released; their reports
+and measurements are in
 [`docs/worklog/2026.10.11-refactor-iteration2/`](2026.10.11-refactor-iteration2/).
 
 [`plan.md`](2026.10.11-refactor-iteration2/plan.md) no longer holds a scheduled backlog: every row
 is either delivered or carries a "do not re-propose" note, and the suite and README line targets
-were retired after measuring them. The next wave needs new evidence — a report from an agent using
-the tools, or an observed failure — not a re-check of what is already closed.
+were retired after measuring them. The next wave needs new evidence — a live probe that contradicts
+a file in the tree (wave 3 found one that way), a report from an agent using the tools, or an
+observed failure — not a re-check of what is already closed.
 
 Closed by iteration 1, so nobody re-opens them:
 

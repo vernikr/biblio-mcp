@@ -4,9 +4,11 @@ Iteration 1 is closed (waves 1–5, CI runs #61–#70 green). This is the backlo
 everything below was found during iteration 1 and deliberately not done, either because the
 estimate was wrong or because it did not fit a wave.
 
-**Status: wave 2 in progress.** Rows are scheduled one wave at a time, each after its evidence
+**Status: waves 1–3 delivered.** Rows are scheduled one wave at a time, each after its evidence
 cell has been re-checked against the tree, because three of iteration 1's estimates turned out to
-be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`).
+be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`). Wave 3 added the evidence pass the plan
+demands of any next wave: a live dogfood of every tool, which closed one suspicion, confirmed one
+drift and rejected one tempting change.
 
 ## Wave 1 — one definition per fact
 
@@ -25,7 +27,16 @@ answering in 150 ms; 1 ms after the change). `E5` was scheduled because the owne
 protection rather than waiting for an observed OOM. Report:
 [`wave2-report.md`](wave2-report.md).
 
-Nothing in this plan is unscheduled now: every row is either delivered (waves 1–2) or carries a
+## Wave 3 — facts that stay true
+
+Scope: `H4` and `H5`, the two facts left in the tree without a single definition, plus the live
+evidence pass a wave is supposed to start from. Report and measurements:
+[`wave3-report.md`](wave3-report.md). The pass closed one suspicion (the `%2F`-encoded mirror URLs
+`get_paper` returns are fine — the mirrors answer the same with and without), confirmed one drift
+(the mirror registry's audit annotations were already false today) and rejected one tempting change
+(opening the Anna's Archive circuit on the first challenge).
+
+Nothing in this plan is unscheduled now: every row is either delivered (waves 1–3) or carries a
 "do not re-propose" note.
 
 ## Where iteration 1 finished against its own targets
@@ -54,12 +65,15 @@ tools.
 
 | # | Task | Evidence in the tree today | Benefit | Cost | Risk |
 |---|---|---|---|---|---|
-| **A7** | Unify zod-issue extraction. `issuesOf()` in `src/toolmeta.ts:66` and `validationIssuesFrom()` in `src/server.ts:83` do the same job, and `server.ts` additionally re-parses the SDK's flattened error text with regexes. | both functions exist; 10 `input-validation` tests | One implementation; removes the regex-over-error-text fragility that the fork was created to avoid. | **S** | **M** — agent-facing error text; the 10 tests are the guard. Do it only together with a test that fails on the old text. |
-| **A9** | One anchor-collection helper. `extractDownloadLinks` is implemented twice: `src/providers/annas.ts:213` and `src/providers/libgen.ts:302`. | both functions | −1 duplicated parser loop; one place to fix link filtering. | **S** | **S** — guarded by captured fixtures, `url-resolution`, `details`. |
-| **A10** | One source-name registry. The Zod enum `["annas","libgen","zlibrary"]` is written **twice** (`src/server.ts:227` and `:373`), there are 2 `sources as SourceId[]` casts that defeat the type checker, and `ALL_BOOK_SOURCES` still lives in `src/providers/index.ts:26`. | grep | Adding a source becomes a one-line change the compiler verifies. | **S** | **S** |
-| **A11'** | Scripts: 20 → 19. `test:all` (`test` + `test:live`) duplicates `verify:live` (`verify` + `selfcheck:live`) and is referenced only by `AGENTS.md`. | `package.json` | One fewer name to choose between. | **XS** | **XS** — CI calls `verify`, `preflight`, `test:live`, `package:artifacts`, `docs:env`; none is touched. |
-| **H1** | `src/selfcheck.ts:94` hard-codes `pnpm add @modelcontextprotocol/sdk@1.32.1 zod@4.6.5` as the fix message. Those versions duplicate `package.json` and will drift. | the string | The one message an agent acts on stops going stale. | **XS** | **XS** — read the versions from `package.json` at build/run time. |
-| **H2** | `src/sniff.ts` is 33 lines and decides whether the bytes are a book or HTML. Check its edges against the tests that cover it. | file listing | Invariant 2 in `docs/architecture.md` rests on this file. | **S** | **S** |
+| **A7** | [wave1-report.md](wave1-report.md) | — | — | — | — |
+| **A9** | **Done (wave 1).** `anchorsToLinks` in `parse.ts` walks the anchors once; each provider keeps only its own rule. | [wave1-report.md](wave1-report.md) | — | — | — |
+| **A10** | **Done (wave 1).** `BOOK_SOURCE_IDS` in `src/types.ts` is the one list; both enums, the defaults and the provider registry read it, and the casts are gone. | [wave1-report.md](wave1-report.md) | — | — | — |
+| **A11'** | **Done (wave 1).** `test:all` removed; `verify:live` already covers offline-then-live. 20 scripts → 19. | [wave1-report.md](wave1-report.md) | — | — | — |
+| **H1** | **Done (waves 1, 3).** `src/pkg.ts` supplies the SDK version to the selfcheck line and to `scripts/preflight.mjs`; the zod half of that same advice follows the range the installed SDK declares (`H4`). | [wave1-report.md](wave1-report.md), [wave3-report.md](wave3-report.md) | — | — | — |
+| **H2** | **Done (wave 1).** The four-byte minimum and the case-sensitive content-type compare are gone; each matcher reads only the bytes it needs. | [wave1-report.md](wave1-report.md) | — | — | — |
+
+| **H4** | **Done (wave 3).** The zod advice in `scripts/preflight.mjs` named `3.23.8` by hand; it now names the range the installed SDK declares. | [wave3-report.md](wave3-report.md) | — | — | — |
+| **H5** | **Done (wave 3).** `src/mirrors.ts` annotated every host with an audit result; two were already false. The durable statements stay, the measurements go to the `healthcheck` tool. | [wave3-report.md](wave3-report.md) | — | — | — |
 
 ### Check speed
 
@@ -73,12 +87,13 @@ tools.
 |---|---|---|---|---|---|
 | **E6** | **Done (wave 2).** Resolutions are memoized for the provider TTL with shared in-flight work; a miss is not memoized. Re-checked by measurement first: the duplicate resolution was real. | `src/providers/scihub.ts` | — | — | — |
 | **E5** | **Done (wave 2).** A 20 MB page budget: a declared length is checked before the body is read, a streaming body is counted and cut off, and `probeMirror`'s identity check uses the same reader. | `src/http.ts` | — | — | — |
-| **F2** | `--selfcheck` prints the 8 tool names it verified, not just `8 tools exposed by …` (`src/selfcheck.ts:107` already holds `names`). | the line | An agent diagnosing "no tools appear in my client" can diff the client's list against the server's own answer. | **XS** | **XS** |
+| **F2** | **Done (wave 1).** `--selfcheck` prints the tool names it verified under the tools stage. | [wave1-report.md](wave1-report.md) | — | — | — |
 
 ## Carried over as rejected — do not re-propose without new evidence
 
 | # | What | Why not |
 |---|---|---|
+| `E8` | Open the Anna's Archive circuit on the first all-mirror challenge instead of after three. | Measured: a challenged first search costs 5–7 s, ~1.7 s once the circuit opens. But DDoS-Guard challenges are often per-request, so one bad minute would become a five-minute outage. Needs evidence that a challenge repeats before it can be proposed again. |
 | `E3` / `D6` | Stop serialising every Libgen row (`forEachRow` calls `$row.html()` up to 100×). | **Built and measured slower.** Reverted. |
 | `E4` | Stop re-arming the stall timer on every 16 KB chunk. | **Built and measured inside I/O noise** (~3,200 timer pairs for a 50 MB book). Reverted. |
 | `B3` | Consolidate 35 test files into ~12. | Measured: per-file process cost is 85 ms, so the whole change saves ~1 s off 15.8 s. 21 of 35 files set `BIBLIO_*` at module scope that `dist/` reads once at import, so each merge needs a hand-built shared stub server. |
