@@ -42,8 +42,8 @@ extractor, the anchor pass, the pinned versions, file-type sniffing; 2.2.7), wav
 hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mirror page bodies;
 2.2.8) wave 3 (facts that stay true: the last hand-written dependency version, and a mirror
 registry that no longer claims measurements it cannot keep; 2.2.9) and wave 4 (a download attempt
-gives up after the same half-minute of silence whether it is waiting for headers or for bytes) are
-done and released; their reports and measurements are in
+gives up after the same half-minute of silence whether it is waiting for headers or for bytes;
+2.2.10) are done and released; their reports and measurements are in
 [`docs/worklog/2026.10.11-refactor-iteration2/`](2026.10.11-refactor-iteration2/).
 
 [`plan.md`](2026.10.11-refactor-iteration2/plan.md) no longer holds a scheduled backlog: every row
