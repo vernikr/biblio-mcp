@@ -94,4 +94,9 @@ The Node 22.0.0 runtime-floor leg and the broken-pairing startup guard run in CI
 
 ## Published
 
-Filled in by the commit that records the release.
+| | |
+|---|---|
+| CI | run #76 on `4b62baf`, 6/6 jobs (build 22/24, artifacts linux/macOS/windows, live) |
+| npm | `@vernikr/biblio-mcp@2.2.8`, published from the tested tarball (shasum `70d65f59707bc36f063e8f94231cde609df7c0fd`) |
+| Public launchers | `node scripts/check-artifacts.mjs --registry`: all 7 modes pass |
+| GitHub release | [`v2.2.8`](https://github.com/vernikr/biblio-mcp/releases/tag/v2.2.8) with `.tgz` (54 545 B), `.mcpb` (5 610 410 B), `SHA256SUMS` |

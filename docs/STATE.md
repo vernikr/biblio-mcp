@@ -38,9 +38,9 @@ from 15 MB to 2.1 MB, moved the maintainer half of the README into `AGENTS.md` a
 `docs/architecture.md`, and fixed the behaviour findings listed below.
 
 Iteration 2 has two waves. Wave 1 (one definition per fact: the source list, the argument-error
-extractor, the anchor pass, the pinned versions, file-type sniffing) and wave 2 (measured
-hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mirror page bodies)
-are done and released; their reports and measurements are in
+extractor, the anchor pass, the pinned versions, file-type sniffing; 2.2.7) and wave 2 (measured
+hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mirror page bodies;
+2.2.8) are done and released; their reports and measurements are in
 [`docs/worklog/2026.10.11-refactor-iteration2/`](2026.10.11-refactor-iteration2/).
 
 [`plan.md`](2026.10.11-refactor-iteration2/plan.md) no longer holds a scheduled backlog: every row
