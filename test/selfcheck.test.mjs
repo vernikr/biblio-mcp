@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { runSelfcheck, runStartupSelftest } from "../dist/selfcheck.js";
+import { TOOL_NAMES } from "../dist/toolmeta.js";
 
 let requests;
 const originalFetch = globalThis.fetch;
@@ -74,3 +75,30 @@ for (const args of [["--offline"], ["--selfcheck", "--offline", "--live"]]) {
     assert.match(r.stderr, /requests=0/);
   });
 }
+
+test("--selfcheck prints the tool names it verified, not only their count", () => {
+  // An agent diagnosing "no tools appear in my client" diffs its own tool list
+  // against this line.
+  const r = cli(["--selfcheck", "--offline"]);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  for (const name of TOOL_NAMES) assert.match(r.stdout, new RegExp(`\\b${name}\\b`));
+});
+
+test("the fix it prints names the dependency versions this package pins", async () => {
+  // The message an agent acts on reads package.json; a hard-coded pair drifts
+  // the first time either dependency is bumped.
+  const { readRootPackage } = await import("../scripts/lib/pkg.mjs");
+  const pkg = readRootPackage();
+  const originalCall = Client.prototype.callTool;
+  Client.prototype.callTool = async () => {
+    throw new Error("keyValidator._parse is not a function");
+  };
+  try {
+    const report = await runSelfcheck({ offline: true });
+    const fix = report.stages.find((s) => s.name === "tools").fix;
+    assert.match(fix, new RegExp(`@modelcontextprotocol/sdk@${pkg.dependencies["@modelcontextprotocol/sdk"]}`));
+    assert.match(fix, new RegExp(`zod@${pkg.dependencies.zod}`));
+  } finally {
+    Client.prototype.callTool = originalCall;
+  }
+});

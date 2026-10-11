@@ -12,6 +12,7 @@ import { MIRROR_GROUPS, probeGroup } from "./mirrors.js";
 import { TOOL_NAMES } from "./toolmeta.js";
 import { BOOK_SOURCES, DISABLED_BOOK_SOURCES } from "./providers/index.js";
 import { errText } from "./errors.js";
+import { pinnedDependency } from "./pkg.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** dist/ and scripts/ are siblings in the repo and in the published package. */
@@ -92,8 +93,8 @@ async function runPreflightStage(): Promise<StageResult> {
 }
 
 const TOOL_FIX =
-  'pnpm add @modelcontextprotocol/sdk@1.32.1 zod@4.6.5 && pnpm run build  ' +
-  "(then re-run: pnpm preflight)";
+  `pnpm add ${pinnedDependency("@modelcontextprotocol/sdk")} ${pinnedDependency("zod")} ` +
+  "&& pnpm run build  (then re-run: pnpm preflight)";
 
 async function runToolsStage(): Promise<StageResult> {
   try {
@@ -234,6 +235,12 @@ export function printSelfcheck(report: SelfcheckReport): void {
     console.log(`${ICON(stage.ok)} ${stage.name.padEnd(9)} ${stage.summary}`);
     if (stage.problem) console.log(`        ↳ ${stage.problem}`);
     if (!stage.ok && stage.fix) console.log(`        fix: ${stage.fix}`);
+    if (stage.name === "tools") {
+      // The tool names are what a client-side "no tools appear" report is
+      // diffed against, so print them rather than only their count.
+      const names = (stage.details as { names?: string[] } | undefined)?.names;
+      if (Array.isArray(names)) console.log(`          · ${names.join(", ")}`);
+    }
     if (stage.name === "mirrors" && Array.isArray(stage.details)) {
       for (const g of stage.details as Array<{
         group: string;

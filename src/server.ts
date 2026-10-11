@@ -2,8 +2,8 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { createRequire } from "node:module";
 import { resetDeadCache, type DownloadProgress } from "./http.js";
+import { MANIFEST } from "./pkg.js";
 import { defaultOutputDir, fetchBook, saveBook } from "./acquire.js";
 import { MIRROR_GROUPS, probeGroup, toHealthcheckGroup } from "./mirrors.js";
 import { describeArgsError, toolDescription } from "./toolmeta.js";
@@ -22,20 +22,7 @@ import type { Paper } from "./types.js";
 
 const SERVER_NAME = "biblio-mcp";
 
-/** Read from package.json rather than repeated here. */
-const SERVER_VERSION: string = (() => {
-  try {
-    const pkg = createRequire(import.meta.url)("../package.json") as {
-      name?: string;
-      version?: string;
-    };
-    // Reject another project's manifest; an unknown version is safer than a wrong one.
-    if (pkg.name !== "@vernikr/biblio-mcp") return "0.0.0-unknown";
-    return pkg.version ?? "0.0.0-unknown";
-  } catch {
-    return "0.0.0-unknown";
-  }
-})();
+const SERVER_VERSION: string = MANIFEST.version;
 
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
