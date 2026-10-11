@@ -8,8 +8,8 @@ estimate was wrong or because it did not fit a wave.
 either delivered or carries a "do not re-propose" note; each delivered row was re-checked against
 the tree when this folder moved to the archive.
 
-**Original status line, kept for the record: waves 1–4 delivered.** Rows are scheduled one wave at a time, each after its evidence
-cell has been re-checked against the tree, because three of iteration 1's estimates turned out to
+**How it was run, kept for the record:** rows were scheduled one wave at a time, each after its
+evidence cell had been re-checked against the tree — three of iteration 1's estimates turned out to
 be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`). Wave 3 ran the evidence pass the plan
 demands of any next wave (a live dogfood of every tool); wave 4 came out of it — a live download
 that outlived its caller.
