@@ -98,6 +98,19 @@ test("the SDK fix it suggests follows the version this package pins", async () =
   assert.match(compatOf(report).problem, /pnpm add @modelcontextprotocol\/sdk@3\.4\.5 --save-exact/);
 });
 
+test("the zod advice names the range the installed SDK declares", async () => {
+  // The SDK is the only place that knows which zod it accepts; advice that
+  // names one hand-written version sends an agent to a pair nobody tested.
+  const { code, report } = await runPreflightAgainst({
+    zodVersion: "4.4.3",
+    sdkVersion: "1.12.1",
+    sdkZodRange: "~3.22.1",
+  });
+  assert.equal(code, 1);
+  const problem = compatOf(report).problem;
+  assert.match(problem, /pnpm add "zod@~3\.22\.1"/, problem);
+});
+
 test("preflight reports a missing dependency tree instead of crashing", async () => {
   const root = await mkdtemp(join(tmpdir(), "biblio-preflight-empty-"));
   await mkdir(join(root, "scripts"), { recursive: true });

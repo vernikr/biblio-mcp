@@ -119,7 +119,7 @@ export function checkZodSdkCompat() {
         `"keyValidator._parse is not a function". ` +
         `Fix: raise the SDK to a zod-4-aware release ` +
         `(pnpm add ${sdkSpec()} --save-exact), ` +
-        `or pin zod back to 3 (pnpm add zod@3.23.8 --save-exact).`,
+        `or install a zod this SDK declares (pnpm add "zod@${declaredRange}").`,
     };
   }
 
