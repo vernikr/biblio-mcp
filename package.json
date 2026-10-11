@@ -38,7 +38,6 @@
     "benchmark": "pnpm run build && node scripts/benchmark.mjs",
     "test": "pnpm run build && node scripts/run-tests.mjs",
     "test:live": "pnpm run build && node --test test/live/*.live.test.mjs",
-    "test:all": "pnpm run test && node --test test/live/*.live.test.mjs",
     "verify": "pnpm run test && pnpm run selfcheck:offline",
     "prepublishOnly": "pnpm run package:verify",
     "selfcheck:offline": "node dist/index.js --selfcheck --offline",

@@ -32,7 +32,6 @@ the committed lockfile; consumers need neither this checkout nor a compiler.
 | `pnpm run build` | compile to `dist/` |
 | `pnpm run test` | offline suite only (builds first) |
 | `pnpm run test:live` | optional live mirror/provider checks |
-| `pnpm run test:all` | offline suite, then live suite |
 | `pnpm run preflight` | offline install/dependency check (before or after build) |
 | `pnpm run preflight:strict` | ...and fail if `dist/` is missing |
 | `pnpm run selfcheck` | tools + mirror reachability with timings |
