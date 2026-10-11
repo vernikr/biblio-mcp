@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.11] - 2026-10-11
+
+### Changed
+- The README cover names what the recent releases changed for the user: a paper a search already
+  found is not looked up again when it is opened, a download that meets an unresponsive server
+  gives up in seconds instead of hanging past the assistant's patience, and a call with a bad
+  argument says which argument. The install section no longer pins artifacts of one particular
+  release, which went stale on every subsequent one.
+
 ## [2.2.10] - 2026-10-11
 
 ### Fixed
@@ -440,7 +449,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.10...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.11...HEAD
+[2.2.11]: https://github.com/vernikr/biblio-mcp/compare/v2.2.10...v2.2.11
 [2.2.10]: https://github.com/vernikr/biblio-mcp/compare/v2.2.9...v2.2.10
 [2.2.9]: https://github.com/vernikr/biblio-mcp/compare/v2.2.8...v2.2.9
 [2.2.8]: https://github.com/vernikr/biblio-mcp/compare/v2.2.7...v2.2.8
