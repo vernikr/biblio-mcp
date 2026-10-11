@@ -53,9 +53,25 @@ function readPkgJson(name) {
   return null;
 }
 
+/** The version this package pins for a dependency, when its manifest is readable. */
+function pinnedVersion(name) {
+  try {
+    const pkg = JSON.parse(readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"));
+    return pkg.dependencies?.[name];
+  } catch {
+    return undefined;
+  }
+}
+
 function majorMinor(version) {
   const m = String(version ?? "").match(/^(\d+)\.(\d+)/);
   return m ? { major: Number(m[1]), minor: Number(m[2]) } : null;
+}
+
+/** The SDK this package pins, so the advice cannot name a version it has left behind. */
+function sdkSpec() {
+  const version = pinnedVersion("@modelcontextprotocol/sdk");
+  return version ? `@modelcontextprotocol/sdk@${version}` : "@modelcontextprotocol/sdk";
 }
 
 /** Decide whether the installed zod can satisfy the installed SDK. */
@@ -102,7 +118,7 @@ export function checkZodSdkCompat() {
         `start and then fail every tool call with ` +
         `"keyValidator._parse is not a function". ` +
         `Fix: raise the SDK to a zod-4-aware release ` +
-        `(pnpm add @modelcontextprotocol/sdk@1.32.1 --save-exact), ` +
+        `(pnpm add ${sdkSpec()} --save-exact), ` +
         `or pin zod back to 3 (pnpm add zod@3.23.8 --save-exact).`,
     };
   }

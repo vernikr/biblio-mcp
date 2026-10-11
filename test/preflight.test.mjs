@@ -14,11 +14,10 @@ const PREFLIGHT_SRC = resolve(HERE, "..", "scripts", "preflight.mjs");
 
 /** Build a throwaway project tree with a chosen zod/SDK pairing and run the
  *  real preflight script inside it. */
-async function runPreflightAgainst({ zodVersion, sdkVersion, sdkZodRange }) {
+async function runPreflightAgainst({ zodVersion, sdkVersion, sdkZodRange, pins }) {
   const root = await mkdtemp(join(tmpdir(), "biblio-preflight-"));
   await mkdir(join(root, "scripts"), { recursive: true });
   await copyFile(PREFLIGHT_SRC, join(root, "scripts", "preflight.mjs"));
-
   const writePkg = async (name, version, extra = {}) => {
     const dir = join(root, "node_modules", ...name.split("/"));
     await mkdir(dir, { recursive: true });
@@ -33,7 +32,10 @@ async function runPreflightAgainst({ zodVersion, sdkVersion, sdkZodRange }) {
     dependencies: { zod: sdkZodRange },
   });
   await writeFile(join(root, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
-  await writeFile(join(root, "package.json"), JSON.stringify({ name: "x", version: "0.0.0" }));
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "x", version: "0.0.0", ...(pins ? { dependencies: pins } : {}) })
+  );
 
   const out = await new Promise((done) => {
     const child = spawn(process.execPath, [join(root, "scripts", "preflight.mjs"), "--json"], {
@@ -82,6 +84,18 @@ test("preflight FAILS the broken pairing (SDK 1.12.1 + zod 4.4.3) with an action
   // The message has to name the symptom and the fix, not just say "incompatible".
   assert.match(compat.problem, /keyValidator\._parse is not a function/);
   assert.match(compat.problem, /pnpm add @modelcontextprotocol\/sdk/);
+});
+
+test("the SDK fix it suggests follows the version this package pins", async () => {
+  // Advice that names a version the package no longer ships sends an agent to a
+  // pair nobody tested; the manifest is the one place that version lives.
+  const { report } = await runPreflightAgainst({
+    zodVersion: "4.4.3",
+    sdkVersion: "1.12.1",
+    sdkZodRange: "^3.23.8",
+    pins: { "@modelcontextprotocol/sdk": "3.4.5", zod: "4.4.3" },
+  });
+  assert.match(compatOf(report).problem, /pnpm add @modelcontextprotocol\/sdk@3\.4\.5 --save-exact/);
 });
 
 test("preflight reports a missing dependency tree instead of crashing", async () => {
