@@ -77,7 +77,7 @@ const BAD_CALLS = [
   [
     "search_books",
     { query: "x", sources: ["bogus"] },
-    /^search_books: "sources\.0" invalid option: expected one of "annas"\|"libgen"\|"zlibrary"\./,
+    /^search_books: "sources\[0\]" invalid option: expected one of "annas"\|"libgen"\|"zlibrary"\./,
   ],
   ["fetch_book", { query: "  " }, /^fetch_book: "query" too small: expected string to have >=1 characters\./],
 ];
@@ -95,3 +95,21 @@ for (const [name, args, expected] of BAD_CALLS) {
     assert.deepEqual(requests, []);
   });
 }
+
+test("the sentence does not depend on how the SDK words its own failure", async () => {
+  // The extractor used to parse the SDK's error string, so a reworded SDK
+  // upgrade silently returned raw text to agents. The tool's own schema is what
+  // answers now, whatever the SDK does with the same call.
+  const { McpServer } = await import("@modelcontextprotocol/sdk/server/mcp.js");
+  const original = McpServer.prototype.validateToolInput;
+  McpServer.prototype.validateToolInput = async () => {
+    throw new Error("validation blew up");
+  };
+  try {
+    const result = await call("book_details", { md5: "nothex" });
+    assert.equal(result.isError, true);
+    assert.match(String(result.content[0].text), /^book_details: "md5" must be a 32-char MD5 hash\./);
+  } finally {
+    McpServer.prototype.validateToolInput = original;
+  }
+});

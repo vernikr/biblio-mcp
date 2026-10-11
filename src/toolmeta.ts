@@ -100,6 +100,15 @@ function requirementsFromSchema(schema: unknown): string | undefined {
     .join("; ");
 }
 
+/** `["sources", 0]` -> `sources[0]`: the path an agent can find in its own call. */
+function fieldPath(path: Array<string | number>): string {
+  return path.reduce<string>(
+    (acc, segment) =>
+      typeof segment === "number" ? `${acc}[${segment}]` : acc ? `${acc}.${segment}` : segment,
+    ""
+  );
+}
+
 /** The sentence an agent reads when its arguments do not fit the tool's schema;
  *  undefined when the schema accepted them or cannot be asked. */
 export function describeArgsError(name: string, args: unknown, schema?: unknown): string | undefined {
@@ -107,7 +116,7 @@ export function describeArgsError(name: string, args: unknown, schema?: unknown)
   if (!issues || issues.length === 0) return undefined;
 
   const problems = issues.map((issue) => {
-    const field = issue.path && issue.path.length > 0 ? issue.path.join(".") : "arguments";
+    const field = issue.path && issue.path.length > 0 ? fieldPath(issue.path) : "arguments";
     const raw = issue.message ?? "is invalid";
     const message = raw.charAt(0).toLowerCase() + raw.slice(1);
     const missing = issue.code === "invalid_type" && /undefined/.test(message);
