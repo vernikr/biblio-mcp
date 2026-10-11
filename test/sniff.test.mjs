@@ -47,3 +47,27 @@ test("sniffExt does not crash on an empty buffer", () => {
   assert.equal(sniffExt(Buffer.alloc(0), "application/pdf"), "pdf");
   assert.equal(sniffExt(Buffer.alloc(0)), "bin");
 });
+
+test("sniffExt classifies a truncated head by the bytes that are there", () => {
+  // A short read is still a file: the old length gate answered "bin" for a
+  // two-byte ZIP signature and hid what the mirror had already sent.
+  assert.equal(sniffExt(Buffer.from("PK", "latin1")), "zip");
+  assert.equal(sniffExt(Buffer.from("%PD", "latin1")), "bin");
+  // The MOBI marker sits at offset 60; 67 bytes cannot hold it.
+  const almostMobi = Buffer.alloc(67);
+  almostMobi.write("BOOKMOB", 60, "latin1");
+  assert.equal(sniffExt(almostMobi), "bin");
+});
+
+test("sniffExt reads the content-type header whatever its case", () => {
+  const opaque = Buffer.from("nothing recognisable here", "latin1");
+  assert.equal(sniffExt(opaque, "Application/PDF"), "pdf");
+  assert.equal(sniffExt(opaque, "application/EPUB+zip"), "epub");
+});
+
+test("sniffExt falls back to ZIP when the EPUB marker is past the scanned window", () => {
+  const far = Buffer.alloc(8192);
+  far.write("PK", 0, "latin1");
+  far.write("mimetypeapplication/epub+zip", 6000, "latin1");
+  assert.equal(sniffExt(far), "zip");
+});

@@ -20,14 +20,18 @@ const MAGIC: ReadonlyArray<{ ext: string; match: (b: Buffer) => boolean }> = [
   { ext: "djvu", match: (b) => b.subarray(0, 8).toString("latin1") === "AT&TFORM" },
 ];
 
-/** Guess a file extension from the leading bytes, then from content-type. */
+/** Guess a file extension from the leading bytes, then from content-type.
+ *
+ *  Each matcher reads only the bytes it needs, so a truncated download is
+ *  classified by what is actually there rather than by its length: a two-byte
+ *  "PK" is a ZIP, a three-byte header is not a PDF. */
 export function sniffExt(buffer: Buffer, contentType?: string | null): string {
-  if (buffer.length >= 4) {
-    for (const { ext, match } of MAGIC) {
-      if (match(buffer)) return ext;
-    }
+  for (const { ext, match } of MAGIC) {
+    if (match(buffer)) return ext;
   }
-  if (contentType?.includes("epub")) return "epub";
-  if (contentType?.includes("pdf")) return "pdf";
+  // Mirrors disagree on the case of this header.
+  const type = (contentType ?? "").toLowerCase();
+  if (type.includes("epub")) return "epub";
+  if (type.includes("pdf")) return "pdf";
   return "bin";
 }
