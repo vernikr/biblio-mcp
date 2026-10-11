@@ -54,8 +54,10 @@ test("when every mirror answers with a challenge, the error says so instead of r
   resetMirrorCache();
   mode = "all-challenge";
   try {
+    // A fresh identifier: a resolution is memoized for the short agent loop, so
+    // the DOI the previous test resolved would answer from that memory.
     await assert.rejects(
-      scihub.resolve("10.1038/nature12373"),
+      scihub.resolve("10.1038/nature12373-challenge-only"),
       (error) => {
         assert.match(String(error.message), /human-verification challenge/i);
         return true;

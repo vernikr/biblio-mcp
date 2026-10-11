@@ -176,6 +176,18 @@ test("search_papers resolves direct PDFs only when requested and keeps search be
     assert.equal(landing.results.length, 1, "a landing page must not discard the paper result");
     assert.equal(landing.results[0].pdfUrl, undefined, "a landing page is not a direct PDF URL");
     assert.equal(requestCount, 2);
+
+    // The usual follow-up: the agent sees a DOI in the results and calls get_paper
+    // for it. The search has already resolved that DOI, so the second call must
+    // not repeat the mirror race.
+    requestCount = 0;
+    requestUrls.length = 0;
+    const followUp = await client.callTool({
+      name: "get_paper",
+      arguments: { identifier: "10.1038/nature12373" },
+    });
+    assert.equal(JSON.parse(followUp.content[0].text).pdfUrl, `${MIRROR}/pdf/nature.pdf`);
+    assert.equal(requestCount, 0, "the DOI an enriched search just resolved is not resolved again");
   } finally {
     await client.close().catch(() => {});
     await server.close().catch(() => {});
@@ -307,4 +319,26 @@ test("libgen.search falls back to positional columns when the header row is abse
   } finally {
     await new Promise((r) => noHeader.close(r));
   }
+});
+
+test("one Sci-Hub resolution serves concurrent callers, and a miss is not cached", async () => {
+  const { scihub } = await import("../dist/providers/index.js");
+  const doi = "10.1038/nature12373-share";
+
+  requestCount = 0;
+  requestUrls.length = 0;
+  const [first, second] = await Promise.all([scihub.resolve(doi), scihub.resolve(doi)]);
+  assert.equal(requestCount, 1, "concurrent identical resolutions share one mirror race");
+  assert.equal(first.pdfUrl, second.pdfUrl);
+
+  await scihub.resolve(doi);
+  assert.equal(requestCount, 1, "a fresh resolution is reused");
+
+  // A host that lacks the record must not have that "no" remembered: the paper
+  // can appear later, and the next call has to ask again.
+  const missing = "10.1038/nature12373-share-nopdf";
+  requestCount = 0;
+  await assert.rejects(scihub.resolve(missing));
+  await assert.rejects(scihub.resolve(missing));
+  assert.equal(requestCount, 2, "a miss is asked for again");
 });

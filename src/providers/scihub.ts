@@ -7,6 +7,7 @@ import {
   ResourceNotFoundError,
 } from "../http.js";
 import { SCIHUB_MIRRORS } from "../mirrors.js";
+import { AsyncTtlCache, PROVIDER_CACHE_TTL_MS } from "../cache.js";
 import { absoluteUrl } from "../parse.js";
 import type { Paper } from "../types.js";
 
@@ -72,9 +73,18 @@ function parseArticlePage(html: string, id: string): boolean | string | { value:
   return { value: { pdfSrc, title } };
 }
 
+/** Resolutions are memoized for the short agent loop: the same DOI is resolved
+ *  twice when a search asks for PDFs and the caller then follows up with
+ *  get_paper. A miss is not cached — a paper that appears later is found. */
+const resolutionCache = new AsyncTtlCache<string, Paper>(PROVIDER_CACHE_TTL_MS, 64);
+
 /** Resolve a paper via Sci-Hub using a DOI, article URL, or title. */
 export async function resolve(identifier: string): Promise<Paper> {
   const id = identifier.trim();
+  return resolutionCache.getOrLoad(id, () => resolveUncached(id));
+}
+
+async function resolveUncached(id: string): Promise<Paper> {
   let fetched;
   try {
     fetched = await fetchFromMirrors(
