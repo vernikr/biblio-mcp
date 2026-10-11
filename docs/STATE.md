@@ -41,8 +41,8 @@ Iteration 2 has three waves. Wave 1 (one definition per fact: the source list, t
 extractor, the anchor pass, the pinned versions, file-type sniffing; 2.2.7), wave 2 (measured
 hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mirror page bodies;
 2.2.8) and wave 3 (facts that stay true: the last hand-written dependency version, and a mirror
-registry that no longer claims measurements it cannot keep) are done and released; their reports
-and measurements are in
+registry that no longer claims measurements it cannot keep; 2.2.9) are done and released; their
+reports and measurements are in
 [`docs/worklog/2026.10.11-refactor-iteration2/`](2026.10.11-refactor-iteration2/).
 
 [`plan.md`](2026.10.11-refactor-iteration2/plan.md) no longer holds a scheduled backlog: every row
