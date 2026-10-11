@@ -37,6 +37,11 @@ const STAGGER_MS = readNumber(NUMBER_SETTINGS.mirrorStaggerMs);
  *  that accepts the connection and then stalls forever. */
 const DOWNLOAD_STALL_MS = readNumber(NUMBER_SETTINGS.downloadStallMs);
 
+/** Refuse to hold more of a scraped page in memory than this. A catalogue page is
+ *  a few hundred kilobytes; a host that sends more is misbehaving, and up to one
+ *  body per mirror would otherwise land in memory at once. */
+const MAX_PAGE_BYTES = 20 * 1024 * 1024;
+
 /** Remembers, per mirror-group, which host last succeeded. */
 const preferredMirror = new Map<string, string>();
 
@@ -151,6 +156,41 @@ export async function fetchWithTimeout<T>(
   }
 }
 
+/**
+ * Read a scraped page, refusing to hold more than the budget of it.
+ *
+ * The declared length is checked first so an oversized answer is dropped before
+ * a byte of it is read; the running count covers a host that streams without
+ * declaring anything.
+ */
+async function readPageBody(res: Response, base: string): Promise<string> {
+  const oversize = `${base} -> page is larger than the ${MAX_PAGE_BYTES / 1048576} MB budget`;
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_PAGE_BYTES) {
+    await res.body?.cancel().catch(() => {});
+    throw new Error(oversize);
+  }
+  if (!res.body) return "";
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_PAGE_BYTES) throw new Error(oversize);
+      text += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    // Releases the connection both after the last chunk and after giving up.
+    await reader.cancel().catch(() => {});
+  }
+  return text + decoder.decode();
+}
+
 export interface MirrorFetchResult<T = never> {
   html: string;
   /** The base mirror that served the request (e.g. "https://libgen.li"). */
@@ -245,7 +285,7 @@ export async function fetchFromMirrors<T = never>(
                 await res.body?.cancel().catch(() => {});
                 throw new MirrorHttpError(base, res.status);
               }
-              const html = await res.text();
+              const html = await readPageBody(res, base);
               const verdict = validate?.(html, base);
               if (verdict !== undefined && verdict !== true) {
                 if (typeof verdict === "object") {
@@ -453,7 +493,7 @@ export async function probeMirror(
           return { base, ok: false, status: res.status, ms: Date.now() - started };
         }
         if (opts.expect) {
-          const body = await res.text();
+          const body = await readPageBody(res, base);
           if (!opts.expect.test(body)) {
             return {
               base,

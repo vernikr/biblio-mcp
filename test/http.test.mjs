@@ -497,3 +497,69 @@ test("downloadToFile aborts a connection that stops sending bytes", async () => 
     await srv.close();
   }
 });
+
+test("a mirror that declares an oversized page is dropped before its body is read", async () => {
+  // A catalogue page is a few hundred kilobytes. A host promising more than the
+  // budget must not get to allocate it, and the reason must name the budget
+  // rather than surfacing later as a timeout.
+  const huge = await serve({
+    "/": (_req, res) => {
+      res.writeHead(200, {
+        "content-type": "text/html",
+        "content-length": String(30 * 1024 * 1024),
+      });
+      res.write("<html><title>Huge</title>");
+      // Deliberately never ends: giving up must come from the declared length.
+    },
+  });
+  try {
+    await assert.rejects(
+      fetchFromMirrors("huge-test", [huge.url], (base) => `${base}/`),
+      /page is larger than the 20 MB budget/
+    );
+  } finally {
+    await huge.close();
+  }
+});
+
+test("a mirror that streams past the budget is cut off mid-body", async () => {
+  const streamed = await serve({
+    "/": (_req, res) => {
+      res.on("error", () => {});
+      res.writeHead(200, { "content-type": "text/html" }); // chunked: no declared length
+      const chunk = Buffer.alloc(1024 * 1024, "a");
+      for (let sent = 0; sent < 21; sent++) {
+        if (res.writableEnded) break;
+        res.write(chunk);
+      }
+      res.end();
+    },
+  });
+  try {
+    await assert.rejects(
+      fetchFromMirrors("stream-test", [streamed.url], (base) => `${base}/`),
+      /page is larger than the 20 MB budget/
+    );
+  } finally {
+    await streamed.close();
+  }
+});
+
+test("probeMirror reports an oversized identity-check page instead of holding it", async () => {
+  const huge = await serve({
+    "/": (_req, res) => {
+      res.writeHead(200, {
+        "content-type": "text/html",
+        "content-length": String(30 * 1024 * 1024),
+      });
+      res.write("<html><title>Huge</title>");
+    },
+  });
+  try {
+    const probe = await probeMirror(huge.url, "/", { expect: /expected-site/ });
+    assert.equal(probe.ok, false);
+    assert.match(probe.error ?? "", /20 MB budget/);
+  } finally {
+    await huge.close();
+  }
+});
