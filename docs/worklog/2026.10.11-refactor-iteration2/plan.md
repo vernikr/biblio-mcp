@@ -4,9 +4,19 @@ Iteration 1 is closed (waves 1–5, CI runs #61–#70 green). This is the backlo
 everything below was found during iteration 1 and deliberately not done, either because the
 estimate was wrong or because it did not fit a wave.
 
-**Status: draft.** Nothing here is approved. Each row needs an evidence check before it is
-scheduled, because three of iteration 1's estimates turned out to be wrong after measuring
-(`C1`'s 11.5 s → 3 s, `E3`, `E4`).
+**Status: wave 1 in progress.** Rows are scheduled one wave at a time, each after its evidence
+cell has been re-checked against the tree, because three of iteration 1's estimates turned out to
+be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`).
+
+## Wave 1 — one definition per fact
+
+Scope: `A7`, `A9`, `A10`, `H1`, `H2`, `F2`, `A11'`. The evidence re-check retired `C1'` before it
+was implemented: `installHere` has stubbed the package-manager probe since iteration 1, and the
+rest of that file's time is real install/build work. Report and measurements:
+[`wave1-report.md`](wave1-report.md). `H1` also covers `scripts/preflight.mjs`, whose advice named
+a dependency version by hand.
+
+Still unscheduled, each pending its own evidence check: `E5`, `E6`, the README target decision.
 
 ## Where iteration 1 finished against its own targets
 
@@ -46,7 +56,7 @@ tools.
 
 | # | Task | Evidence | Benefit | Cost | Risk |
 |---|---|---|---|---|---|
-| **C1'** | `runInstall({ packageManager })` already exists (`scripts/install.mjs:170`) and skips the ~350 ms pnpm/npm probe, but no caller passes it. Thread it through the test call sites. | `scripts/install.mjs:192` | `install.test.mjs` is the slowest file in the suite (≈7.4 s); the probe fires once per call. | **S** | **S** — the 2 end-to-end tests that really install and build must keep probing. |
+| **C1'** | ~~Thread `packageManager` through the test call sites.~~ **Retired** — the call sites already stub the probe (iteration 1's `c1fd358`); the remaining 6.1 s of `install.test.mjs` is genuine install/build work. See [`wave1-report.md`](wave1-report.md). | re-checked | — | — | — |
 
 ### Behaviour and performance
 
