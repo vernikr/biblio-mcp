@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.10] - 2026-10-11
+
+### Fixed
+- `download_book` and `fetch_book` gave a silent file server up to ten minutes to send response
+  headers, while the transfer itself was guarded by a 30 s stall watchdog — so a dead link
+  outlived every client waiting on the call (measured: one failure answered after 125 s, two more
+  never answered at all). Both phases now share the 30 s budget, still overridable with
+  `BIBLIO_DOWNLOAD_TIMEOUT_MS` and `BIBLIO_DOWNLOAD_STALL_MS`.
+- A failed download now says which silence killed it — `no response headers within 30000 ms …` or
+  `transfer stalled for 30000 ms after N bytes …` — instead of the transport's
+  `This operation was aborted`.
+
 ## [2.2.9] - 2026-10-11
 
 ### Fixed
@@ -428,7 +440,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.9...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.10...HEAD
+[2.2.10]: https://github.com/vernikr/biblio-mcp/compare/v2.2.9...v2.2.10
 [2.2.9]: https://github.com/vernikr/biblio-mcp/compare/v2.2.8...v2.2.9
 [2.2.8]: https://github.com/vernikr/biblio-mcp/compare/v2.2.7...v2.2.8
 [2.2.7]: https://github.com/vernikr/biblio-mcp/compare/v2.2.6...v2.2.7
