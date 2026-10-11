@@ -43,14 +43,14 @@ hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mi
 2.2.8) wave 3 (facts that stay true: the last hand-written dependency version, and a mirror
 registry that no longer claims measurements it cannot keep; 2.2.9) and wave 4 (a download attempt
 gives up after the same half-minute of silence whether it is waiting for headers or for bytes;
-2.2.10) are done and released; their reports and measurements are in
-[`docs/worklog/2026.10.11-refactor-iteration2/`](2026.10.11-refactor-iteration2/).
+2.2.10) are done and released; their reports and measurements are archived in
+[`docs/worklog/archive/2026.10.11-refactor-iteration2/`](archive/2026.10.11-refactor-iteration2/).
 
-[`plan.md`](2026.10.11-refactor-iteration2/plan.md) no longer holds a scheduled backlog: every row
-is either delivered or carries a "do not re-propose" note, and the suite and README line targets
-were retired after measuring them. The next wave needs new evidence — a live probe that contradicts
-a file in the tree (wave 3 found one that way), a report from an agent using the tools, or an
-observed failure — not a re-check of what is already closed.
+Iteration 2 is closed: the plan holds no scheduled row — everything is delivered or carries a
+"do not re-propose" note, and the suite and README line targets were retired after measuring them.
+The next piece of work starts from new evidence — a live probe that contradicts a file in the tree
+(wave 3 found one that way), a report from an agent using the tools, or an observed failure — not
+from a re-check of what is already closed.
 
 Closed by iteration 1, so nobody re-opens them:
 
