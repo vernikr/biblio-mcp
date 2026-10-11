@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.8] - 2026-10-11
+
+### Changed
+- Sci-Hub resolutions are reused for the short agent loop: a DOI an enriched `search_papers`
+  already resolved is not resolved again by the follow-up `get_paper` (measured: that second call
+  made a full extra mirror round trip). Concurrent callers share one resolution, and a miss is
+  still asked for again.
+
+### Fixed
+- A mirror answering with an oversized page can no longer balloon the process: page bodies are
+  read against a 20 MB budget — a declared length is refused before the body is read, a streaming
+  body is cut off mid-transfer, and the identity probe reads through the same reader.
+
 ## [2.2.7] - 2026-10-11
 
 ### Fixed
@@ -403,7 +416,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.8...HEAD
+[2.2.8]: https://github.com/vernikr/biblio-mcp/compare/v2.2.7...v2.2.8
 [2.2.7]: https://github.com/vernikr/biblio-mcp/compare/v2.2.6...v2.2.7
 [2.2.6]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...v2.2.6
 [2.2.5]: https://github.com/vernikr/biblio-mcp/compare/v2.2.4...v2.2.5
