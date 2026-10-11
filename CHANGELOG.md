@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.9] - 2026-10-11
+
+### Fixed
+- The advice `scripts/preflight.mjs` gives when a zod-3-only SDK meets zod 4 named a version
+  (3.23.8) that nothing in the project pins. It now names the range the installed SDK declares, so
+  it stays right for any pairing.
+
+### Changed
+- `src/mirrors.ts` no longer annotates each host with status and latency from a past audit — three
+  of those annotations were already false on the day this release was cut. The host order, the
+  deliberate absences and their reasons stay; live numbers come from the `healthcheck` tool.
+
 ## [2.2.8] - 2026-10-11
 
 ### Changed
@@ -416,7 +428,8 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Libgen `author` comes from the wrong table column, so it reports the series name and ISBNs.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
-[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.8...HEAD
+[Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.9...HEAD
+[2.2.9]: https://github.com/vernikr/biblio-mcp/compare/v2.2.8...v2.2.9
 [2.2.8]: https://github.com/vernikr/biblio-mcp/compare/v2.2.7...v2.2.8
 [2.2.7]: https://github.com/vernikr/biblio-mcp/compare/v2.2.6...v2.2.7
 [2.2.6]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...v2.2.6
