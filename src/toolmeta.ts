@@ -1,8 +1,6 @@
 // Agent-facing tool metadata: what each tool does, one call example, and
 // human-readable argument errors. Argument descriptions stay in the Zod schemas.
 
-import { errText } from "./errors.js";
-
 export interface ToolMeta {
   /** What the tool does; shown to agents with the example appended. */
   description: string;
@@ -56,18 +54,23 @@ export function toolDescription(name: string): string {
   return `${meta.description}\n\nExample: ${meta.example}`;
 }
 
-/** Minimal shape of a zod issue, read defensively across zod versions. */
+/** Minimal shape of a zod issue, read defensively: the parser is whichever zod
+ *  build the SDK ships, and a v3 one formats its issues differently. */
 interface Issue {
   path?: Array<string | number>;
   code?: string;
   message?: string;
 }
 
-function issuesOf(error: unknown): Issue[] {
-  if (error && typeof error === "object" && Array.isArray((error as { issues?: unknown }).issues)) {
-    return (error as { issues: Issue[] }).issues;
-  }
-  return [];
+/** The issues `args` raise against a tool's own schema — undefined when the
+ *  schema carries no parser (older SDK) or the call is valid. */
+function issuesOf(schema: unknown, args: unknown): Issue[] | undefined {
+  const safeParse = (schema as { safeParse?: (value: unknown) => unknown } | undefined)?.safeParse;
+  if (typeof safeParse !== "function") return undefined;
+  const result = safeParse.call(schema, args ?? {}) as
+    | { success?: boolean; error?: { issues?: Issue[] } }
+    | undefined;
+  return result?.success ? undefined : result?.error?.issues;
 }
 
 /** Minimal Zod object-field shape needed for agent-facing requirements. */
@@ -97,24 +100,24 @@ function requirementsFromSchema(schema: unknown): string | undefined {
     .join("; ");
 }
 
-/** Format one validation failure from its issues and the tool's own schema. */
-export function describeArgsError(name: string, error: unknown, schema?: unknown): string {
-  const meta = TOOL_META[name];
-  const issues = issuesOf(error);
-  const problems: string[] = [];
+/** The sentence an agent reads when its arguments do not fit the tool's schema;
+ *  undefined when the schema accepted them or cannot be asked. */
+export function describeArgsError(name: string, args: unknown, schema?: unknown): string | undefined {
+  const issues = issuesOf(schema, args);
+  if (!issues || issues.length === 0) return undefined;
 
-  for (const issue of issues) {
+  const problems = issues.map((issue) => {
     const field = issue.path && issue.path.length > 0 ? issue.path.join(".") : "arguments";
     const raw = issue.message ?? "is invalid";
     const message = raw.charAt(0).toLowerCase() + raw.slice(1);
     const missing = issue.code === "invalid_type" && /undefined/.test(message);
-    problems.push(missing ? `"${field}" is missing` : `"${field}" ${message}`);
-  }
+    return missing ? `"${field}" is missing` : `"${field}" ${message}`;
+  });
 
-  const what = problems.length > 0 ? problems.join("; ") : errText(error);
+  const meta = TOOL_META[name];
   const requirements = requirementsFromSchema(schema);
   return [
-    `${name}: ${what}.`,
+    `${name}: ${problems.join("; ")}.`,
     requirements ? `Schema: ${requirements}.` : "",
     meta ? `Example: ${meta.example}` : "",
   ]

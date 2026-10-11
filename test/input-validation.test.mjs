@@ -62,3 +62,36 @@ for (const identifier of ["10.1234/input-test", "https://example.test/article/in
     assert.equal(JSON.parse(result.content[0].text).pdfUrl, `${mirror}/paper.pdf`);
   });
 }
+
+// ---------------------------------------------------------------------------
+// The sentence an agent reads for a bad call (iteration 2, A7)
+// ---------------------------------------------------------------------------
+
+// One extractor asks the tool's own schema, so these shapes are the whole
+// contract: name the field, say what is wrong, show a call that works.
+const BAD_CALLS = [
+  ["book_details", {}, /^book_details: "md5" is missing\./],
+  ["book_details", { md5: 123 }, /^book_details: "md5" invalid input: expected string, received number\./],
+  ["book_details", { md5: "nothex" }, /^book_details: "md5" must be a 32-char MD5 hash\./],
+  ["search_books", { query: "x", limit: 9999 }, /^search_books: "limit" too big: expected number to be <=100\./],
+  [
+    "search_books",
+    { query: "x", sources: ["bogus"] },
+    /^search_books: "sources\.0" invalid option: expected one of "annas"\|"libgen"\|"zlibrary"\./,
+  ],
+  ["fetch_book", { query: "  " }, /^fetch_book: "query" too small: expected string to have >=1 characters\./],
+];
+for (const [name, args, expected] of BAD_CALLS) {
+  test(`${name} explains ${JSON.stringify(args)} without the SDK's own error text`, async () => {
+    requests = [];
+    const result = await call(name, args);
+    assert.equal(result.isError, true);
+    const text = String(result.content[0].text);
+    assert.match(text, expected);
+    assert.match(text, /Schema: /);
+    assert.match(text, /Example: /);
+    assert.doesNotMatch(text, /Input validation error/);
+    assert.doesNotMatch(text, /_parse is not a function/);
+    assert.deepEqual(requests, []);
+  });
+}

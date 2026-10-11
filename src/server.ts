@@ -80,37 +80,6 @@ export function makeProgressReporter(extra?: {
   };
 }
 
-/** Replace zod's raw issue dump with a sentence an agent can act on. */
-function validationIssuesFrom(error: unknown): unknown[] | undefined {
-  if (!error || typeof error !== "object") return undefined;
-  const direct = (error as { issues?: unknown }).issues;
-  if (Array.isArray(direct)) return direct;
-
-  // Pinned SDK versions flatten Zod issues into diagnostic text. Translate it
-  // without a second schema parse; legacy serialized issues remain supported.
-  const message = (error as { message?: unknown }).message;
-  if (typeof message !== "string") return undefined;
-  const diagnostic = /Input validation error: Invalid arguments for tool [^:]+: ([\s\S]*)/.exec(message)?.[1];
-  if (diagnostic && !diagnostic.startsWith("[")) {
-    return diagnostic.split("\n").map((line) => {
-      const match = /^(.*) at (.+)$/.exec(line);
-      return {
-        path: match ? [match[2]] : [],
-        message: match?.[1] ?? line,
-        code: /expected .*received undefined/.test(line) ? "invalid_type" : "custom",
-      };
-    });
-  }
-  const start = message.indexOf("[");
-  if (start < 0) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(message.slice(start));
-    return Array.isArray(parsed) ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function useReadableValidationErrors(server: McpServer): void {
   // The SDK invokes this private method dynamically, so an instance override is enough.
   type ValidatingServer = {
@@ -129,17 +98,14 @@ function useReadableValidationErrors(server: McpServer): void {
   const original = target.validateToolInput.bind(server);
 
   target.validateToolInput = async (tool, args, toolName) => {
-    try {
-      // Let the SDK perform its one authoritative parse, then translate its
-      // structured issue array into the agent-facing sentence.
-      return await original(tool, args, toolName);
-    } catch (error) {
-      const issues = validationIssuesFrom(error);
-      if (!issues) throw error;
-      const inputSchema =
-        tool && typeof tool === "object" ? (tool as { inputSchema?: unknown }).inputSchema : undefined;
-      throw new Error(describeArgsError(String(toolName), { issues }, inputSchema));
-    }
+    // The tool's own schema answers first: the sentence an agent reads never
+    // depends on how a particular SDK build renders its own error text.
+    const inputSchema =
+      tool && typeof tool === "object" ? (tool as { inputSchema?: unknown }).inputSchema : undefined;
+    const problem = describeArgsError(String(toolName), args, inputSchema);
+    if (problem) throw new Error(problem);
+    // Valid here by the same schema the SDK is about to apply.
+    return await original(tool, args, toolName);
   };
 }
 

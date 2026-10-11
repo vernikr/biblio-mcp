@@ -126,11 +126,20 @@ test("download_book names the required md5 when it is missing", async () => {
   });
 });
 
-test("describeArgsError stays informative for an error it does not recognise", () => {
-  // The override must never make an error worse than the one it replaces.
-  const msg = describeArgsError("search_books", new Error("something unexpected"));
-  assert.match(msg, /something unexpected/);
-  assert.match(msg, /Example:/);
+test("describeArgsError reports nothing when there is no schema to ask", () => {
+  // A failure it cannot attribute to a schema is passed through untouched: the
+  // override rewrites argument errors, it does not invent errors.
+  assert.equal(describeArgsError("search_books", new Error("something unexpected"), undefined), undefined);
+});
+
+test("a failure the override cannot attribute reaches the client unchanged", async () => {
+  // Unknown-tool lookup fails before any schema is involved; the client must see
+  // the SDK's own error, not a rewritten one.
+  await withClient(async (client) => {
+    const { isError, text } = await callTool(client, "no_such_tool", {});
+    assert.equal(isError, true);
+    assert.match(text, /Tool no_such_tool not found/);
+  });
 });
 
 // ---------------------------------------------------------------------------
