@@ -17,7 +17,8 @@ import {
   BOOK_SOURCES,
   DISABLED_BOOK_SOURCES,
 } from "./providers/index.js";
-import type { Paper, SourceId } from "./types.js";
+import { BOOK_SOURCE_IDS } from "./types.js";
+import type { Paper } from "./types.js";
 
 const SERVER_NAME = "biblio-mcp";
 
@@ -224,7 +225,7 @@ export function createServer(): McpServer {
     {
       query: searchTextSchema.describe("Title, author, ISBN, or topic to search for."),
       sources: z
-        .array(z.enum(["annas", "libgen", "zlibrary"]))
+        .array(z.enum(BOOK_SOURCE_IDS))
         .min(1, "select at least one source")
         .optional()
         .describe(
@@ -244,7 +245,7 @@ export function createServer(): McpServer {
     },
     { readOnlyHint: true, openWorldHint: true },
     async ({ query, sources, limit }) => {
-      const selectedSources = [...new Set((sources as SourceId[]) ?? BOOK_SOURCES)];
+      const selectedSources = [...new Set(sources ?? BOOK_SOURCES)];
       const result = await searchBooks(query, selectedSources, limit ?? 20);
       return json({
         ...result,
@@ -370,7 +371,7 @@ export function createServer(): McpServer {
         .optional()
         .describe("How many copies to try, in order, before giving up (default 3)."),
       sources: z
-        .array(z.enum(["annas", "libgen", "zlibrary"]))
+        .array(z.enum(BOOK_SOURCE_IDS))
         .min(1, "select at least one source")
         .optional()
         .describe("Which sources to search. Default: the same as search_books."),
@@ -381,7 +382,7 @@ export function createServer(): McpServer {
         query,
         outputDir: output_dir ?? defaultOutputDir(),
         format,
-        sources: sources as SourceId[] | undefined,
+        sources,
         maxAttempts: max_attempts,
         onProgress: makeProgressReporter(extra),
         signal: extra?.signal,

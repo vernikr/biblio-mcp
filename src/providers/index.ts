@@ -13,6 +13,7 @@ import {
   summarizeSourceFailure,
   withSourceCircuit,
 } from "./circuit.js";
+import { BOOK_SOURCE_IDS } from "../types.js";
 import type {
   Book,
   DownloadLink,
@@ -23,7 +24,7 @@ import type {
 } from "../types.js";
 
 /** Every book source this server knows how to query. */
-export const ALL_BOOK_SOURCES: SourceId[] = ["annas", "libgen", "zlibrary"];
+export const ALL_BOOK_SOURCES: SourceId[] = [...BOOK_SOURCE_IDS];
 
 /** Sources that are off unless explicitly requested. */
 function resolveDisabledSources(): SourceId[] {

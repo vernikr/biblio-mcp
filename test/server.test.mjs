@@ -97,6 +97,21 @@ test("search_books advertises that an explicit source list must be non-empty", a
   });
 });
 
+test("one source list reaches the client, the defaults and the providers", async () => {
+  // The caller-facing enum, the default selection and the provider registry are
+  // one list: adding a source must not leave a second copy to update.
+  const { BOOK_SOURCE_IDS } = await import("../dist/types.js");
+  const { ALL_BOOK_SOURCES } = await import("../dist/providers/index.js");
+  assert.deepEqual(ALL_BOOK_SOURCES, [...BOOK_SOURCE_IDS]);
+  await withClient(async (client) => {
+    const { tools } = await client.listTools();
+    for (const name of ["search_books", "fetch_book"]) {
+      const schema = tools.find((t) => t.name === name).inputSchema;
+      assert.deepEqual(schema.properties.sources.items.enum, [...BOOK_SOURCE_IDS], name);
+    }
+  });
+});
+
 test("the reported version matches package.json", async () => {
   // SERVER_VERSION used to be a hardcoded string, so bumping the version left
   // `--version` and `--selfcheck` advertising the previous release.

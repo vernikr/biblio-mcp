@@ -1,7 +1,11 @@
 // Shared data model. Every provider normalizes into these shapes so the
 // aggregation layer and MCP tools never care which source a result came from.
 
-export type SourceId = "annas" | "libgen" | "scihub" | "zlibrary";
+/** Book sources, in default search order. The one list: the caller-facing enum,
+ *  the default selection and the provider registry all read it. */
+export const BOOK_SOURCE_IDS = ["annas", "libgen", "zlibrary"] as const;
+
+export type SourceId = (typeof BOOK_SOURCE_IDS)[number] | "scihub";
 
 /** A book / document result. `md5` is the universal join key across sources. */
 export interface Book {
