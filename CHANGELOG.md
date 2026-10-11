@@ -5,6 +5,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+## [2.2.7] - 2026-10-11
+
+### Fixed
+- A truncated download whose first bytes are a ZIP signature was saved as `.bin`, and a mirror
+  sending `Application/PDF` produced no extension at all. File-type sniffing no longer requires
+  four bytes before it looks, and reads the content-type header case-insensitively.
+- The fix line `--selfcheck` prints for a broken dependency pairing, and the advice
+  `scripts/preflight.mjs` gives for it, now name the versions this package pins instead of a
+  hand-written pair that drifts on the first dependency bump.
+
+### Changed
+- `--selfcheck` lists the tool names it verified, so "my client shows no tools" can be diffed
+  against the server's own answer.
+- Argument errors are built from the tool's own schema rather than from the SDK's error text: the
+  sentences are unchanged, and a reworded SDK upgrade can no longer hand agents raw validation
+  output.
+- The `test:all` script is gone; `verify:live` already runs the offline gate and the live checks.
+
 ## [2.2.6] - 2026-10-11
 
 ### Changed
@@ -386,6 +404,7 @@ impossible to get silently wrong, and make the network layer fast and honest.
 - Both are pinned with `todo` tests describing the intended behaviour.
 
 [Unreleased]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...HEAD
+[2.2.7]: https://github.com/vernikr/biblio-mcp/compare/v2.2.6...v2.2.7
 [2.2.6]: https://github.com/vernikr/biblio-mcp/compare/v2.2.5...v2.2.6
 [2.2.5]: https://github.com/vernikr/biblio-mcp/compare/v2.2.4...v2.2.5
 [2.2.4]: https://github.com/vernikr/biblio-mcp/compare/v2.2.3...v2.2.4
