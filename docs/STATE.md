@@ -37,17 +37,16 @@ Iteration 1 of the refactor is closed: five waves, reports archived under
 from 15 MB to 2.1 MB, moved the maintainer half of the README into `AGENTS.md` and
 `docs/architecture.md`, and fixed the behaviour findings listed below.
 
-Iteration 2 is open. Wave 1 (one definition per fact: the source list, the argument-error
-extractor, the anchor pass, the pinned versions, file-type sniffing) is done and released; its
-report and measurements are in
-[`docs/worklog/2026.10.11-refactor-iteration2/wave1-report.md`](2026.10.11-refactor-iteration2/wave1-report.md).
+Iteration 2 has two waves. Wave 1 (one definition per fact: the source list, the argument-error
+extractor, the anchor pass, the pinned versions, file-type sniffing) and wave 2 (measured
+hardening: one Sci-Hub resolution for the short agent loop, a 20 MB budget on mirror page bodies)
+are done and released; their reports and measurements are in
+[`docs/worklog/2026.10.11-refactor-iteration2/`](2026.10.11-refactor-iteration2/).
 
-The remaining backlog is a draft, not a commitment:
-[`docs/worklog/2026.10.11-refactor-iteration2/plan.md`](2026.10.11-refactor-iteration2/plan.md).
-Nothing in it is scheduled until its evidence has been re-checked against the tree — three of
-iteration 1's estimates were wrong when measured. Wave 1 retired one row that way (`C1'`, already
-delivered in iteration 1) and left `E5`, `E6` and the README target decision waiting for the next
-evidence check.
+[`plan.md`](2026.10.11-refactor-iteration2/plan.md) no longer holds a scheduled backlog: every row
+is either delivered or carries a "do not re-propose" note, and the suite and README line targets
+were retired after measuring them. The next wave needs new evidence — a report from an agent using
+the tools, or an observed failure — not a re-check of what is already closed.
 
 Closed by iteration 1, so nobody re-opens them:
 

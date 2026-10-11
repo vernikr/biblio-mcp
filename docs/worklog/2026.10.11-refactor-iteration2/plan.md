@@ -4,7 +4,7 @@ Iteration 1 is closed (waves 1–5, CI runs #61–#70 green). This is the backlo
 everything below was found during iteration 1 and deliberately not done, either because the
 estimate was wrong or because it did not fit a wave.
 
-**Status: wave 1 in progress.** Rows are scheduled one wave at a time, each after its evidence
+**Status: wave 2 in progress.** Rows are scheduled one wave at a time, each after its evidence
 cell has been re-checked against the tree, because three of iteration 1's estimates turned out to
 be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`).
 
@@ -16,7 +16,17 @@ rest of that file's time is real install/build work. Report and measurements:
 [`wave1-report.md`](wave1-report.md). `H1` also covers `scripts/preflight.mjs`, whose advice named
 a dependency version by hand.
 
-Still unscheduled, each pending its own evidence check: `E5`, `E6`, the README target decision.
+## Wave 2 — measured hardening
+
+Scope: `E6`, `E5`, with their evidence re-checked first. `E6` was real, measured before it was
+built: the same DOI resolved once by an enriched `search_papers` and again by the follow-up
+`get_paper` — two mirror races, the second costing a full round trip (159 ms against a mirror
+answering in 150 ms; 1 ms after the change). `E5` was scheduled because the owner asked for the
+protection rather than waiting for an observed OOM. Report:
+[`wave2-report.md`](wave2-report.md).
+
+Nothing in this plan is unscheduled now: every row is either delivered (waves 1–2) or carries a
+"do not re-propose" note.
 
 ## Where iteration 1 finished against its own targets
 
@@ -25,15 +35,14 @@ Still unscheduled, each pending its own evidence check: `E5`, `E6`, the README t
 | Tracked tree | ≤ 4 MB | 2.1 MB | met |
 | Unused exports in `src/` | 0 | 0 | met |
 | CI jobs per push | ≤ 5 | 6 | near |
-| Offline suite wall time | ≤ 12 s | **15.8 s** | **3.8 s** |
-| `pnpm run verify` | ≤ 15 s | **16.3 s** | **1.3 s** |
-| `README.md` | ≤ 250 lines | **395** | **145** |
+| Offline suite wall time | ≤ 12 s | 15.8 s | dropped |
+| `pnpm run verify` | ≤ 15 s | 16.3 s | dropped |
+| `README.md` | ≤ 250 lines | 395 | dropped |
 
-The README gap is a judgement call, not an oversight: the maintainer half left the file (581 →
-395), and what remains is install, tools, configuration and limitations — all of it read by the
-person installing. Cutting to 250 means deleting consumer content. **Recommendation: drop the
-target, keep the file honest.** The real question for iteration 2 is whether the *suite* can lose
-4 s without losing coverage.
+Both remaining gaps were closed as decisions, not as work: the maintainer half of the README left
+the file in iteration 1 and what remains is read by the person installing (cutting to 250 means
+deleting consumer content), and the suite's remaining time is genuine install/build coverage.
+Confirmed with the owner after wave 1 measured `C1'` as already delivered.
 
 ## Candidates
 
@@ -62,8 +71,8 @@ tools.
 
 | # | Task | Evidence | Benefit | Cost | Risk |
 |---|---|---|---|---|---|
-| **E6** | Cache Sci-Hub resolutions with the same TTL pattern as `adsPageCache` — the same DOI is commonly resolved twice (`search_papers` then `get_paper`). | `src/providers/scihub.ts` | Iteration 1's `E2` cut `scihub.resolve` from 57–65 ms to **27–28 ms**; **re-measure before scheduling** — `E2` may have made this unnecessary. | **S** | **S** |
-| **E5** | `content-length` sanity cap (e.g. 20 MB) before `res.text()` in `fetchFromMirrors`, so a hostile mirror cannot balloon the process. Up to 7 Libgen mirror bodies are held concurrently. | `src/http.ts` | Hardening only. **Low value — keep deferred** unless an OOM is actually observed. | **S** | **S** |
+| **E6** | **Done (wave 2).** Resolutions are memoized for the provider TTL with shared in-flight work; a miss is not memoized. Re-checked by measurement first: the duplicate resolution was real. | `src/providers/scihub.ts` | — | — | — |
+| **E5** | **Done (wave 2).** A 20 MB page budget: a declared length is checked before the body is read, a streaming body is counted and cut off, and `probeMirror`'s identity check uses the same reader. | `src/http.ts` | — | — | — |
 | **F2** | `--selfcheck` prints the 8 tool names it verified, not just `8 tools exposed by …` (`src/selfcheck.ts:107` already holds `names`). | the line | An agent diagnosing "no tools appear in my client" can diff the client's list against the server's own answer. | **XS** | **XS** |
 
 ## Carried over as rejected — do not re-propose without new evidence
@@ -84,9 +93,12 @@ tools.
 Same non-negotiable as iteration 1: `pnpm run verify` green with **0 skips**, every bug-fix test
 demonstrated to fail on the previous commit, and the full CI gate after each wave.
 
-Proposed targets, to be agreed before scheduling:
+Targets, as agreed after wave 1 measured them:
 
-- offline suite **≤ 13 s** (from 15.8 s) — reachable through `C1'` alone if the probe removal
-  lands; otherwise accept 15.8 s and stop chasing it.
-- every `src/` symbol that names a version, a source or a tool is defined once.
-- no row above is scheduled until its "evidence" cell has been re-checked against the tree.
+- **Restated: the offline suite has no absolute ceiling.** Its remaining time is real
+  install/build coverage (`C1'` was retired as already delivered), so a fixed second count is not
+  a target — but a wave that makes the gate slower than it found it has to say why in its report.
+- **Dropped: `README.md` ≤ 250 lines.** What is left is read by the person installing the server.
+- Kept: every `src/` symbol that names a version, a source or a tool is defined once — delivered
+  across waves 1–2.
+- Kept: no row is scheduled until its "evidence" cell has been re-checked against the tree.
