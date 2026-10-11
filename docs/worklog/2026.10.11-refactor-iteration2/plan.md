@@ -4,11 +4,11 @@ Iteration 1 is closed (waves 1–5, CI runs #61–#70 green). This is the backlo
 everything below was found during iteration 1 and deliberately not done, either because the
 estimate was wrong or because it did not fit a wave.
 
-**Status: waves 1–3 delivered.** Rows are scheduled one wave at a time, each after its evidence
+**Status: waves 1–4 delivered.** Rows are scheduled one wave at a time, each after its evidence
 cell has been re-checked against the tree, because three of iteration 1's estimates turned out to
-be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`). Wave 3 added the evidence pass the plan
-demands of any next wave: a live dogfood of every tool, which closed one suspicion, confirmed one
-drift and rejected one tempting change.
+be wrong after measuring (`C1`'s 11.5 s → 3 s, `E3`, `E4`). Wave 3 ran the evidence pass the plan
+demands of any next wave (a live dogfood of every tool); wave 4 came out of it — a live download
+that outlived its caller.
 
 ## Wave 1 — one definition per fact
 
@@ -36,7 +36,15 @@ evidence pass a wave is supposed to start from. Report and measurements:
 (the mirror registry's audit annotations were already false today) and rejected one tempting change
 (opening the Anna's Archive circuit on the first challenge).
 
-Nothing in this plan is unscheduled now: every row is either delivered (waves 1–3) or carries a
+## Wave 4 — a failed download comes back
+
+Scope: `E9` and `F6`, both from the wave-3 live pass: a live `download_book` for a 192 KB PDF sat
+for 125 s before answering, and two further links never answered inside their 600 s budget, so the
+agent's client had long given up. The header wait now matches the transfer's silence budget (30 s
+by default), and a failed attempt says which silence killed it. Report and measurements:
+[`wave4-report.md`](wave4-report.md).
+
+Nothing in this plan is unscheduled now: every row is either delivered (waves 1–4) or carries a
 "do not re-propose" note.
 
 ## Where iteration 1 finished against its own targets
@@ -85,8 +93,10 @@ tools.
 
 | # | Task | Evidence | Benefit | Cost | Risk |
 |---|---|---|---|---|---|
+| **E9** | **Done (wave 4).** `BIBLIO_DOWNLOAD_TIMEOUT_MS` defaults to 30 s, matching the transfer's stall watchdog, so a stuck link fails inside a client's patience instead of after 600 s. | [wave4-report.md](wave4-report.md) | — | — | — |
 | **E6** | **Done (wave 2).** Resolutions are memoized for the provider TTL with shared in-flight work; a miss is not memoized. Re-checked by measurement first: the duplicate resolution was real. | `src/providers/scihub.ts` | — | — | — |
 | **E5** | **Done (wave 2).** A 20 MB page budget: a declared length is checked before the body is read, a streaming body is counted and cut off, and `probeMirror`'s identity check uses the same reader. | `src/http.ts` | — | — | — |
+| **F6** | **Done (wave 4).** A failed download names the budget that fired (`no response headers within 30000 ms…`, `transfer stalled for 30000 ms after N bytes…`) instead of the transport's `This operation was aborted`. | [wave4-report.md](wave4-report.md) | — | — | — |
 | **F2** | **Done (wave 1).** `--selfcheck` prints the tool names it verified under the tools stage. | [wave1-report.md](wave1-report.md) | — | — | — |
 
 ## Carried over as rejected — do not re-propose without new evidence
