@@ -1,6 +1,9 @@
 import { probeMirror, type MirrorProbe } from "./http.js";
 
-// Centralized mirror registry and probe summaries.
+// Mirror registry: ordered candidate hosts per source. The order is a weak
+// preference, not a ranking — the `healthcheck` tool measures the live picture,
+// and the mirror cache prefers whichever host answered last. A host that is
+// down stays listed, because these hosts come back.
 function fromEnv(name: string, fallback: string[]): string[] {
   const raw = process.env[name];
   if (!raw) return fallback;
@@ -13,46 +16,46 @@ function fromEnv(name: string, fallback: string[]): string[] {
 /** Identity marker: a host is Anna's Archive only if its pages say so. */
 export const ANNAS_IDENTITY = /Anna[’']s Archive/i;
 
-/** Anna's Archive. */
+/** Anna's Archive. Only hosts that pass the identity marker are listed. */
 export const ANNAS_MIRRORS = fromEnv("BIBLIO_ANNAS_MIRRORS", [
-  "https://annas-archive.gl", // 200, ~1.2 s, real site
-  "https://annas-archive.gd", // 200, ~1.1 s, real site
-  "https://annas-archive.pk", // 200, ~1.1 s, real site
-  // Deliberately absent: annas-archive.li (hijacked, serves an ad page),
-  // annas-archive.gs (429 at last audit), annas-archive.org / .se (dead).
+  "https://annas-archive.gl",
+  "https://annas-archive.gd",
+  "https://annas-archive.pk",
+  // Deliberately absent: annas-archive.li (hijacked, serves an ad page) and the
+  // hosts that stopped serving the real site.
 ]);
 
-/** Library Genesis. Only the `.li` family was reachable at last audit; the
- *  `.is` / `.rs` / `.st` family hung until timeout, and `.gs` failed DNS.
- *  `.bz` was reachable and is NOT in the upstream list — it is added here. */
+/** Library Genesis. `.bz` is not in the upstream host list — it is added here
+ *  because it served the catalogue while the `.is` family did not. */
 export const LIBGEN_MIRRORS = fromEnv("BIBLIO_LIBGEN_MIRRORS", [
-  "https://libgen.li", // 200, ~0.7 s
-  "https://libgen.bz", // 200, ~0.7 s
-  "https://libgen.vg", // 200, ~0.9 s
-  "https://libgen.is", // unreachable at last audit
-  "https://libgen.rs", // unreachable at last audit
-  "https://libgen.st", // unreachable at last audit
-  "https://libgen.gs", // DNS failure at last audit
+  "https://libgen.li",
+  "https://libgen.bz",
+  "https://libgen.vg",
+  "https://libgen.is",
+  "https://libgen.rs",
+  "https://libgen.st",
+  "https://libgen.gs",
 ]);
 
-/** Sci-Hub. The hosts marked "varies" flip between 200 and 403 between
- *  consecutive measurements, so treat Sci-Hub ordering as a weak preference
- *  rather than a ranking. `.se` has not resolved at any point. */
+/** Sci-Hub. A host flips between serving the article, answering with a
+ *  human-verification challenge and failing outright, so this order is a weak
+ *  preference rather than a ranking. */
 export const SCIHUB_MIRRORS = fromEnv("BIBLIO_SCIHUB_MIRRORS", [
-  "https://sci-hub.ru", // 200, ~0.8 s
-  "https://sci-hub.ren", // 200, ~1.2 s
-  "https://sci-hub.mksa.top", // 200, ~1.4 s
-  "https://sci-hub.st", // 200 or 403, varies
-  "https://sci-hub.hkvisa.net", // 200 or 403, varies
-  "https://sci-hub.se", // DNS failure at last audit
+  "https://sci-hub.ru",
+  "https://sci-hub.ren",
+  "https://sci-hub.mksa.top",
+  "https://sci-hub.st",
+  "https://sci-hub.hkvisa.net",
+  "https://sci-hub.se",
 ]);
 
-/** Public Z-Library mirrors; none worked in the 2026-10-07 probe. */
+/** Z-Library. Not in the default source set; the listed hosts redirect away
+ *  from search or fail. */
 export const ZLIBRARY_MIRRORS = fromEnv("BIBLIO_ZLIB_MIRRORS", [
-  "https://z-library.sk", // redirected away from search at last audit
-  "https://1lib.sk", // redirected away from search at last audit
-  "https://z-lib.io", // DNS failure at last audit
-  "https://zlibrary-global.se", // hung until timeout at last audit
+  "https://z-library.sk",
+  "https://1lib.sk",
+  "https://z-lib.io",
+  "https://zlibrary-global.se",
 ]);
 
 // Public IPFS gateways used as a last-resort download path for records that
