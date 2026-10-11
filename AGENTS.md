@@ -123,6 +123,19 @@ user-facing summary of what this fork gives people. It is written for end users,
 language, without implementation detail. Update it in the same commit whenever a change alters
 what a user gets (a new benefit, a removed limitation, a changed default), and keep it short.
 
+## Releasing
+
+1. Bump `package.json` (SemVer) and write the `CHANGELOG.md` entry under the new version, with its
+   compare link; commit both as `release: X.Y.Z`.
+2. Green full gate on `main` (CI runs `build` ×2, `artifacts` ×3 OS, `live`).
+3. `pnpm run package:verify` builds the `.tgz`/`.mcpb`/`SHA256SUMS` into ignored `artifacts/` and
+   exercises real consumers.
+4. Tag `vX.Y.Z` on the release commit; publish a GitHub release carrying the tarball, the `.mcpb`
+   and `SHA256SUMS`.
+5. `npm publish <absolute path to the tested .tgz>` — publish the bytes that were tested, not a
+   fresh pack. Then `node scripts/check-artifacts.mjs --registry` once the registry serves the new
+   version, which is the only check that exercises the public launchers.
+
 ## Packaging and credentials
 
 - The user approved npm name `@vernikr/biblio-mcp` and Node 22+. Never publish under upstream's

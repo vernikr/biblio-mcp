@@ -115,3 +115,12 @@ The Node 22.0.0 runtime-floor leg and the broken-pairing startup guard run in CI
 - One more hard-coded version worth a look: `scripts/preflight.mjs` still suggests `zod@3.23.8`
   when advising a zod-3 pin. That specific version is not in the manifest (it is the last v3
   release), so it needs its own decision rather than the manifest treatment `H1` got.
+
+## Published
+
+| | |
+|---|---|
+| CI | run #73 on `bbeb315`, 6/6 jobs (build 22/24, artifacts linux/macOS/windows, live) |
+| npm | `@vernikr/biblio-mcp@2.2.7`, published from the tested tarball |
+| Public launchers | `node scripts/check-artifacts.mjs --registry`: npm, npx, pnpm dlx and MCPB all pass |
+| GitHub release | [`v2.2.7`](https://github.com/vernikr/biblio-mcp/releases/tag/v2.2.7) with `.tgz`, `.mcpb`, `SHA256SUMS` |
