@@ -259,7 +259,7 @@ All optional — sensible defaults ship built-in. Override via environment varia
 | Variable | Purpose | Default |
 |---|---|---|
 | `BIBLIO_TIMEOUT_MS` | Timeout for scraping an HTML page, including reading its response body | 8000 |
-| `BIBLIO_DOWNLOAD_TIMEOUT_MS` | Timeout for a file server's response headers; an active transfer is guarded by BIBLIO_DOWNLOAD_STALL_MS | 600000 |
+| `BIBLIO_DOWNLOAD_TIMEOUT_MS` | Fail a download attempt that sends no response headers for this long | 30000 |
 | `BIBLIO_DOWNLOAD_STALL_MS` | Abort a download idle for this long | 30000 |
 | `BIBLIO_MIRROR_DEAD_TTL_MS` | How long a failed mirror is skipped | 300000 |
 | `BIBLIO_MIRROR_STAGGER_MS` | Head start between concurrent mirror attempts; 0 starts all at once | 120 |

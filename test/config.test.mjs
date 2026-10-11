@@ -73,6 +73,16 @@ test("the README environment table is generated from the registry", () => {
   );
 });
 
+test("a silent file server is not waited on longer than a client will listen", () => {
+  // A default MCP client gives up on a request after 60 s. An attempt that fails
+  // later than that has already failed for the caller, who sees a client timeout
+  // instead of "no headers from this link, try the next copy".
+  assert.ok(
+    NUMBER_SETTINGS.downloadTimeoutMs.fallback <= 60_000,
+    `BIBLIO_DOWNLOAD_TIMEOUT_MS defaults to ${NUMBER_SETTINGS.downloadTimeoutMs.fallback} ms`
+  );
+});
+
 test("zero disables only mirror staggering, not timeout or TTL budgets", () => {
   for (const [key, setting] of Object.entries(NUMBER_SETTINGS)) {
     const saved = process.env[setting.name];

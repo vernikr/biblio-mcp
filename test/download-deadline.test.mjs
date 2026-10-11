@@ -69,7 +69,12 @@ test("a server that never sends headers is cut off by the header budget", async 
   const dir = await mkdtemp(join(tmpdir(), "biblio-deadline-"));
   try {
     const started = Date.now();
-    await assert.rejects(downloadToFile(`${base}/no-headers`, join(dir, "book.bin")));
+    // The reason has to name the budget that fired, not the transport's own
+    // "operation was aborted": the caller acts on which silence killed it.
+    await assert.rejects(downloadToFile(`${base}/no-headers`, join(dir, "book.bin")), (error) => {
+      assert.match(error.message, /no response headers within 150 ms \(BIBLIO_DOWNLOAD_TIMEOUT_MS\)/);
+      return true;
+    });
     const elapsed = Date.now() - started;
     assert.ok(elapsed < 1000, `header budget is 150ms, took ${elapsed}ms`);
   } finally {
@@ -81,10 +86,10 @@ test("a body that goes silent is cut off by the idle watchdog, not the header bu
   const dir = await mkdtemp(join(tmpdir(), "biblio-deadline-"));
   try {
     const started = Date.now();
-    await assert.rejects(
-      downloadToFile(`${base}/stalled-body`, join(dir, "book.bin")),
-      /stalled|aborted/i
-    );
+    await assert.rejects(downloadToFile(`${base}/stalled-body`, join(dir, "book.bin")), (error) => {
+      assert.match(error.message, /transfer stalled for 1000 ms after \d+ bytes \(BIBLIO_DOWNLOAD_STALL_MS\)/);
+      return true;
+    });
     const elapsed = Date.now() - started;
     assert.ok(elapsed >= 900 && elapsed < 3000, `idle budget is 1000ms, took ${elapsed}ms`);
   } finally {

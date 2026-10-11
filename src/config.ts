@@ -13,7 +13,7 @@ export interface NumberSetting {
 /** Numeric budgets, in milliseconds. Invalid input falls back; only mirror staggering permits zero. */
 export const NUMBER_SETTINGS = {
   timeoutMs: { name: "BIBLIO_TIMEOUT_MS", fallback: 8000 },
-  downloadTimeoutMs: { name: "BIBLIO_DOWNLOAD_TIMEOUT_MS", fallback: 600_000 },
+  downloadTimeoutMs: { name: "BIBLIO_DOWNLOAD_TIMEOUT_MS", fallback: 30_000 },
   downloadStallMs: { name: "BIBLIO_DOWNLOAD_STALL_MS", fallback: 30_000 },
   mirrorDeadTtlMs: { name: "BIBLIO_MIRROR_DEAD_TTL_MS", fallback: 300_000 },
   mirrorStaggerMs: { name: "BIBLIO_MIRROR_STAGGER_MS", fallback: 120, allowZero: true },
@@ -45,7 +45,7 @@ export const ENV_SETTINGS: readonly EnvSetting[] = [
   },
   {
     name: NUMBER_SETTINGS.downloadTimeoutMs.name,
-    help: "Timeout for a file server's response headers; an active transfer is guarded by BIBLIO_DOWNLOAD_STALL_MS",
+    help: "Fail a download attempt that sends no response headers for this long",
     defaultText: `${NUMBER_SETTINGS.downloadTimeoutMs.fallback}`,
   },
   {

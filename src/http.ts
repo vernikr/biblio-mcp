@@ -391,7 +391,12 @@ export async function downloadToFile(
   } = {}
 ): Promise<DownloadToFileResult> {
   const controller = new AbortController();
-  const requestTimer = setTimeout(() => controller.abort(), opts.headersTimeoutMs ?? DOWNLOAD_TIMEOUT_MS);
+  const headersBudgetMs = opts.headersTimeoutMs ?? DOWNLOAD_TIMEOUT_MS;
+  let headersExpired = false;
+  const requestTimer = setTimeout(() => {
+    headersExpired = true;
+    controller.abort();
+  }, headersBudgetMs);
   // One signal for the whole transfer: our timers or the caller can abort it.
   const signal = linkAbortSignals(controller.signal, opts.signal);
 
@@ -402,6 +407,15 @@ export async function downloadToFile(
       signal,
       headers: DEFAULT_HEADERS,
     });
+  } catch (error) {
+    // The caller has to know which silence killed the attempt: that decides
+    // whether to retry the link or move to another copy.
+    if (headersExpired) {
+      throw new Error(
+        `no response headers within ${headersBudgetMs} ms (BIBLIO_DOWNLOAD_TIMEOUT_MS) for ${url}`
+      );
+    }
+    throw error;
   } finally {
     clearTimeout(requestTimer);
   }
@@ -456,7 +470,9 @@ export async function downloadToFile(
   } catch (err) {
     await unlink(partPath).catch(() => {});
     throw controller.signal.aborted && !(opts.signal?.aborted ?? false)
-      ? new Error(`download stalled or timed out after ${bytes} bytes: ${url}`)
+      ? new Error(
+          `transfer stalled for ${DOWNLOAD_STALL_MS} ms after ${bytes} bytes (BIBLIO_DOWNLOAD_STALL_MS) for ${url}`
+        )
       : err;
   } finally {
     clearTimeout(stallTimer);
